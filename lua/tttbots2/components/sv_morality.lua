@@ -806,7 +806,7 @@ end
 local function commonSense(bot)
     if not (bot.attackTarget ~= nil and bot.attackTarget:IsNPC() and not table.HasValue(TTTBots.Bots, bot.attackTarget)) then
         attackKOSedByAll(bot)
-        attackNPCs(bot)
+        -- attackNPCs(bot)
         attackEnemies(bot)
         attackNonAllies(bot)
         attackUnknowns(bot)
