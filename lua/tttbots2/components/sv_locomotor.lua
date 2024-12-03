@@ -323,7 +323,7 @@ end
 function BotLocomotor:SetGoal(pos)
     if not pos or not navmesh.GetNearestNavArea(pos) then return end
     if self.pathStatus ~= "running" then
-        return end
+        return
     end
     self.goalPos = pos
 end
