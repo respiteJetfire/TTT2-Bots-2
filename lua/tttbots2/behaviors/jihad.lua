@@ -52,6 +52,7 @@ function BehaviorJihad.Validate(bot)
         return false
     elseif differentTeams < 1 and role == ROLE_DEFECTOR then
         return false
+    end
 
     --chance to use jihad bomb, proportional to the number of different teams
     local chance = differentTeams * 2
