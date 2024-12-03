@@ -119,6 +119,8 @@ function BehaviorJihad.OnRunning(bot)
 
     midpoint = midpoint / count
 
+    local chatter = bot:BotChatter()
+
     -- Move towards the midpoint
     local loco = bot:BotLocomotor()
     loco:SetGoal(midpoint)
