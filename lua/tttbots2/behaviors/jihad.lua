@@ -21,6 +21,7 @@ function BehaviorJihad.Validate(bot)
     -- Check if the bot has the 'ttt_item' in its inventory
     -- print("Jihad Validate")
     local differentTeams = 0
+    local sameTeams = 0
 
     if not TTTBots.Lib.IsTTT2() then return false end
     if not TTTBots.Match.IsRoundActive() then return false end
@@ -42,8 +43,9 @@ function BehaviorJihad.Validate(bot)
     for _, player in ipairs(players) do
         if player:GetTeam() ~= bot:GetTeam() then
             differentTeams = differentTeams + 1
-        if player:GetTeam() == TEAM_JESTER then
-            return false
+            if player:GetTeam() == TEAM_JESTER then
+                return false
+            end
         end
     end
 
@@ -55,8 +57,14 @@ function BehaviorJihad.Validate(bot)
     end
 
     --chance to use jihad bomb, proportional to the number of different teams
+    
     local chance = differentTeams * 2
     local negativeChance = sameTeams * 2
+    for _, player in ipairs(players) do
+        if player:GetTeam() == bot:GetTeam() then
+            sameTeams = sameTeams + 1
+        end
+    end
     if role == ROLE_DEFECTOR then
         chance = chance * 3
     end
