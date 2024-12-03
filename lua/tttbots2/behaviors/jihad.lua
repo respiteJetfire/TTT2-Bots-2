@@ -108,6 +108,8 @@ function BehaviorJihad.OnRunning(bot)
     local midpoint = Vector(0, 0, 0)
     local count = 0
 
+    local players = lib.FindCloseTargets(bot, 500, true)
+
     for _, player in ipairs(players) do
         if player:GetTeam() ~= bot:GetTeam() then
             midpoint = midpoint + player:GetPos()
