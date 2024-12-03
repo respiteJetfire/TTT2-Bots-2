@@ -167,7 +167,7 @@ function BotChatter:SendRequest(text, bot, teamOnly, wasVoice)
         success = function(code, body, headers)
             local response = self:ProcessResponse(body)
             if response and bot and IsValid(bot) and response ~= text and not string.find(response, text) and not string.find(text, response) then
-                print("Response from ChatGPT API: " .. response)
+                -- print("Response from ChatGPT API: " .. response)
                 self:textorTTS(bot, response, teamOnly, nil, wasVoice)
 
             elseif response and response.error and response.error.message then
@@ -347,7 +347,7 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
             rateLimitTime = 2
         end
         if CurTime() - bot.lastReplyTime < rateLimitTime then
-            print("Bot rate limited: ", bot)
+            -- print("Bot rate limited: ", bot)
             return nil
         end
         bot.lastReplyTime = CurTime()
@@ -497,7 +497,7 @@ local function findBestBot(ply, bots, fulltxt, wasVoice, teamOnly)
         local dist = ply:GetPos():Distance(b:GetPos())
         --- Check if the bot's name or a similar string is in the message
         if isNameInMessage(b, fulltxt) and b ~= ply then
-            print("Bot mentioned by name: ", b)
+            -- print("Bot mentioned by name: ", b)
             chance = 100 --- If bot is mentioned by name it should always reply
             bot = b
             break
@@ -514,7 +514,7 @@ local function findBestBot(ply, bots, fulltxt, wasVoice, teamOnly)
     if bot and ((not ply:IsBot() and not wasVoice) or (not ply:IsBot() and forceReply)) then print("Best bot: ", bot) return bot end
     if not (chance and bot) then print("No chance and bot") return end -- If no chance or bot is set, then return
     chance = chance * chatterMult
-    print("Chance: ", chance)
+    -- print("Chance: ", chance)
     if math.random(1, 100) > chance then return nil end -- If the random number is greater than the chance, then return nil
     -- print("Best bot: ", bot)
     return bot
@@ -525,7 +525,7 @@ local function findPlayersInText(fulltxt)
     for _, player in ipairs(TTTBots.Lib.GetAlivePlayers()) do
         if isNameInMessage(player, fulltxt) then
             table.insert(foundPlayers, player)
-            print("Found player: ", player)
+            -- print("Found player: ", player)
             if #foundPlayers == 2 then
                 break
             end
@@ -961,7 +961,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
     local function handleKeywordEventsAttack(keywordEvents, handlerFunction, ply, fulltxt, bot, teamOnly, bots, targets)
         for keyword, event in pairs(keywordEvents) do
             if string.find(fulltxt, keyword) then
-            print("Handling attack")
+            -- print("Handling attack")
                 if string.find(fulltxt, "someone") then
                     print("Handling someone attack")
                     local target = table.Random(targets)
@@ -999,7 +999,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                         end
                     end
                     if not (target and bot) then return end
-                    print("Handling team only attack")
+                    -- print("Handling team only attack")
                     handlerFunction(bot, ply, target, teamOnly)
                     return true
                 elseif not string.find(fulltxt, "everyone") then
@@ -1028,11 +1028,11 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         fulltxt = fulltxt:gsub('"', '\\"')
         local maxLength = 1000
         local startIndex = 1
-        while startIndex <= #fulltxt do
-            local endIndex = math.min(startIndex + maxLength - 1, #fulltxt)
-            print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
-            startIndex = endIndex + 1
-        end
+        -- while startIndex <= #fulltxt do
+        --     local endIndex = math.min(startIndex + maxLength - 1, #fulltxt)
+        --     print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
+        --     startIndex = endIndex + 1
+        -- end
         chatter:SendRequest(fulltxt, bot, teamOnly, wasVoice)
     end
 end
@@ -1083,7 +1083,7 @@ function BotChatter:WriteDataEL(teamOnly, ply, IsOnePart, FileID, FileData, File
         end
 
     net.Broadcast()
-    print("Sent TTS data to clients.")
+    -- print("Sent TTS data to clients.")
 end
 
 function BotChatter:WriteDataFree(teamOnly, ply, IsOnePart, FileID, FileData, FileCurrentPart, FileLastPart)
@@ -1118,7 +1118,7 @@ function BotChatter:WriteDataFree(teamOnly, ply, IsOnePart, FileID, FileData, Fi
         end
 
     net.Broadcast()
-    print("Sent TTS data to clients.")
+    -- print("Sent TTS data to clients.")
 end
     
     
