@@ -441,7 +441,7 @@ function BotInventory:GetSlaveGun()
     if not hasWeapon then return end
     local wep = self.bot:GetWeapon(weapon)
     if not IsValid(wep) then return end
-    return wep:Clip1() > 0 and wep or nil
+    return wep:Ammo1() > 0 and wep or nil
 end
 
 
@@ -472,7 +472,7 @@ function BotInventory:GetJackalGun()
     if not hasWeapon then return end
     local wep = self.bot:GetWeapon(weapon)
     if not IsValid(wep) then return end
-    return wep:Clip1() > 0 and wep or nil
+    return wep:Ammo1() > 0 and wep or nil
 end
 
 --- Return the priest gun (weapon_ttt2_holydeagle) if it has >0 shots. If not, then return nil.
@@ -485,7 +485,7 @@ function BotInventory:GetPriestGun()
     local wep = self.bot:GetWeapon("weapon_ttt2_holydeagle")
     if not IsValid(wep) then return end
 
-    return wep:Clip1() > 0 and wep or nil
+    return wep:Ammo1() > 0 and wep or nil
 end
 
 --- Return the deputy deagle (weapon_ttt2_deputydeagle) if it has >0 shots. If not, then return nil.
@@ -498,7 +498,7 @@ function BotInventory:GetDeputyGun()
     local wep = self.bot:GetWeapon("weapon_ttt2_deputydeagle")
     if not IsValid(wep) then return end
 
-    return wep:Clip1() > 0 and wep or nil
+    return wep:Ammo1() > 0 and wep or nil
 end
 
 --- Return the contract (weapon_ttt2_contract).
@@ -544,7 +544,7 @@ function BotInventory:GetCursedGun()
     local wep = self.bot:GetWeapon(weapon)
     if not IsValid(wep) then return nil end
 
-    return wep:Clip1() > 0 and wep or nil
+    return wep:Ammo1() > 0 and wep or nil
 end
 
 --- Return the Standard Medigun (weapon_ttt_medigun).
@@ -572,7 +572,7 @@ function BotInventory:GetSwapDeagleGun()
     local wep = self.bot:GetWeapon(weapon)
     if not IsValid(wep) then return nil end
 
-    return wep:Clip1() > 0 and wep or nil
+    return wep:Ammo1() > 0 and wep or nil
 end
 
 --- Equip the SwapDeagle if we have it. Returns true if we equipped it, false if we didn't.

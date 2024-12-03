@@ -140,7 +140,7 @@ function CreateDefector.OnRunning(bot)
     loco:LookAt(bodyPos)
     local eyeTrace = bot:GetEyeTrace()
     if eyeTrace and eyeTrace.Entity == target then
-        print("CreateDefector.OnRunning: StartAttack")
+        -- print("CreateDefector.OnRunning: StartAttack")
         loco:StartAttack()
         target:Give("weapon_ttt_jihad_bomb")
     end

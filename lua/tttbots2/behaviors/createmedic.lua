@@ -136,7 +136,7 @@ function CreateMedic.OnRunning(bot)
     loco:LookAt(bodyPos)
     local eyeTrace = bot:GetEyeTrace()
     if eyeTrace and eyeTrace.Entity == target then
-        print("Medic.StartAttack")
+        -- print("Medic.StartAttack")
         loco:StartAttack()
     end
     return STATUS.RUNNING

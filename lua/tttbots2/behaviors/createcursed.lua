@@ -136,7 +136,7 @@ function CreateCursed.OnRunning(bot)
     loco:LookAt(bodyPos)
     local eyeTrace = bot:GetEyeTrace()
     if eyeTrace and eyeTrace.Entity == target then
-        print("Cursed.StartAttack")
+        -- print("Cursed.StartAttack")
         loco:StartAttack()
     end
     return STATUS.RUNNING
