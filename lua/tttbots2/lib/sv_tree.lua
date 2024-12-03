@@ -24,8 +24,22 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.ClearBreakables,
         _bh.AttackTarget
     },
+
+    Convert = {
+        _bh.CreateDefector,
+        _bh.CreateMedic,
+        _bh.CreateDoctor,
+        _bh.CreateCursed,
+        _bh.CreateDeputy,
+        _bh.SwapDeagle,
+        _bh.SwapRole,
+        _bh.CopyRole,
+        _bh.DropContract,
+    },
+
     --- Restore values, like health, ammo, etc.
     Restore = {
+        _bh.GetPirateContract,
         _bh.GetWeapons,
         _bh.UseHealthStation
     },
@@ -42,6 +56,22 @@ TTTBots.Behaviors.PriorityNodes = {
     --- Minge around with others
     Minge = {
         _bh.MingeCrowbar,
+    },
+
+    --- Use Traitor Checkers, heal players and revive players
+    Support = {
+        _bh.Defib,
+        _bh.Healgun,
+        _bh.Roledefib
+    },
+
+    Requests = {
+        _bh.CeaseFire,
+        _bh.Wait,
+        _bh.RequestUseRoleChecker,
+        _bh.ComeHere,
+        _bh.FollowMe,
+        _bh.UseRoleChecker,
     }
 }
 
@@ -50,7 +80,9 @@ local _prior = TTTBots.Behaviors.PriorityNodes
 ---@type table<string, Tree>
 TTTBots.Behaviors.DefaultTrees = {
     innocent = {
+        _prior.Requests,
         _prior.FightBack,
+        _prior.Support,
         _bh.Defuse,
         _prior.Restore,
         _bh.Interact,
@@ -60,8 +92,12 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Patrol
     },
     traitor = {
+        _bh.Jihad,
         _prior.FightBack,
-        _bh.Defib,
+        _prior.Requests,
+        _prior.Convert,
+        _prior.Support,
+        _bh.Roledefib,
         _bh.PlantBomb,
         _bh.InvestigateCorpse,
         _prior.Restore,
@@ -73,7 +109,9 @@ TTTBots.Behaviors.DefaultTrees = {
     },
     detective = {
         _prior.FightBack,
-        _bh.Defib,
+        _prior.Requests,
+        _prior.Support,
+        _prior.Convert,
         _bh.Defuse,
         _prior.Restore,
         _bh.Interact,
@@ -98,6 +136,7 @@ local STATUS = TTTBots.STATUS
 ---@param bot Bot
 ---@return Tree
 function TTTBots.Behaviors.GetTreeFor(bot)
+    if not IsValid(bot) then return nil end
     return TTTBots.Roles.GetRoleFor(bot):GetBTree()
 end
 

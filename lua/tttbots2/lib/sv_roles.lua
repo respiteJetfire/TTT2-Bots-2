@@ -31,6 +31,7 @@ end
 ---@return RoleData
 ---@return boolean - Whether or not the role is the default role.
 function TTTBots.Roles.GetRoleFor(ply)
+    if not IsValid(ply) or not ply.GetRoleStringRaw then return nil end
     local roleString = ply:GetRoleStringRaw()
     return TTTBots.Roles.GetRole(roleString)
 end
@@ -54,6 +55,7 @@ function TTTBots.Roles.IsAllies(ply1, ply2)
     if not (IsValid(ply1) and IsValid(ply2)) then return false end
     local role1 = TTTBots.Roles.GetRoleFor(ply1)
     local role2 = TTTBots.Roles.GetRoleFor(ply2)
+    if not role1 or not role2 then return false end
 
     -- Workaround for roles like Bodyguard where player team is adjusted on-the-fly
     if (
@@ -69,6 +71,62 @@ function TTTBots.Roles.IsAllies(ply1, ply2)
     return allied1 or allied2
 end
 
+---Gets if the player is the enemy of another player. This is based on the role's enemies.
+---@param ply1 Player
+---@param ply2 Player
+---@return boolean
+function TTTBots.Roles.IsEnemies(ply1, ply2)
+    if not (IsValid(ply1) and IsValid(ply2)) then return false end
+    local role1 = TTTBots.Roles.GetRoleFor(ply1)
+    local role2 = TTTBots.Roles.GetRoleFor(ply2)
+
+    -- Workaround for roles like Bodyguard where player team is adjusted on-the-fly
+    if (
+        (role1:GetLovesTeammates() or role2:GetLovesTeammates())
+        and (ply1:GetTeam() == ply2:GetTeam())
+    ) then return false end
+
+    -- Now just testing if the roles are setup to hate each other.
+    local enemy1 = role1:GetEnemyRoles()[role2:GetName()] or role1:GetEnemyTeams()[role2:GetTeam()] or false
+
+    -- Using 'or' here intentionally, as the mode does not currently support one-sided alliances.
+    return enemy1 or false
+end
+
+---Is this player GetKOSAll?
+---@param ply Player
+---@return boolean
+function TTTBots.Roles.IsKOSAll(ply)
+    local role = TTTBots.Roles.GetRoleFor(ply)
+    return role:GetKOSAll()
+end
+
+---Is this player GetKOSedByAll?
+---@param ply Player
+---@return boolean
+function TTTBots.Roles.IsKOSedByAll(ply)
+    local role = TTTBots.Roles.GetRoleFor(ply)
+    return role:GetKOSedByAll()
+end
+
+---Get a table of players that are IsKOSedByAll, and are alive.
+---@return table<Player>
+function TTTBots.Roles.GetKOSedByAllPlayers()
+    local alive = TTTBots.Match.AlivePlayers
+    return TTTBots.Lib.FilterTable(alive, function(ply)
+        return TTTBots.Roles.IsKOSedByAll(ply)
+    end)
+end
+
+---Get a table of players that are IsKOSAll, and are alive.
+---@return table<Player>
+function TTTBots.Roles.GetKOSAllPlayers()
+    local alive = TTTBots.Match.AlivePlayers
+    return TTTBots.Lib.FilterTable(alive, function(ply)
+        return TTTBots.Roles.IsKOSAll(ply)
+    end)
+end
+
 ---Get a table of players that are not allies with ply1, and are alive.
 ---@param ply1 Player
 ---@return table<Player>
@@ -79,6 +137,37 @@ function TTTBots.Roles.GetNonAllies(ply1)
         return not TTTBots.Roles.IsAllies(ply1, other)
     end)
 end
+
+---Determine if a player is on Team Innocent.
+---@param ply Player
+---@return boolean
+function TTTBots.Roles.IsInnocent(ply)
+    return ply:GetTeam() == TEAM_INNOCENT
+end
+
+---Get a table of players that are enemies with ply1, and are alive.
+---@param ply1 Player
+---@return table<Player>
+function TTTBots.Roles.GetEnemies(ply1)
+    local alive = TTTBots.Match.AlivePlayers
+    return TTTBots.Lib.FilterTable(alive, function(other)
+        if not (IsValid(other) and lib.IsPlayerAlive(other)) then return false end
+        return TTTBots.Roles.IsEnemies(ply1, other)
+    end)
+end
+
+---Get a table of players that have the role "unknown" and are alive.
+---@return table<Player>
+function TTTBots.Roles.GetUnknownPlayers()
+    if not TTTBots.Lib.IsTTT2() then return false end
+    if not ROLE_UNKNOWN then return false end
+    local alive = TTTBots.Match.AlivePlayers
+    return TTTBots.Lib.FilterTable(alive, function(ply)
+        -- print("Checking if player is unknown: ", ply:GetRoleStringRaw())
+        return ply:GetRoleStringRaw() == "unknown"
+    end)
+end
+
 
 ---Returns if the bot's team is that of a traitor. Not recommende for determining who is friendly, as this is only based on the team, and not the role's allies.
 ---@param bot any
@@ -111,6 +200,8 @@ function TTTBots.Roles.GenerateRegisterForRole(roleString)
     local isOmniscient = roleObj.isOmniscientRole or false
     -- local isPublicRole = role.isPublicRole or false     -- If the role is known to everyone. Unused here
     local isPolicingRole = roleObj.isPolicingRole or false -- if the role is a policing role
+    local GetKOSedByAll = roleObj.GetKOSedByAll or false
+    local GetKOSAll = roleObj.GetKOSAll or false
 
     local data = TTTBots.RoleData.New(roleString)
     data:SetTeam(roleTeam)
@@ -118,6 +209,8 @@ function TTTBots.Roles.GenerateRegisterForRole(roleString)
     data:SetCanCoordinate(roleTeam == TEAM_TRAITOR)
     data:SetCanHaveRadar(isPolicingRole or roleTeam == TEAM_TRAITOR)
     data:SetAlliedRoles({ [roleString] = true })
+    data:GetKOSAll(GetKOSAll)
+    data:GetKOSedByAll(GetKOSedByAll)
     data:SetKnowsLifeStates(isOmniscient)
     data:SetBTree(TTTBots.Behaviors.DefaultTreesByTeam[roleTeam] or TTTBots.Behaviors.DefaultTrees.innocent)
     data:SetStartsFights(roleTeam == TEAM_TRAITOR)

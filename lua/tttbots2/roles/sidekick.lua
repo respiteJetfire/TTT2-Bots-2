@@ -13,6 +13,9 @@ local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
     _prior.FightBack,
+    _prior.Requests,
+    _prior.Support,
+    _prior.Convert,
     _prior.Restore,
     _bh.FollowMaster,
     _prior.Minge,
@@ -21,11 +24,12 @@ local bTree = {
 
 local sidekick = TTTBots.RoleData.New("sidekick", TEAM_SIDEKICK)
 sidekick:SetDefusesC4(false)
-sidekick:SetCanCoordinate(false)
-sidekick:SetStartsFights(false)
+sidekick:SetCanCoordinate(true)
+sidekick:SetStartsFights(true)
 sidekick:SetUsesSuspicion(false)
 sidekick:SetTeam(TEAM_SIDEKICK)
 sidekick:SetAlliedTeams(allyTeams)
+sidekick:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 sidekick:SetBTree(bTree)
 sidekick:SetLovesTeammates(true)
 TTTBots.Roles.RegisterRole(sidekick)

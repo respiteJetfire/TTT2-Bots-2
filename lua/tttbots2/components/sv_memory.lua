@@ -180,6 +180,7 @@ end
 ---@param ply Player
 ---@return Vector|nil
 function Memory:GetKnownPositionFor(ply)
+    if not IsValid(ply) then return nil end
     local pnp = self.playerKnownPositions[ply:Nick()]
     if not pnp then return nil end
     return pnp.pos
@@ -189,7 +190,11 @@ end
 ---@param ply Player
 ---@return number
 function Memory:GetLastSeenTime(ply)
-    local playerPosition = self.playerKnownPositions[ply:Nick()]
+    if not IsValid(ply) then return 0 end
+    if ply:IsNPC() and not TTTBots.Bots[ply] then return 0 end
+    local nick = ply and ply:Nick()
+    if not nick then return 0 end
+    local playerPosition = self.playerKnownPositions[nick] or nil
     if not playerPosition then return 0 end
     return playerPosition.time
 end
@@ -198,6 +203,7 @@ end
 ---@param ply Player
 ---@return Vector|nil
 function Memory:GetSuspectedPositionFor(ply)
+    if not IsValid(ply) then return nil end
     ---@type table<table>
     local recentSounds = self:GetRecentSoundsFromPly(ply)
     if #recentSounds == 0 then return end
@@ -212,7 +218,8 @@ end
 ---@param ply any
 ---@return Vector|nil Pos, boolean CanSee
 function Memory:GetCurrentPosOf(ply)
-    local canSee = self.bot:Visible(ply) -- lib.CanSee(self.bot, ply)
+    if not IsValid(ply) then return nil, false end
+    local canSee = self.bot:Visible(ply) -- lib.CanSee(self.bot)
     if canSee then
         self:UpdateKnownPositionFor(ply, ply:GetPos())
         return ply:GetPos(), canSee
@@ -225,6 +232,7 @@ end
 ---@param pos Vector|nil If nil then ply:GetPos() will be used, else this will be used.
 ---@return table knownPos The updated known position entry for this player
 function Memory:UpdateKnownPositionFor(ply, pos)
+    if not IsValid(ply) then return end
     -- Get the current time
     local ct = CurTime()
 

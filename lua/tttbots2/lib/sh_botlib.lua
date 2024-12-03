@@ -17,6 +17,10 @@ TTTBots.Lib.BASIC_VIS_RANGE = 4000 --- Threshold to be considred for the :Visibl
 
 local format = string.format
 
+TTTBots.Lib.Period = math.random(300, 3600)
+--- calculate offset in seconds for the sin wave
+TTTBots.Lib.Offset = math.random(0, TTTBots.Lib.Period)
+
 local alivePlayers = {}
 ---@realm server
 local function updateAlivePlayers()
@@ -79,6 +83,7 @@ function TTTBots.Lib.GetAlivePlayers()
     if currentTime - lastUpdateTime >= 1 then
         aliveCache = {}
         for _, ply in ipairs(player.GetAll()) do
+            if ply:IsNPC() then continue end
             if TTTBots.Lib.IsPlayerAlive(ply) then
                 table.insert(aliveCache, ply)
             end
@@ -154,6 +159,223 @@ function TTTBots.Lib.FindIsolatedTarget(bot)
     return bestTarget, bestIsolation
 end
 
+
+---@param team number
+---@return table<Player>
+function TTTBots.Lib.GetPlayersByTeam(team)
+    local Alive = TTTBots.Lib.GetAlivePlayers()
+    local teamPlayers = {}
+    for _, ply in ipairs(Alive) do
+        if ply:GetTeam() == team then
+            table.insert(teamPlayers, ply)
+        end
+    end
+    return teamPlayers
+end
+
+
+---Find a close innocent target to the bot to deputize with the deputy gun, and return it (we do not care about isolated targets just the closest).
+---@param bot Bot
+---@return Player?
+---@realm server
+function TTTBots.Lib.FindCloseInnocentTarget(bot)
+    local Alive = TTTBots.Lib.GetAlivePlayers()
+    local bestDist = math.huge
+    local bestTarget = nil
+
+    for _, other in ipairs(Alive) do
+        if TTTBots.Roles.IsInnocent(other) and other ~= bot and other:GetBaseRole() ~= bot:GetBaseRole() then
+            local dist = bot:GetPos():Distance(other:GetPos())
+            if dist < bestDist then
+                bestDist = dist
+                bestTarget = other
+            end
+        end
+    end
+
+    return bestTarget
+end
+
+-- --- Find a close target to the bot to deputize with the deputy gun, and return it (we do not care about isolated targets just the closest as long as it is not the bot).
+-- ---@param bot Bot
+-- ---@return Player?
+-- ---@realm server
+-- function TTTBots.Lib.FindCloseTarget(bot, range)
+--     local Alive = TTTBots.Lib.GetAlivePlayers()
+--     local bestDist = math.huge
+--     local bestTarget = nil
+
+--     if not range then
+--         for _, other in ipairs(Alive) do
+--             if other ~= bot and other:GetRole() ~= bot:GetRole() then
+--                 local dist = bot:GetPos():Distance(other:GetPos())
+--                 if dist < bestDist then
+--                     bestDist = dist
+--                     bestTarget = other
+--                 end
+--             end
+--         end
+--     else
+--         for _, other in ipairs(Alive) do
+--             if other ~= bot and other:GetRole() ~= bot:GetRole() then
+--                 local dist = bot:GetPos():Distance(other:GetPos())
+--                 if dist < bestDist and dist < range then
+--                     bestDist = dist
+--                     bestTarget = other
+--                 end
+--             end
+--         end
+--     end
+
+--     return bestTarget
+-- end
+
+--- Find all close targets to the bot except for the bot itself in a configurable range or not.
+---@param bot Bot
+---@param range number
+---@return table<Player>
+---@realm server
+function TTTBots.Lib.FindCloseTargets(bot, range, filterVisible, filterMarked, filterRole, filterTeam)
+    local Alive = TTTBots.Lib.GetAlivePlayers()
+    local targets = {}
+    local marked = MARKER_DATA.marked_players
+    local role = bot:GetSubRole()
+
+    for _, other in ipairs(Alive) do
+        if other ~= bot and (not range or bot:GetPos():Distance(other:GetPos()) < range) then
+            if (not filterVisible or bot:Visible(other)) and (not filterMarked or not marked[other:SteamID64()]) then
+                if not filterRole or bot:GetRole() ~= other:GetRole() then
+                    if not filterTeam or bot:GetTeam() ~= other:GetTeam() then
+                        table.insert(targets, other)
+                    end
+                end
+            end
+        end
+    end
+
+    return targets
+end
+
+--- Find the closest target from FindCloseTargets, passing all arguements through.
+---@param bot Bot
+---@param range number
+---@param filterVisible boolean
+---@param filterMarked boolean
+---@param filterRole boolean
+---@return Player?
+---@realm server
+function TTTBots.Lib.FindCloseTarget(bot, range, filterVisible, filterMarked, filterRole, filterTeam)
+    local targets = TTTBots.Lib.FindCloseTargets(bot, range, filterVisible, filterMarked, filterRole, filterTeam)
+    local bestDist = math.huge
+    local bestTarget = nil
+
+    for _, other in ipairs(targets) do
+        if IsValid(other) then
+            local dist = bot:GetPos():Distance(other:GetPos()) or bestDist * 2
+            if dist < bestDist then
+                bestDist = dist
+                bestTarget = other
+            end
+        end
+    end
+
+    return bestTarget
+end
+
+--- Returns a list of all NPCs in the world, excluding TTTBots.
+---@return table<Bot>
+---@realm shared
+function TTTBots.Lib.GetNPCs()
+    local npcs = {}
+    for _, ent in ipairs(ents.GetAll()) do
+        if ent:IsNPC() and not table.HasValue(TTTBots.Bots, ent) and IsValid(ent) then
+            -- print("Adding NPC to list")
+            table.insert(npcs, ent)
+        end
+    end
+    return npcs
+end
+
+---Returns the closest target with a HP below 100 to the bot.
+---@param bot Bot
+---@param range number
+---@param filterTeam boolean
+---@return Player?
+---@realm server
+function TTTBots.Lib.FindCloseLowHPTarget(bot, filterTeam, rangeHuman, rangeBot)
+    local Alive = TTTBots.Lib.GetAlivePlayers()
+    local HumanAlive = TTTBots.Lib.GetHumanPlayers()
+    local bestDist = math.huge
+    local bestTarget = nil
+
+    local function isValidTarget(other, range)
+        if other == bot then return false end
+        if filterTeam and other:GetTeam() ~= bot:GetTeam() and other:GetTeam() ~= TEAM_NONE then return false end
+        if other:Health() >= other:GetMaxHealth() then return false end
+        local dist = bot:GetPos():Distance(other:GetPos())
+        return dist < bestDist and dist < range
+    end
+
+    local function findTargetInRange(players, range)
+        for _, other in ipairs(players) do
+            if isValidTarget(other, range) then
+                bestDist = bot:GetPos():Distance(other:GetPos())
+                bestTarget = other
+            end
+        end
+    end
+
+    findTargetInRange(HumanAlive, rangeHuman or 2000)
+    if not bestTarget then
+        findTargetInRange(Alive, rangeBot or 500)
+    end
+
+    return bestTarget
+end
+
+---Returns the closest target with a HP below 100 to the bot that is on the same team.
+---@param bot Bot
+---@param range number
+---@return Player?
+---@realm server
+function TTTBots.Lib.FindCloseLowHPTargetSameTeam(bot, range)
+    -- print("FindCloseLowHPTargetSameTeam")
+    local Alive = TTTBots.Lib.GetAlivePlayers()
+    local bestDist = math.huge
+    local bestTarget = nil
+
+    
+
+    local HumanAlive = TTTBots.Lib.GetHumanPlayers()
+
+    --- only do this if there are no HumanAlive players as they have priority
+    if not range then
+        range = 10000
+    end
+    for _, other in ipairs(HumanAlive) do
+        if other:Health() < other:GetMaxHealth() and other:GetTeam() == bot:GetTeam() and other:GetSubRole() ~= ROLE_SHINIGAMI then
+            local dist = bot:GetPos():Distance(other:GetPos())
+            if dist < bestDist and dist < range then
+                bestDist = dist
+                bestTarget = other
+            end
+        end
+    end
+    range = 500
+    if not bestTarget then
+        for _, other in ipairs(Alive) do
+            if other ~= bot and other:Health() < other:GetMaxHealth() and other:GetTeam() == bot:GetTeam() ~= ROLE_SHINIGAMI then
+                local dist = bot:GetPos():Distance(other:GetPos())
+                if dist < bestDist and dist < range then
+                    bestDist = dist
+                    bestTarget = other
+                end
+            end
+        end
+    end
+    return bestTarget
+end
+
 ---Returns a table of living bots, according to the IsPlayerAlive cache.
 ---@return table<Bot>
 ---@realm shared
@@ -161,10 +383,40 @@ function TTTBots.Lib.GetAliveBots()
     local alive = {}
     for _, ply in ipairs(TTTBots.Bots) do
         if TTTBots.Lib.IsPlayerAlive(ply) then
+            -- print("Adding bot to alive list")
             table.insert(alive, ply)
         end
     end
     return alive
+end
+
+---Returns a table of human players, according to the IsPlayerAlive cache.
+---@return table<Player>
+---@realm shared
+function TTTBots.Lib.GetHumanPlayers()
+    local allplayers = TTTBots.Lib.GetAlivePlayers()
+    local bots = TTTBots.Bots
+    local humans = {}
+    for _, ply in ipairs(allplayers) do
+        if not table.HasValue(bots, ply) then
+            table.insert(humans, ply)
+        end
+    end
+    return humans
+end
+
+
+---Returns a table of living players with roles that have GetKOSableByAll returning true
+---@return table<Player>
+---@realm shared
+function TTTBots.Lib.GetKOSablePlayers()
+    local kosable = {}
+    for _, ply in ipairs(TTTBots.Lib.GetAlivePlayers()) do
+        if TTTBots.Roles.GetRoleFor(ply):GetKOSedByAll() then
+            table.insert(kosable, ply)
+        end
+    end
+    return kosable
 end
 
 --- Returns a table of living allies
@@ -188,10 +440,49 @@ function TTTBots.Lib.IsHoldingTraitorWep(ply)
     local wep = ply:GetActiveWeapon()
     if not IsValid(wep) then return false end
 
-    local traitorsCanBuy = wep.CanBuy and wep.CanBuy[ROLE_TRAITOR] and true or false
+    local traitorRoles = {
+        [ROLE_TRAITOR] = true,
+        [ROLE_BALLAS] = true,
+        [ROLE_CRIPS] = true,
+        [ROLE_FAMILIES] = true,
+        [ROLE_HOOVERS] = true,
+        [ROLE_HITMAN] = true,
+        [ROLE_INFECTED] = true,
+        [ROLE_JACKAL] = true,
+        [ROLE_RESTLESS] = true,
+        [ROLE_SERIALKILLER] = true,
+        [ROLE_DEFECTIVE] = true,
+        [ROLE_SIDEKICK] = true
+    }
+
+    local innocentroles = {
+        [ROLE_INNOCENT] = true,
+        [ROLE_SURVIVALIST] = true,
+        [ROLE_BODYGUARD] = true,
+        [ROLE_PIRATE_CAPTAIN] = true,
+        [ROLE_PIRATE] = true,
+        [ROLE_SPY] = true,
+        [ROLE_DETECTIVE] = true,
+        [ROLE_DEPUTY] = true,
+        [ROLE_SHERIFF] = true,
+    }
+
+    local traitorsCanBuy = false
+    local innocentCanBuy = false
+
+    if wep.CanBuy then
+        traitorsCanBuy = traitorRoles[wep.CanBuy[ROLE_TRAITOR]] and true or false
+        innocentCanBuy = false
+        for role, _ in pairs(innocentroles) do
+            if wep.CanBuy[role] then
+            innocentCanBuy = true
+            break
+            end
+        end
+    end
     local canSpawnNaturally = wep.AutoSpawnable and true or false
 
-    return traitorsCanBuy and not canSpawnNaturally
+    return traitorsCanBuy and not canSpawnNaturally and not innocentCanBuy
 end
 
 --- Generate lowercase alphanumeric string of length 6
@@ -382,6 +673,55 @@ function TTTBots.Lib.UpdateQuota()
             TTTBots.Lib.RemoveBot()
         end
     end
+
+    if quotaMode == "dynamic" then
+        local minQuota = TTTBots.Lib.GetConVarInt("quota_mode_dynamic_min") or 6
+        local maxQuota = TTTBots.Lib.GetConVarInt("quota_mode_dynamic_max") or 16
+        local currentTime = math.floor(CurTime())
+        local period = TTTBots.Lib.Period
+        local amplitude = (maxQuota - minQuota) / 2
+        local offset = (maxQuota + minQuota) / 2
+        local phaseOffset = TTTBots.Lib.Offset
+        local noise = math.random(-3, 3)
+        
+        -- Initialize lastUpdateTime and delay if they don't exist
+        if not TTTBots.Lib.lastUpdateTime then
+            TTTBots.Lib.lastUpdateTime = 0
+        end
+        if not TTTBots.Lib.delay then
+            target = math.Clamp(math.floor(offset + amplitude * math.sin((2 * math.pi / period) * (currentTime + phaseOffset)) + noise), minQuota, maxQuota)
+            TTTBots.Lib.delay = math.random(45, 300)
+        end
+
+        local ExpectedTarget = math.Clamp(math.floor(offset + amplitude * math.sin((2 * math.pi / period) * (currentTime + phaseOffset)) + noise), minQuota, maxQuota)
+        
+        if currentTime - TTTBots.Lib.lastUpdateTime >= TTTBots.Lib.delay then
+            -- Update the target
+            TTTBots.Lib.dynamicTarget = ExpectedTarget
+            TTTBots.Lib.dynamicTarget = math.Clamp(TTTBots.Lib.dynamicTarget, minQuota, maxQuota)
+            -- Set the last update time to current time to prevent further updates
+            TTTBots.Lib.lastUpdateTime = currentTime
+            -- Set a new delay
+            TTTBots.Lib.delay = math.random(45, 300)
+        end
+    
+        target = math.floor(TTTBots.Lib.dynamicTarget or quotaN)
+        -- print("Dynamic target:", target)
+        -- print("Expected target:", ExpectedTarget)
+        -- print("Current bots:", nBots)
+        -- print("Period:", period)
+        -- print("Delay:", TTTBots.Lib.delay)
+        -- print("Current time - last update time:", currentTime - TTTBots.Lib.lastUpdateTime)
+    
+        if nBots < target then
+            if slotsLeft == 0 then return end -- Don't add bots if there are no slots left
+            TTTBots.Lib.CreateBot()
+        elseif nBots > target then
+            TTTBots.Lib.RemoveBot()
+        end
+    end
+
+    -- Now search for any under- or over-difficulty bots for the current setting.
 
     local shouldCull = TTTBots.Lib.GetConVarBool("quota_cull_difficulty")
     if not shouldCull then return end
@@ -811,6 +1151,7 @@ local notifiedNavmesh = false
 
 local function createPlayerBot(botname)
     local bot = player.CreateNextBot(botname)
+    bot.name = botname
 
     bot.components = {
         locomotor = TTTBots.Components.Locomotor:New(bot),
@@ -850,6 +1191,20 @@ function TTTBots.Lib.TestNavmesh()
     end
 
     return true
+end
+
+
+---Get a boolean if a player is a player and not a bot.
+---@param ply Player
+---@return boolean
+function TTTBots.Lib.IsPlayer(ply)
+    -- print("IsPlayer", ply, IsValid(ply), not ply:IsBot())
+    if not IsValid(ply) then return false end
+    valid = true
+    if ply:IsBot() or table.HasValue(TTTBots.Bots, ply) then
+        valid = false
+    end
+    return valid
 end
 
 ---Test if there are player slots and notify the server if not on first call.
@@ -907,7 +1262,7 @@ function TTTBots.Lib.GetRevivableCorpses()
     local revivable = {}
     for i, corpse in pairs(bodies) do
         if not TTTBots.Lib.IsValidBody(corpse) then continue end
-        if wasHeadshot(corpse) then continue end
+        -- if wasHeadshot(corpse) then continue end
 
         table.insert(revivable, corpse)
     end
@@ -915,27 +1270,50 @@ function TTTBots.Lib.GetRevivableCorpses()
     return revivable
 end
 
----Get the first closest revivable corpse to the given bot. If filterAlly d: true) then it will only return corpses of the same team. Else nil.
+--- Get the first closest revivable corpse to the given bot. If filterAlly is true, then it will only return corpses of the same team. Else nil.
 ---@param bot Bot
 ---@param filterAlly? boolean
+---@param filterPlayer? boolean
 ---@return Player? player
 ---@return any? ragdoll
-function TTTBots.Lib.GetClosestRevivable(bot, filterAlly)
+function TTTBots.Lib.GetClosestRevivable(bot, filterAlly, filterPlayer, filterMarkedforDefib, range)
     local options = TTTBots.Lib.GetRevivableCorpses()
     local cTime = CurTime()
+    local closestDist = math.huge
+    local closestDeadply = nil
+    local closestRag = nil
 
-    filterAlly = filterAlly or true -- Default filterAlly? to true
+    if filterAlly == nil then
+        filterAlly = false -- Default filterAlly to false if it is nil
+    end
+
+    if filterPlayer == nil then
+        filterPlayer = false -- Default filterPlayer to false if it is nil
+    end
+
+    if filterMarkedforDefib == nil then
+        filterMarkedforDefib = false
+    end
 
     for i, rag in pairs(options) do
         if not TTTBots.Lib.IsValidBody(rag) then continue end
         local deadply = player.GetBySteamID64(rag.sid64)
+        if filterMarkedforDefib and TTTBots.Match.MarkedForDefib[deadply] then continue end
         if not IsValid(deadply) then continue end
         if filterAlly and not TTTBots.Roles.IsAllies(bot, deadply) then continue end
+        if filterPlayer and not TTTBots.Lib.IsPlayer(deadply) then continue end
         if (deadply.reviveCooldown or 0) > cTime then continue end
-        return deadply, rag
+
+        local dist = bot:GetPos():Distance(rag:GetPos())
+        if dist < closestDist then
+            if range and dist > range then continue end
+            closestDist = dist
+            closestDeadply = deadply
+            closestRag = rag
+        end
     end
 
-    return nil -- No corpses found
+    return closestDeadply, closestRag
 end
 
 if SERVER then

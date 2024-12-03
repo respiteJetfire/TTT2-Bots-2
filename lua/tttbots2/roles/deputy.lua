@@ -1,32 +1,37 @@
-if not TTTBots.Lib.IsTTT2() then return false end
-if not ROLE_SHERIFF then return false end
+--- Deputy role for TTT2, a Detective role which has a Sheriff Master which they must protect at all costs!
 
-local allyRoles = {
-    sheriff = true
-}
+if not TTTBots.Lib.IsTTT2() then return false end
+if not ROLE_DEPUTY then return false end
+
+local deputy = TTTBots.RoleData.New("deputy")
 
 local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
+
 local bTree = {
     _prior.FightBack,
+    _prior.Requests,
+    _prior.Support,
+    _prior.Convert,
     _bh.Defuse,
     _prior.Restore,
+    _bh.Interact,
+    _bh.FollowMaster,
     _prior.Minge,
-    _bh.Investigate,
+    _prior.Investigate,
     _bh.Decrowd,
     _prior.Patrol
+    
 }
 
-local deputy = TTTBots.RoleData.New("deputy", TEAM_INNOCENT)
 deputy:SetDefusesC4(true)
-deputy:SetCanCoordinate(false)
-deputy:SetStartsFights(false)
-deputy:SetUsesSuspicion(true)
+deputy:SetCanHaveRadar(true)
 deputy:SetTeam(TEAM_INNOCENT)
+deputy:SetKOSUnknown(false)
+deputy:SetAlliedRoles('detective','sheriff','sniffer','priest','survivalist','innocent')
 deputy:SetBTree(bTree)
-deputy:SetLovesTeammates(true)
+deputy:SetUsesSuspicion(true)
 deputy:SetAppearsPolice(true)
-deputy:SetAlliedRoles(allyRoles)
 TTTBots.Roles.RegisterRole(deputy)
 
 -- Sidekick help master when shooting a victim
@@ -55,5 +60,6 @@ hook.Add("TTTBotsOnWitnessHurt", "TTTBotsOnWitnessHurt",
             witness:SetAttackTarget(attacker)
         end
     end)
+
 
 return true

@@ -8,10 +8,14 @@ local allyTeams = {
     [TEAM_JESTER] = true,
 }
 
+
 local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
     _prior.FightBack,
+    _prior.Requests,
+    _prior.Support,
+    _prior.Convert,
     _prior.Restore,
     _bh.Stalk,
     _prior.Minge,
@@ -21,11 +25,14 @@ local bTree = {
 local serialkiller = TTTBots.RoleData.New("serialkiller", TEAM_SERIALKILLER)
 serialkiller:SetDefusesC4(true)
 serialkiller:SetStartsFights(true)
+serialkiller:SetCanCoordinate(true)
 serialkiller:SetTeam(TEAM_SERIALKILLER)
 serialkiller:SetBTree(bTree)
 serialkiller:SetKnowsLifeStates(true)
 serialkiller:SetAlliedTeams(allyTeams)
 serialkiller:SetLovesTeammates(true)
+serialkiller:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
+serialkiller:SetIsFollower(true)
 TTTBots.Roles.RegisterRole(serialkiller)
 
 return true

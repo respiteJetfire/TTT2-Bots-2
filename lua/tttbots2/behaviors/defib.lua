@@ -10,8 +10,7 @@ local Defib = TTTBots.Behaviors.Defib
 Defib.Name = "Defib"
 Defib.Description = "Use the defibrillator on a corpse."
 Defib.Interruptible = true
-Defib.WeaponClasses = { "weapon_ttt_defibrillator" }
-
+Defib.WeaponClasses = { "weapon_ttt_defibrillator", "weapon_ttt2_medic_defibrillator" }
 
 local STATUS = TTTBots.STATUS
 
@@ -23,19 +22,29 @@ local function printf(...) print(string.format(...)) end
 ---@return Player? closest
 ---@return any? ragdoll
 function Defib.GetCorpse(bot, allyOnly)
-    local closest, rag = TTTBots.Lib.GetClosestRevivable(bot, allyOnly or true)
-    if not closest then return end
+    local closest, rag = TTTBots.Lib.GetClosestRevivable(bot, allyOnly, true, true, 2000)
+    if not (closest and rag) then
+        closest, rag = TTTBots.Lib.GetClosestRevivable(bot, allyOnly or true, false, 1000)
+        -- if not rag then return end
+        -- local canSee = lib.CanSeeArc(bot, rag:GetPos() + Vector(0, 0, 16), 120)
+        -- if not canSee then return end
+    end
 
     -- local canSee = lib.CanSeeArc(bot, rag:GetPos() + Vector(0, 0, 16), 120)
     -- print(canSee)
     -- if canSee then
+    -- if closest and rag then
+        -- printf("bot %s, closest: %s, rag: %s", tostring(bot), tostring(closest), tostring(rag))
+    -- end
     return closest, rag
     -- end
 end
 
 function Defib.HasDefib(bot)
     for i, class in pairs(Defib.WeaponClasses) do
+        -- print("Checking for weapon: ", class)
         if bot:HasWeapon(class) then return true end
+        -- if bot:HasWeapon(class) then return true end
     end
 
     return false
@@ -69,6 +78,7 @@ end
 
 local function successFunc(bot)
     local defib = Defib.GetDefib(bot)
+    local botRole = bot:GetSubRole()
     if not (defib and IsValid(defib)) then return end
 
     defib:StopSound("hum")
@@ -76,8 +86,10 @@ local function successFunc(bot)
 
     timer.Simple(1, function()
         if not (defib and IsValid(defib)) then return end
+        if botRole == ROLE_MEDIC or botRole == ROLE_DOCTOR then return end
         defib:Remove()
     end)
+    return STATUS.SUCCESS
 end
 ---Revives a player from the dead, assuming the target is alive
 ---@param bot Bot
@@ -100,32 +112,67 @@ function Defib.ValidateCorpse(bot, corpse)
 end
 
 function Defib.Validate(bot)
+    local role = bot:GetSubRole()
     if not TTTBots.Lib.IsTTT2() then return false end -- This is TTT2-specific.
     if not TTTBots.Match.IsRoundActive() then return false end
     if bot.preventDefib then return false end         -- just an extra feature to prevent defibbing
+    -- if TTTBots.Match.MarkedForDefib[bot.defibTarget] and TTTBots.Match.MarkedForDefib[bot.defibTarget] ~= bot then
+    --     print("Defib.Cant Validate marked: ", TTTBots.Match.MarkedForDefib[bot.defibTarget], bot)
+    --     return false
+    -- end
 
     -- cant defib without defib
     local hasDefib = Defib.HasDefib(bot)
+
     if not hasDefib then return false end
 
     -- re-use existing
     local hasCorpse = Defib.ValidateCorpse(bot, bot.defibRag)
     if hasCorpse then return true end
 
-    -- get new target
-    local corpse, rag = Defib.GetCorpse(bot, true)
-    if not corpse then return false end
+    if not bot.defibTarget or not bot.defibRag then
+        if role == ROLE_DOCTOR then
+            bot.defibTarget, bot.defibRag = Defib.GetCorpse(bot, true)
+        elseif role == ROLE_MEDIC then
+            bot.defibTarget, bot.defibRag = Defib.GetCorpse(bot, false)
+        else
+            bot.defibTarget, bot.defibRag = Defib.GetCorpse(bot, true)
+        end
+    end
 
-    -- one last valid check
-    local cValid = Defib.ValidateCorpse(bot, rag)
-    if not cValid then return false end
+    if not (bot.defibTarget and bot.defibRag) then 
+        -- print("Defib.Validate: No body")
+        return false
+    end
+
+    if TTTBots.Match.MarkedForDefib[bot.defibTarget] and TTTBots.Match.MarkedForDefib[bot.defibTarget] ~= bot then
+        return false
+    end
+    local hasCorpse = Defib.ValidateCorpse(bot, bot.defibRag)
+    if not hasCorpse then return false end
 
     return true
 end
 
 function Defib.OnStart(bot)
-    bot.defibTarget, bot.defibRag = Defib.GetCorpse(bot, true)
+    local role = bot:GetSubRole()
 
+    if not (TTTBots.Match.MarkedForDefib[bot.defibTarget]) and bot.defibTarget ~= bot then
+        TTTBots.Match.MarkedForDefib[bot.defibTarget] = bot
+    end
+    -- print("Defib.OnStart", bot, role)
+    if not bot.defibTarget or not bot.defibRag then
+        if role == ROLE_DOCTOR then
+            bot.defibTarget, bot.defibRag = Defib.GetCorpse(bot, true)
+        elseif role == ROLE_MEDIC then
+            bot.defibTarget, bot.defibRag = Defib.GetCorpse(bot, false)
+        else
+            bot.defibTarget, bot.defibRag = Defib.GetCorpse(bot, true)
+        end
+    end
+
+    local chatter = bot:BotChatter()
+    chatter:On("RevivingPlayer", {player = bot.defibTarget:Nick()})
 
     return STATUS.RUNNING
 end
@@ -150,14 +197,33 @@ end
 
 ---@param bot Bot
 function Defib.OnRunning(bot)
+    -- print("Defib.OnRunning")
     local inventory, loco = bot:BotInventory(), bot:BotLocomotor()
+    local botRole = bot:GetSubRole()
     if not (inventory and loco) then return STATUS.FAILURE end
 
     local defib = Defib.GetDefib(bot)
+    local hasDefib = Defib.HasDefib(bot)
     local target = bot.defibTarget
     local rag = bot.defibRag
-    if not (target and rag and defib) then return STATUS.FAILURE end
-    if not (IsValid(target) and IsValid(rag) and IsValid(defib)) then return STATUS.FAILURE end
+    -- if (target and rag) then
+    --     -- print("Defib.OnRunning: ", target, rag)
+    -- end
+    -- mark the target and bot as defibbing if the defib target does not have a bot
+
+    -- print(TTTBots.Match.MarkedForDefib[bot.defibTarget], bot)
+    -- -print every bot that is marked for defib
+    -- for k, v in pairs(TTTBots.Match.MarkedForDefib) do
+    --     print(k, v)
+    -- end
+
+    
+    -- if TTTBots.Match.MarkedForDefib[bot.defibTarget] and TTTBots.Match.MarkedForDefib[bot.defibTarget] ~= bot then
+    --     print("Defib.OnFailure: ", TTTBots.Match.MarkedForDefib[bot.defibTarget], bot)
+    --     return STATUS.FAILURE
+    -- end
+    if not (target and rag) and HasDefib then return STATUS.FAILURE end
+    if not (IsValid(target) and IsValid(rag)) then return STATUS.FAILURE end
     local ragPos = Defib.GetSpinePos(rag)
 
     loco:SetGoal(ragPos)
@@ -165,9 +231,7 @@ function Defib.OnRunning(bot)
 
     local dist = bot:GetPos():Distance(ragPos)
 
-    if dist < 40 then
-        local numWitnesses = #lib.GetAllWitnessesBasic(bot:GetPos(), TTTBots.Roles.GetNonAllies(bot))
-        if numWitnesses > 1 and bot.defibStartTime == nil then return STATUS.RUNNING end
+    if dist < 50 then
         inventory:PauseAutoSwitch()
         bot:SetActiveWeapon(defib)
         loco:SetGoal() -- reset goal to stop moving
@@ -177,36 +241,55 @@ function Defib.OnRunning(bot)
         if bot.defibStartTime == nil then
             bot.defibStartTime = CurTime()
             startFunc(bot)
+            -- print("Starting defib")
         end
-        if bot.defibStartTime + 3 < CurTime() then
+        if bot.defibStartTime + (botRole == ROLE_DOCTOR and 3 or botRole == ROLE_MEDIC and 5 or 5) < CurTime() then
             Defib.FullDefib(bot, target)
+            -- print("Finished defib")
             return STATUS.SUCCESS
         end
     else
+        -- print("Failed to defib, too far away")
         inventory:ResumeAutoSwitch()
         loco:ResumeAttackCompat()
         loco:SetHalt(false)
         loco:ResumeRepel()
         bot.defibStartTime = nil
     end
-
     return STATUS.RUNNING
 end
 
 function Defib.OnSuccess(bot)
+    if TTTBots.Match.MarkedForDefib[bot.defibTarget] then
+        TTTBots.Match.MarkedForDefib[bot.defibTarget] = nil
+    end
+    -- print("Defib.OnSuccess")
 end
 
 function Defib.OnFailure(bot)
+    -- print("Defib.OnFailure")
 end
+
+function Defib.HandleRequest(bot, target)
+    local response = true
+    if not IsValid(target) then response = false end
+    if not Defib.ValidateCorpse(bot, target) then response = false end
+    if response then
+        bot.defibTarget, bot.defibRag = target, target
+    end
+end
+
 
 --- Called when the behavior succeeds or fails. Useful for cleanup, as it is always called once the behavior is a) interrupted, or b) returns a success or failure state.
 ---@param bot Bot
 function Defib.OnEnd(bot)
+    if TTTBots.Match.MarkedForDefib[bot.defibTarget] then
+        TTTBots.Match.MarkedForDefib[bot.defibTarget] = nil
+    end
     bot.defibTarget, bot.defibRag = nil, nil
     bot.defibStartTime = nil
     local inventory, loco = bot:BotInventory(), bot:BotLocomotor()
     if not (inventory and loco) then return end
-
     loco:ResumeAttackCompat()
     loco:Crouch(false)
     loco:SetHalt(false)

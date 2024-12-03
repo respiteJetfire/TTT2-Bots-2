@@ -9,7 +9,7 @@ local lib = TTTBots.Lib
 local CreateSidekick = TTTBots.Behaviors.CreateSidekick
 CreateSidekick.Name = "Sidekick"
 CreateSidekick.Description = "Sidekick a player (or random player) and ultimately kill them."
-CreateSidekick.Interruptible = true
+CreateSidekick.Interruptible = false
 
 
 local STATUS = TTTBots.STATUS
@@ -59,6 +59,7 @@ end
 function CreateSidekick.ValidateTarget(bot, target)
     local target = target or CreateSidekick.GetTarget(bot)
     local valid = target and IsValid(target) and lib.IsPlayerAlive(target)
+    -- print("CreateSidekick.ValidateTarget", valid)
     return valid
 end
 
@@ -105,6 +106,9 @@ function CreateSidekick.OnStart(bot)
         CreateSidekick.SetTarget(bot)
     end
 
+    local chatter = bot:BotChatter()
+    chatter:On("CreatingSidekick", {player = bot.SidekickTarget:Nick()}, true)
+
     return STATUS.RUNNING
 end
 
@@ -122,7 +126,7 @@ function CreateSidekick.OnRunning(bot)
         if CreateSidekick.GetTarget(bot) ~= target then return STATUS.RUNNING end
     end
 
-    local isClose = bot:Visible(target) and bot:GetPos():Distance(targetPos) <= 150
+    local isClose = bot:Visible(target) and bot:GetPos():Distance(targetPos) <= 1000
     local loco = bot:BotLocomotor()
     local inv = bot:BotInventory()
     if not (loco and inv) then return STATUS.FAILURE end
@@ -135,7 +139,7 @@ function CreateSidekick.OnRunning(bot)
     if table.Count(witnesses) <= 1 then
         inv:PauseAutoSwitch()
         local equipped = inv:EquipJackalGun()
-        if not equipped then return STATUS.RUNNING end
+        -- if not equipped then return STATUS.RUNNING end
         local bodyPos = TTTBots.Behaviors.AttackTarget.GetTargetBodyPos(target)
         loco:LookAt(bodyPos)
         local eyeTrace = bot:GetEyeTrace()

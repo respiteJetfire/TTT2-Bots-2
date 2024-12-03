@@ -10,6 +10,7 @@ survivalist:SetCanSnipe(true)
 survivalist:SetUsesSuspicion(true)
 survivalist:SetAlliedRoles({})
 survivalist:SetAlliedTeams({})
+survivalist:SetEnemyTeams({[TEAM_DOOMSLAYER] = true,})
 TTTBots.Roles.RegisterRole(survivalist)
 
 return true

@@ -551,5 +551,132 @@ TTTBots.Traits = {
         effects = {
             mingeRate = 0.0,
         }
-    }
+    },
+    cursed = {
+        name = "cursed",
+        description = "Will buy the cursed deagle if available in their shop.",
+        conflicts = {},
+        traitor_only = false,
+        effects = {
+            cursed = true
+        }
+    },
+    jihad = {
+        name = "jihad",
+        description = "Will buy the Jihad bomb if available in their shop.",
+        conflicts = {},
+        traitor_only = false,
+        effects = {
+            jihad = true
+        }
+    },
+    tester = {
+        name = "tester",
+        description = "Will buy the role checker if available in their shop.",
+        conflicts = {},
+        traitor_only = false,
+        effects = {
+            tester = true
+        }
+    },
+    defector = {
+        name = "defector",
+        description = "Will buy the defector deagle if available in their shop.",
+        conflicts = {},
+        traitor_only = true,
+        effects = {
+            defector = true
+        }
+    },
+    doctor = {
+        name = "doctor",
+        description = "Will buy the doctor deagle if available in their shop.",
+        conflicts = {},
+        traitor_only = true,
+        effects = {
+            doctor = true
+        }
+    },
+    medic = {
+        name = "medic",
+        description = "Will buy the medic deagle if available in their shop.",
+        conflicts = {},
+        traitor_only = true,
+        effects = {
+            medic = true
+        }
+    },
+    CQB = {
+        name = "CQB",
+        description = "Prefers close-quarters combat.",
+        conflicts = { "heavy", "outdoorSWEPs", "rifles" },
+        traitor_only = false,
+        effects = {
+            CQB = true,
+            focus = 1.5, -- the gain/loss rate of focus when attacking
+            aggression = 1.2, -- More aggressive as traitor
+        }
+    },
+    heavy = {
+        name = "heavy",
+        description = "Prefers heavy weapons.",
+        conflicts = { "CQB", "outdoorSWEPs", "rifles" },
+        traitor_only = false,
+        effects = {
+            heavy = true,
+            focus = 0.8, -- the gain/loss rate of focus when attacking
+            aggression = 1.3, -- More aggressive as traitor
+        }
+    },
+    outdoorSWEPs = {
+        name = "outdoorSWEPs",
+        description = "Prefers outdoor weapons.",
+        conflicts = { "CQB", "heavy", "rifles" },
+        traitor_only = false,
+        effects = {
+            outdoorSWEPs = true,
+            focus = 1.0, -- the gain/loss rate of focus when attacking
+            aggression = 1.1, -- More aggressive as traitor
+        }
+    },
+    rifles = {
+        name = "rifles",
+        description = "Prefers rifles.",
+        conflicts = { "CQB", "heavy", "outdoorSWEPs" },
+        traitor_only = false,
+        effects = {
+            rifles = true,
+            focus = 1.2, -- the gain/loss rate of focus when attacking
+            aggression = 1.1, -- More aggressive as traitor
+        }
+    },
+    grenades = {
+        name = "grenades",
+        description = "Prefers grenades.",
+        conflicts = { },
+        traitor_only = false,
+        effects = {
+            grenades = true,
+            focus = 1.2, -- the gain/loss rate of focus when attacking
+            aggression = 1.1, -- More aggressive as traitor
+        }
+    },
+    troll = {
+        name = "troll",
+        description = "Will use troll weapons if available in their shop.",
+        conflicts = {},
+        traitor_only = true,
+        effects = {
+            troll = true
+        }
+    },
+    gimmick = {
+        name = "gimmick",
+        description = "Will use gimmick weapons if available in their shop.",
+        conflicts = {},
+        traitor_only = true,
+        effects = {
+            gimmick = true
+        }
+    },
 }

@@ -16,14 +16,467 @@ function BotPersonality:New(bot)
 
     local dbg = lib.GetConVarBool("debug_misc")
     if dbg then
-        print("Initialized Personality for bot " .. bot:Nick())
+        --- print("Initialized Personality for bot " .. bot:Nick())
     end
 
     return newPersonality
 end
 
+TTTBots.Archetypes = {
+    Tryhard = "Tryhard/nerd", --- Says nerdy/tryhard things often
+    Hothead = "Hothead",      --- Quick to anger in his communication
+    Stoic = "Stoic",          --- Rarely complains/gloats
+    Dumb = "Dumb",            --- huh?
+    Nice = "Nice",            --- Says nice things often, loves to compliment.
+    Bad = "Bad",              --- just bad
+    Teamer = "Teamer",        --- loves to say "us" instead of "me"
+    Sus = "Sus/Quirky",       --- "guys im the traitor" ... that kind of thing
+    Casual = "Casual",        --- loves to make jokes, talks in lowercase most of the time
+    Default = "default",      --- default archetype; used as a fallback
+}
+
+local elevenLabsVoices = {
+    male = {
+        ["Tryhard/nerd"] = {
+            "4AdGoETSmAOc9g6196TK",
+            "3jXBJWtJEjgdwPqueyXT",
+            "EK8qPxNaT7PcXc6340pQ"},
+        Hothead = {
+            "W015G87ObkhtiOgbl1yE",
+            "pqHfZKP75CvOlQylNhV4",
+            "zcAOhNBS3c14rBihAFp1"},
+        Stoic = {
+            "Zlb1dXrM653N07WRdFW3",
+            "5Q0t7uMcjvnagumLfvZi",
+            "CwhRBWXzGAHq8TQ4Fs17"},
+        Dumb = {
+            "t0jbNlBVZ17f02VDIeMI",
+            "D38z5RcWu1voky8WS1ja",
+            "wo6udizrrtpIxWGp2qJk"},
+        Nice = {
+            "N2lVS1w4EtoT3dr4eOWO",
+            "2EiwWnXFnvU5JabPnv8n",
+            "SOYHLrjzK2X1ezoPC6cr"},
+        Bad = {
+            "YEkUdc7PezGaXaRslSHB",
+            "Ybqj6CIlqb6M85s9Bl4n",
+            "efGTHf4ukBiG4n8lptfp"},
+        Teamer = {
+            "OhisAd2u8Q6qSA4xXAAT",
+            "PPzYpIqttlTYA83688JI",
+            "zGw1MayuXJEVWol6mFfg"},
+        ["Sus/Quirky"] = {
+            "2gPFXx8pN3Avh27Dw5Ma",
+            "DUnzBkwtjRWXPr6wRbmL",
+            "INDKfphIpZiLCUiXae4o",
+            "3SF4rB1fGBMXU9xRM7pz"},
+        Casual = {
+            "iP95p4xoKVk53GoZ742B",
+            "IKne3meq5aSn9XLyUdCD",
+            "cjVigY5qzO86Huf0OWal"},
+        Default = {
+            "JBFqnCBsd6RMkjVDRZzb",
+            "ZQe5CZNOzWyzPSCn5a3c",
+            "TxGEqnHWrfWFTfGW9XjX"},
+    },
+    female = {
+        ["Tryhard/nerd"] = {
+            "MF3mGyEYCl7XYWbV9V6O",
+            "jsCqWAovK2LkecY7zXl4",
+            "pFZP5JQG7iQjIQuC4Bku"},
+        Hothead = {
+            "Pid5DJleNF2sxsuF6YKD",
+            "AB9XsbSA4eLG12t2myjN"},
+        Stoic = {
+            "QMSGabqYzk8YAneQYYvR",
+            "XB0fDUnXU5powFXDhCwa",
+            "pFZP5JQG7iQjIQuC4Bku"},
+        Dumb = {
+            "LSah3F2oqv0qunZV6QDs"},
+        Nice = {
+            "9BWtsMINqrJLrRacOk9x",
+            "cgSgspJ2msm6clMCkdW9",
+            "jBpfuIE2acCO8z3wKNLl"},
+        Bad = {
+            "5PWbsfogbLtky5sxqtBz"},
+        Teamer = {
+            "LcfcDJNUP1GQjkzn1xUU",
+            "oWAxZDx7w5VEj9dCyTzz"},
+        ["Sus/Quirky"] = {
+            "TC0Zp7WVFzhA8zpTlRqV",
+            "flHkNRp1BlvT73UL6gyz",
+            "eVItLK1UvXctxuaRV2Oq"},
+        Casual = {
+            "SAz9YHcvj6GT2YYXdXww",
+            "zrHiDhphv9ZnVXBqCLjz",
+            "piTKgcLEGmPE4e6mEKli"},
+        Default = {
+            "pMsXgVXv3BLzUgSXRplE",
+            "21m00Tcm4TlvDq8ikWAM",
+            "oWAxZDx7w5VEj9dCyTzz"},
+    },
+}
+
+local FreeTTSVoices = {
+    male = {
+        ["Tryhard/nerd"] = {
+            --- Should speak quickly and with a higher pitch
+            Sam = {
+                pitch = math.random(92, 110),
+                speed = 160
+            },
+            Mike = {
+                pitch = math.random(117, 130),
+                speed = 170
+            },
+        },
+        Hothead = {
+            --- Should speak very quickly and with a comically high pitch
+            Sam = {
+                pitch = math.random(160, 175),
+                speed = 200
+            },
+            Mike = {
+                pitch = math.random(190, 210),
+                speed = 230
+            },
+        },
+        Stoic = {
+            --- Should speak slowly and with a lower pitch
+            Sam = {
+                pitch = math.random(80, 90),
+                speed = 140
+            },
+            Mike = {
+                pitch = math.random(100, 110),
+                speed = 150
+            },
+        },
+        Dumb = {
+            --- Should speak with a big random range of pitch with a relatively very low speed
+            Sam = {
+                pitch = math.random(60, 180),
+                speed = 120
+            },
+            Mike = {
+                pitch = math.random(60, 180),
+                speed = 120
+            },
+        },
+        Nice = {
+            --- Should speak with a higher pitch and a normal speed
+            Sam = {
+                pitch = math.random(100, 120),
+                speed = 150
+            },
+            Mike = {
+                pitch = math.random(120, 140),
+                speed = 160
+            },
+        },
+        Bad = {
+            --- Should speak with a lower pitch and a normal speed
+            Sam = {
+                pitch = math.random(70, 90),
+                speed = 150
+            },
+            Mike = {
+                pitch = math.random(90, 110),
+                speed = 160
+            },
+        },
+        Teamer = {
+            --- Should speak with an even higher pitch and a normal speed
+            Sam = {
+                pitch = math.random(110, 130),
+                speed = 150
+            },
+            Mike = {
+                pitch = math.random(130, 150),
+                speed = 160
+            },
+        },
+        ["Sus/Quirky"] = {
+            --- Should speak with a much lower pitch and a normal speed
+            Sam = {
+                pitch = math.random(50, 70),
+                speed = 150
+            },
+            Mike = {
+                pitch = math.random(70, 90),
+                speed = 160
+            },
+        },
+        Casual = {
+            --- Should speak with a lower pitch and a faster speed
+            Sam = {
+                pitch = math.random(70, 90),
+                speed = 170
+            },
+            Mike = {
+                pitch = math.random(90, 110),
+                speed = 180
+            },
+        },
+        Default = {
+            --- Should speak with a normal pitch and a normal speed
+            Sam = {
+                pitch = math.random(80, 100),
+                speed = 150
+            },
+            Mike = {
+                pitch = math.random(100, 120),
+                speed = 160
+            },
+        },
+    },
+    female = {
+        ["Tryhard/nerd"] = {
+            --- Should speak quickly and with a higher pitch
+            Mary = {
+                pitch = math.random(160, 175),
+                speed = 200
+            },
+        },
+        Hothead = {
+            --- Should speak very quickly and with a comically high pitch
+            Mary = {
+                pitch = math.random(190, 210),
+                speed = 230
+            },
+        },
+        Stoic = {
+            --- Should speak slowly and with a lower pitch
+            Mary = {
+                pitch = math.random(140, 160),
+                speed = 180
+            },
+        },
+        Dumb = {
+            --- Should speak with a big random range of pitch with a relatively very low speed
+            Mary = {
+                pitch = math.random(60, 180),
+                speed = 120
+            },
+        },
+        Nice = {
+            --- Should speak with a higher pitch and a normal speed
+            Mary = {
+                pitch = math.random(170, 190),
+                speed = 200
+            },
+        },
+        Bad = {
+            --- Should speak with a lower pitch and a normal speed
+            Mary = {
+                pitch = math.random(130, 150),
+                speed = 200
+            },
+        },
+        Teamer = {
+            --- Should speak with an even higher pitch and a normal speed
+            Mary = {
+                pitch = math.random(190, 210),
+                speed = 200
+            },
+        },
+        ["Sus/Quirky"] = {
+            --- Should speak with a much lower pitch and a normal speed
+            Mary = {
+                pitch = math.random(110, 130),
+                speed = 200
+            },
+        },
+        Casual = {
+            --- Should speak with a lower pitch and a faster speed
+            Mary = {
+                pitch = math.random(130, 150),
+                speed = 220
+            },
+        },
+        Default = {
+            --- Should speak with a normal pitch and a normal speed
+            Mary = {
+                pitch = math.random(150, 170),
+                speed = 200
+            },
+        },
+    },
+}
+
+function decideOnVoiceBadTTS(self)
+    --- using the bot's gender and archetype, decide on a voice
+    local gender = self.gender
+    --- print("gender", gender)
+    local archetype = self.archetype
+    --- print("archetype", archetype)
+
+    local selectedVoiceKey
+    if not FreeTTSVoices[gender] or not FreeTTSVoices[gender][archetype] then
+        -- Fallback to default if no specific voice is found
+        --- print("No voice found")
+        self.voice = FreeTTSVoices[gender]["Default"]
+        self.voice.name = "Sam"
+        self.voice.type = "FreeTTS"
+        self.voice.speed = 150
+        self.voice.pitch = 100
+    else
+        -- Select a random voice configuration for the given gender and archetype
+        --- print("Voice found")
+        local voices = FreeTTSVoices[gender][archetype]
+        --- print("Voices", voices)
+        local voiceKeys = {}
+        for k in pairs(voices) do
+            table.insert(voiceKeys, k)
+        end
+        selectedVoiceKey = voiceKeys[math.random(#voiceKeys)]
+        self.voice = voices[selectedVoiceKey]
+        self.voice.name = selectedVoiceKey
+        self.voice.speed = voices[selectedVoiceKey].speed
+        self.voice.pitch = voices[selectedVoiceKey].pitch
+        self.voice.type = "FreeTTS"
+        --- print("Selected voice name", self.voice.name, "speed", self.voice.speed, "pitch", self.voice.pitch)
+    end
+end
+
+function decideOnVoiceElevenLabs(self, bot)
+    --- using the bot's name first decide on a voice ID, then if not then do it via gender and archetype
+    -- --- print("decideOnVoiceElevenLabs")
+    local name = bot.name
+    -- --- print("name", name)
+    ---if mufcshadow99 or connor is in the name, then use the voice "oByejetP0L8VFcHZtxaO" (not case sensitive)
+    if string.find(string.lower(name), "mufcshadow99") or string.find(string.lower(name), "connor") then
+        self.voice = { id = "oByejetP0L8VFcHZtxaO", type = "elevenlabs" }
+        self.archetype = "Hothead"
+        --- print("Using voice for mufcshadow99 or connor")
+        return
+    --- else if callum or armedjetfire23 is in the name, then use the voice "OvGLOVTuYN2qDoW5MAR5" (not case sensitive)
+    elseif string.find(string.lower(name), "callum") or string.find(string.lower(name), "armedjetfire23") then
+        self.voice = { id = "OvGLOVTuYN2qDoW5MAR5", type = "elevenlabs" }
+        self.archetype = "Tryhard/nerd"
+        --- print("Using voice for callum or armedjetfire23")
+        return
+    --- else if violentnerve or emily is in the name, then use the voice "JxPtpTnTYYaRhdB6dpaw" (not case sensitive)
+    elseif string.find(string.lower(name), "violentnerve") or string.find(string.lower(name), "emily") then
+        self.voice = { id = "JxPtpTnTYYaRhdB6dpaw", type = "elevenlabs" }
+        self.archetype = "Nice"
+        --- print("Using voice for violentnerve or emily")
+        return
+    else
+        --- using the bot's gender and archetype, decide on a voice
+        local gender = self.gender
+        --- print("gender", gender)
+        local archetype = self.archetype
+        --- print("archetype", archetype)
+
+        local selectedVoiceKey
+        if not elevenLabsVoices[gender] or not elevenLabsVoices[gender][archetype] then
+            -- Fallback to default if no specific voice is found
+            --- print("No voice found")
+            local voices = elevenLabsVoices[gender]["Default"]
+            selectedVoiceKey = math.random(#voices)
+            --- print("Selected default voice key", selectedVoiceKey)
+            self.voice = { id = voices[selectedVoiceKey], type = "elevenlabs" }
+            --- print("Selected default voice", self.voice)
+        else
+            -- Select a random voice configuration for the given gender and archetype
+            --- print("Voice found")
+            local voices = elevenLabsVoices[gender][archetype]
+            --- print("Voices", voices)
+            selectedVoiceKey = math.random(#voices)
+            --- print("Selected voice key", selectedVoiceKey)
+            self.voice = { id = voices[selectedVoiceKey], type = "elevenlabs" }
+            --- print("Selected voice", self.voice)
+        end
+    end
+end
+
+local AzureVoices = {
+    male = {
+        "en-US-ChristopherMultilingualNeural",
+        "en-US-DustinMultilingualNeural",
+        "en-US-LewisMultilingualNeural",
+        "en-US-AndrewMultilingualNeural",
+        "en-US-ChristopherMultilingualNeural",
+        "en-US-BrandonMultilingualNeural",
+        "en-US-AdamMultilingualNeural",
+        "en-US-AlloyTurboMultilingualNeural",
+        "en-US-DerekMultilingualNeural",
+        "en-US-DustinMultilingualNeural",
+        "en-US-OnyxTurboMultilingualNeural",
+        "en-US-LewisMultilingualNeural",
+        "en-US-SteffanMultilingualNeural",
+        "en-US-BrianMultilingualNeural",
+        "en-US-RyanMultilingualNeural",
+        "en-US-KaiNeural",
+        "en-US-AIGenerate1",
+        "en-US-GuyNeural",
+        "en-US-JasonNeural",
+        "en-US-DavisNeural",
+        "en-US-TonyNeural",
+        "en-US-EricNeural",
+        "en-US-JacobNeural",
+        "en-US-RogerNeural",
+        "en-US-SteffanNeural",
+        "en-GB-OllieMultilingualNeural",
+        "fr-FR-RemyMultilingualNeural",
+        "fr-FR-LucienMultilingualNeural",
+        "de-DE-FlorianMultilingualNeural",
+        "it-IT-AlessioMultilingualNeural",
+        "it-IT-GiuseppeMultilingualNeural",
+        "it-IT-MarcelloMultilingualNeural",
+        "pt-BR-MacerioMultilingualNeural",
+        "es-ES-TristanMultilingualNeural",
+
+    },
+    female = {
+        "en-US-AvaMultilingualNeural",
+        "en-US-CoraMultilingualNeural",
+        "en-US-AmandaMultilingualNeural",
+        "en-US-LolaMultilingualNeural",
+        "en-US-NancyMultilingualNeural",
+        "en-US-NovaTurboMultilingualNeural",
+        "en-US-PhoebeMultilingualNeural",
+        "en-US-SerenaMultilingualNeural",
+        "en-US-EmmaMultilingualNeural",
+        "en-US-EvelynMultilingualNeural",
+        "en-US-ShimmerTurboMultilingualNeural",
+        "en-US-MichelleNeural",
+        "en-US-ElizabethNeural",
+        "en-US-AnaNeural",
+        "en-US-AshleyNeural",
+        "en-US-AmberNeural",
+        "en-US-SaraNeural",
+        "en-US-LunaNeural",
+        "en-US-JennyNeural",
+        "en-US-EmmaNeural",
+        "fr-FR-VivienneMultilingualNeural",
+        "de-DE-SeraphinaMultilingualNeural",
+        "it-IT-IsabellaMultilingualNeural",
+        "pt-BR-ThalitaMultilingualNeural",
+        "es-ES-ArabellaMultilingualNeural",
+        "es-ES-IsidoraMultilingualNeural",
+        "es-ES-XimenaMultilingualNeural",
+    }
+}
+
+function decideOnVoiceMicrosoftTTS(self)
+    --- using Azure TTS, decide on a voice, up to 6 voices for each gender
+    local gender = self.gender
+    local voices = AzureVoices[gender]
+    if not voices then
+        -- Fallback to default if no specific voice is found
+        self.voice = { id = "en-US-TonyNeural", type = "Azure" }
+    else
+        -- Select a random voice for the given gender
+        local selectedVoiceKey = math.random(#voices)
+        self.voice = { id = voices[selectedVoiceKey], type = "Azure" }
+    end
+end
+    
+
 function BotPersonality:Initialize(bot)
-    -- print("Initializing")
+    -- --- print("Initializing")
     bot.components = bot.components or {}
     bot.components.personality = self
 
@@ -48,6 +501,70 @@ function BotPersonality:Initialize(bot)
     self.traits = (traits_enabled and self:GetNoConflictTraits(4)) or
         {} -- The bot's traits. These are just keynames and not the actual trait objects.
     self.archetype = self:GetClosestArchetype()
+    ---ch
+    if TTTBots.Lib.GetConVarString("chatter_voice_elevenlabs_api_key") == "" then
+        print("ElevenLabs API key is not set. Ignore if not using ElevenLabs TTS.")
+    end
+
+    if TTTBots.Lib.GetConVarString("chatter_voice_azure_subscription_key") == "" then
+        print("Azure TTS API key is not set. Ignore if not using Azure TTS.")
+    end
+
+    if TTTBots.Lib.GetConVarString("chatter_voice_azure_region") == "" then
+        print("Azure TTS region is not set. Ignore if not using Azure TTS.")
+    end
+
+    local mode = "freetts"
+
+    if TTTBots.Lib.GetConVarInt("chatter_voice_tts_provider") == 0 then
+        mode = "freetts only"
+    elseif TTTBots.Lib.GetConVarInt("chatter_voice_tts_provider") == 1 then
+        mode = "elevenlabs only"
+    elseif TTTBots.Lib.GetConVarInt("chatter_voice_tts_provider") == 2 then
+        mode = "microsoft only"
+    elseif TTTBots.Lib.GetConVarInt("chatter_voice_tts_provider") == 3 then
+        mode = "mixed"
+    end
+
+    local FreeTTSChance = TTTBots.Lib.GetConVarFloat("chatter_voice_free_tts_chance") / 100
+    local MicrosoftTTSChance = TTTBots.Lib.GetConVarFloat("chatter_voice_microsoft_tts_chance") / 100
+    local ElevenLabsChance = TTTBots.Lib.GetConVarFloat("chatter_voice_elevenlabs_tts_chance") / 100
+
+    local ElevenlabsNameOverride = TTTBots.Lib.GetConVarBool("chatter_voice_good_tts_custom_name_override")
+    local done = false
+
+    if ElevenlabsNameOverride and TTTBots.Lib.GetConVarString("chatter_voice_elevenlabs_api_key") ~= "" then
+        local customNames = lib.GetConVarString("names_custom")
+        if customNames and customNames ~= "" then
+            local namesList = {}
+            for name in string.gmatch(customNames, '([^,]+)') do
+                table.insert(namesList, name:match("^%s*(.-)%s*$"):lower()) -- trim spaces and convert to lowercase
+            end
+            if table.HasValue(namesList, bot:Nick():lower()) then
+                decideOnVoiceElevenLabs(self, bot)
+                done = true
+            end
+        end
+    end
+
+    if not done then
+        if mode == "freetts only" then
+            decideOnVoiceBadTTS(self)
+        elseif mode == "elevenlabs only" then
+            decideOnVoiceElevenLabs(self, bot)
+        elseif mode == "microsoft only" then
+            decideOnVoiceMicrosoftTTS(self)
+        elseif mode == "mixed" then
+            local rand = math.random()
+            if rand < ElevenLabsChance then
+                decideOnVoiceElevenLabs(self, bot)
+            elseif rand < ElevenLabsChance + MicrosoftTTSChance then
+                decideOnVoiceMicrosoftTTS(self)
+            else
+                decideOnVoiceBadTTS(self)
+            end
+        end
+    end
 
     --- How angry the bot is, from 1-100. Adds onto pressure. At 100% rage, the bot will leave voluntary (if enabled).
     self.rage = 0
@@ -113,7 +630,7 @@ end
 function BotPersonality:GetFlavoredTraits()
     local traits = {}
     for i, trait in ipairs(self.traits) do
-        -- print(self:FlavorText(self.Traits[trait].description))
+        -- --- print(self:FlavorText(self.Traits[trait].description))
         table.insert(traits, self:FlavorText(self.Traits[trait].description))
     end
     return traits
@@ -121,7 +638,7 @@ end
 
 function BotPersonality:PrintFlavoredTraits()
     for _, trait in ipairs(self:GetFlavoredTraits()) do
-        print(trait)
+        --- print(trait)
     end
 end
 

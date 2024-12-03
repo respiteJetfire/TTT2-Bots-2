@@ -27,7 +27,7 @@ local function CreateDebugUI(ply, cmd, args, argStr)
 
     -- UI setup code
     debugWindow = vgui.Create("DFrame")
-    debugWindow:SetSize(ScrW() * 0.4, ScrH() * 0.4)
+    debugWindow:SetSize(ScrW() * 0.6, ScrH() * 0.6)
     debugWindow:Center()
     debugWindow:SetTitle("TTT Bots Debug UI")
     debugWindow:SetDraggable(true)

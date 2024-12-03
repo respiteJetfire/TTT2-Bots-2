@@ -320,7 +320,13 @@ function BotLocomotor:SetRandomStrafe()
     self:Strafe(table.Random(options))
 end
 
-function BotLocomotor:SetGoal(pos) self.goalPos = pos end
+function BotLocomotor:SetGoal(pos)
+    if not pos or not navmesh.GetNearestNavArea(pos) then return end
+    if self.pathStatus ~= "running" then
+        return end
+    end
+    self.goalPos = pos
+end
 
 function BotLocomotor:SetUse(bool) self.emulateInUse = bool end
 
@@ -1425,9 +1431,6 @@ function BotLocomotor:TryToggleDoor(cmd)
     if (TTTBots.Lib.IsTTT2()) then
         local door = self:DetectDoorNearby()
         if not (door and TTTBots.Lib.IsDoor(door) and not door:IsDoorLocked()) then return end
-	-- #64: Check if the door is even openable.
-	if not door:UseOpensDoor() then return end
-	if not door:PlayerCanOpenDoor() then return end
 
         local doorID = door:EntIndex()
         local lastTime = TTTBots.DoorRateLimiter[doorID] or 0
@@ -1582,6 +1585,7 @@ function BotLocomotor:StartCommand(cmd) -- aka StartCmd
         if DVLPR_PATHFINDING then
             TTTBots.DebugServer.DrawText(MYPOS, "Opening door", Color(255, 255, 255))
         end
+        cmd:SetButtons(cmd:GetButtons() + IN_USE)
         self:TryToggleDoor(cmd)
     end
 
@@ -1724,9 +1728,12 @@ end)
 local plyMeta = FindMetaTable("Player")
 
 function plyMeta:SetAttackTarget(target)
+    if not IsValid(target) then return end
     if self.attackTarget == target then return end
-    if (IsValid(target) and TTTBots.Roles.IsAllies(self, target)) then return end
-    if (hook.Run("TTTBotsCanAttack", self, target) == false) then return end
+    if target:IsNPC() and table.HasValue(TTTBots.Bots, target) then
+        if (IsValid(target) and TTTBots.Roles.IsAllies(self, target)) then return end
+        if (hook.Run("TTTBotsCanAttack", self, target) == false) then return end
+    end
     self.attackTarget = target
     local loco = self:BotLocomotor()
     local personality = self:BotPersonality()

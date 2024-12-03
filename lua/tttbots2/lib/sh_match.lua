@@ -35,6 +35,13 @@ Match.KOSList = {} ---@type table<Player, table<Player>>
 Match.SpottedC4s = {} ---@type table<Entity, boolean> Armed C4 that has been spotted by the innocent bots at least once. key and value are the same entity
 Match.AllArmedC4s = {} ---@type table<Entity, boolean>
 Match.Smokes = {}
+Match.InvisiblePlayers = {}
+Match.CheckedPlayers = {}
+Match.MarkedForDefib = {}
+Match.MarkedPlayers = {}
+MARKER_DATA = MARKER_DATA or {}
+MARKER_DATA.marked_players = {}
+
 
 function Match.Tick()
     if not Match.RoundActive then return end
@@ -53,6 +60,15 @@ function Match.PlansCanStart()
     if time > maxTime then return true end
     local randi = math.random(minTime, maxTime)
     return time > randi
+end
+
+--- Check if the bot is invisible to the given player. This is used to prevent bots from seeing invisible players.
+---@param bot Bot
+---@return boolean invisible
+---@realm server
+function Match.IsPlayerCloaked(bot)
+    --- if the bot is in the Invisible Players list, then it is invisible to the player
+    return Match.InvisiblePlayers[bot] and true or false
 end
 
 --- Check if the match should trust this individual's KOS. This is used to limit KOS calls to 1 per user per round;
@@ -134,6 +150,10 @@ function Match.ResetStats(roundActive)
     Match.AllArmedC4s = {}
     Match.RoundID = TTTBots.Lib.GenerateID()
     Match.Smokes = {}
+    Match.InvisiblePlayers = {}
+    Match.CheckedPlayers = {}
+    Match.MarkedForDefib = {}
+    Match.MarkedPlayers = {}
 
     if SERVER then
         for i, v in pairs(TTTBots.Bots) do

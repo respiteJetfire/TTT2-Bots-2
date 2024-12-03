@@ -72,6 +72,30 @@ concommand.Add("ttt_bot_version", function(ply, _, args)
     print("TTTBots version: " .. TTTBots.Version)
 end)
 
+local function SaveCVarListToFile()
+    local filePath = "cvar/cvarlist.txt"
+    local fileContent = ""
+
+    -- Ensure the directory exists
+    if not file.Exists("cvar", "DATA") then
+        file.CreateDir("cvar")
+    end
+
+    -- Get the list of console commands
+    local cvarList = concommand.GetTable()
+    local cvarListStr = ""
+
+    for name, data in pairs(cvarList) do
+        cvarListStr = cvarListStr .. name .. "\n"
+    end
+
+    -- Write the captured output to the file
+    file.Write(filePath, cvarListStr)
+    print("CVar list saved to " .. filePath)
+end
+
+concommand.Add("save_cvarlist", SaveCVarListToFile)
+
 CreateSharedConCommand("ttt_bot_kickall", function(ply, _, args)
     if not IsPlayerSuperAdmin(ply) then return end -- cmd only works as server or SA
     for _, bot in pairs(TTTBots.Bots) do

@@ -71,9 +71,11 @@ net.Receive("TTTBots_RequestData", function(len, ply)
         local heldWeaponInfo = inventory:GetHeldWeaponInfo()
         local primaryWepInfo = inventory:GetPrimary()
         local secondaryWepInfo = inventory:GetSecondary()
+        local specialWepInfo = inventory:GetSpecialPrimary()
         local heldWepTxt = inventory:GetWepInfoText(heldWeaponInfo)
         local primaryWepTxt = inventory:GetWepInfoText(primaryWepInfo)
         local secondaryWepTxt = inventory:GetWepInfoText(secondaryWepInfo)
+        local specialWepTxt = inventory:GetWepInfoText(specialWepInfo)
 
         local numKnownPos = #memory:GetKnownPlayersPos()
         local numKnownAlive = #memory:GetKnownAlivePlayers()
@@ -105,7 +107,7 @@ net.Receive("TTTBots_RequestData", function(len, ply)
             numKnownPos = numKnownPos,
             numKnownAlive = numKnownAlive,
             attackTargetName = (
-                bot.attackTarget
+                IsValid(bot.attackTarget)
                 and (
                     bot.attackTarget:IsPlayer() and bot.attackTarget:Nick()
                     or bot.attackTarget:GetClass())
@@ -125,6 +127,7 @@ net.Receive("TTTBots_RequestData", function(len, ply)
             weaponHeld = heldWepTxt,
             weaponPrimary = primaryWepTxt,
             weaponSecondary = secondaryWepTxt,
+            weaponSpecial = specialWepTxt,
         }
     end
 

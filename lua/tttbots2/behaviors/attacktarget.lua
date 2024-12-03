@@ -50,9 +50,12 @@ function Attack.Seek(bot, targetPos)
     local timeNow = CurTime()
     local secsSince = timeNow - lastSeenTime
 
-    if lastKnownPos and secsSince > 4 then
+    if lastKnownPos and secsSince > 4 and secsSince < 46 then
         loco:SetGoal(lastKnownPos)
         loco:LookAt(lastKnownPos + Vector(0, 0, 40)) -- around hip/abdomen level
+    elseif secsSince > 45 then
+        -- If we have not seen the target in 30 seconds, call off the attack.
+        bot:SetAttackTarget(nil)
     else
         -- We have not heard nor seen the target in a while, so we will wander around.
         lib.CallEveryNTicks(
@@ -405,15 +408,20 @@ function Attack.ValidateTarget(bot)
     local hasTarget = (target and target ~= NULL) and true or false
     if target == NULL or not IsValid(target) then return false end
     local targetIsValid = target and target:IsValid() or false
-    local targetIsAlive = target and target:Alive() or false
+    local notSeenRecently = bot.components.memory:GetLastSeenTime(target) + 30 < CurTime()
+    local botIsAlive = bot and bot:Health() > 0 or false
+    local targetIsAlive = target and (target:IsPlayer() and target:Alive() or target:IsNPC() and target:Health() > 0) or false
     local targetIsPlayer = target and target:IsPlayer() or false
     local targetIsNPC = target and target:IsNPC() or false
     local targetIsPlayerAndAlive = targetIsPlayer and TTTBots.Lib.IsPlayerAlive(target) or false
     local targetIsNPCAndAlive = targetIsNPC and target:Health() > 0 or false
-    local targetIsPlayerOrNPCAndAlive = targetIsPlayerAndAlive or targetIsNPCAndAlive or false
+    local targetIsPlayerOrNPCAndAlive = (targetIsPlayerAndAlive or targetIsNPCAndAlive) and targetIsAlive or false
+    local baseRole = target:IsPlayer() and target:GetBaseRole() or nil
+    local isAlly = (TTTBots.Roles.IsAllies(bot, target) and (baseRole ~= ROLE_INNOCENT)) or baseRole == ROLE_MEDIC
 
     -- print(bot:Nick() .. " validating attack target behavior:")
     -- print("| hasTarget: " .. tostring(hasTarget))
+    -- print("| targetName: " .. tostring(target:Nick()))
     -- print("| targetIsValid: " .. tostring(targetIsValid))
     -- print("| targetIsAlive: " .. tostring(targetIsAlive))
     -- print("| targetIsPlayer: " .. tostring(targetIsPlayer))
@@ -426,12 +434,23 @@ function Attack.ValidateTarget(bot)
     local checkPassed = (
         hasTarget
         and targetIsValid
+        and botIsAlive
         and targetIsAlive
         and targetIsPlayerOrNPCAndAlive
+        and not notSeenRecently
+        and not isAlly
     )
 
     if not checkPassed then
+        -- print(bot:Nick() .. " failed to validate attack target behavior.")
         bot:SetAttackTarget(nil)
+        if bot.attackBehaviorMode == ATTACKMODE.Engaging then
+            bot:BotLocomotor():StopAttack()
+        end
+        if bot.attackTarget then
+            bot.attackTarget = nil
+            -- print(bot:Nick() .. " cleared attack target.")
+        end
     end
 
     return checkPassed

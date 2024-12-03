@@ -12,6 +12,7 @@ local STATUS = TTTBots.STATUS
 local globalWeapons = {}
 local globalPrimaries = {}
 local globalSecondaries = {}
+local globalSpecials = {}
 
 ---@class Bot
 ---@field botTargetWeapon Weapon?
@@ -24,10 +25,12 @@ function GetWeapons.GetNeededWeapon(bot)
 
     local hasPrimary = inventory:HasPrimary()
     local hasSecondary = inventory:HasSecondary()
+    local hasSpecial = inventory:HasSpecialWeapon()
 
     return (
         not hasPrimary and "primary" or
         not hasSecondary and "secondary" or
+        not hasSpecial and "special" or
         "none"
     )
 end
@@ -53,7 +56,9 @@ end
 ---@return boolean success
 function GetWeapons.AssignTargetWeapon(bot)
     local neededWeapon = GetWeapons.GetNeededWeapon(bot)
-    local weapons = (neededWeapon == "primary") and globalPrimaries or globalSecondaries
+    local weapons = (neededWeapon == "primary") and globalPrimaries or 
+                    (neededWeapon == "secondary") and globalSecondaries or 
+                    globalSpecials
 
     local closestWeapon = nil
     local closestDistance = math.huge
@@ -127,6 +132,7 @@ function GetWeapons.UpdateCache()
     globalWeapons = {}
     globalPrimaries = {}
     globalSecondaries = {}
+    globalSpecials = {}
     for k, v in pairs(ents.GetAll()) do
         if not GetWeapons.IsAvailable(v) then continue end
 
@@ -135,6 +141,7 @@ function GetWeapons.UpdateCache()
         local kindTable = {
             [2] = globalSecondaries,
             [3] = globalPrimaries,
+            [7] = globalSpecials,
         }
 
         if kindTable[v.Kind] then

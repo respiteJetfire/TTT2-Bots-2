@@ -429,27 +429,182 @@ function BotInventory:Think()
     self:AutoManageInventory()
 end
 
+--- Return the slave gun (weapon_ttt2_slavedeagle) if it has >0 shots. If not, then return nil.
+---@return WeaponInfo?
+function BotInventory:GetSlaveGun()
+    local hasWeapon = self.bot:HasWeapon("weapon_ttt2_slavedeagle")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    local weapon
+    if self.bot:HasWeapon("weapon_ttt2_slavedeagle") then
+        weapon="weapon_ttt2_slavedeagle"
+    end
+    if not hasWeapon then return end
+    local wep = self.bot:GetWeapon(weapon)
+    if not IsValid(wep) then return end
+    return wep:Clip1() > 0 and wep or nil
+end
+
+
+--- Return the lovers gun (weapon_ttt2_cupidscrossbow)
+---@return WeaponInfo?
+function BotInventory:GetLoversGun()
+    local hasWeapon = self.bot:HasWeapon("weapon_ttt2_cupidscrossbow") or self.bot:HasWeapon("weapon_ttt2_cupidsbow")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    if not hasWeapon then return end
+
+    local wep = self.bot:GetWeapon("weapon_ttt2_cupidscrossbow") or self.bot:GetWeapon("weapon_ttt2_cupidsbow")
+    if not IsValid(wep) then return end
+
+    return wep
+end
+
+
 --- Return the jackal gun (weapon_ttt2_sidekickdeagle) if it has >0 shots. If not, then return nil.
 ---@return WeaponInfo?
 function BotInventory:GetJackalGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_sidekickdeagle")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    local weapon
+    if self.bot:HasWeapon("weapon_ttt2_sidekickdeagle") then
+        weapon="weapon_ttt2_sidekickdeagle"
+    end
+
     if not hasWeapon then return end
-    local wep = self.bot:GetWeapon("weapon_ttt2_sidekickdeagle")
+    local wep = self.bot:GetWeapon(weapon)
+    if not IsValid(wep) then return end
+    return wep:Clip1() > 0 and wep or nil
+end
+
+--- Return the priest gun (weapon_ttt2_holydeagle) if it has >0 shots. If not, then return nil.
+---@return WeaponInfo?
+function BotInventory:GetPriestGun()
+    local hasWeapon = self.bot:HasWeapon("weapon_ttt2_holydeagle")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    if not hasWeapon then return end
+
+    local wep = self.bot:GetWeapon("weapon_ttt2_holydeagle")
     if not IsValid(wep) then return end
 
     return wep:Clip1() > 0 and wep or nil
 end
 
---- Return the sheriff gun (weapon_ttt2_deputydeagle) if it has >0 shots. If not, then return mil.
+--- Return the deputy deagle (weapon_ttt2_deputydeagle) if it has >0 shots. If not, then return nil.
 ---@return WeaponInfo?
-function BotInventory:GetSheriffGun()
+function BotInventory:GetDeputyGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_deputydeagle")
+    -- print("Has weapon: " .. tostring(hasWeapon))
     if not hasWeapon then return end
+
     local wep = self.bot:GetWeapon("weapon_ttt2_deputydeagle")
     if not IsValid(wep) then return end
 
     return wep:Clip1() > 0 and wep or nil
 end
+
+--- Return the contract (weapon_ttt2_contract).
+---@return WeaponInfo?
+function BotInventory:GetContract()
+    local hasWeapon = self.bot:HasWeapon("weapon_ttt2_contract")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    if not hasWeapon then return nil end
+
+    local weapon = "weapon_ttt2_contract"
+    local wep = self.bot:GetWeapon(weapon)
+    if not IsValid(wep) then return nil end
+
+    return wep
+end
+
+--- Return the Medic Medigun (weapon_ttt2_medic_medigun or weapon_ttt_medigun).
+---@return WeaponInfo?
+function BotInventory:GetMedicMedigun()
+    weaponClasses = {
+        "weapon_ttt2_medic_medigun",
+        "weapon_ttt_medigun"
+    }
+    for i, class in pairs(weaponClasses) do
+        local hasWeapon = self.bot:HasWeapon(class)
+        -- print("Has weapon: " .. tostring(hasWeapon))
+        -- if not hasWeapon then return nil end
+
+        local wep = self.bot:GetWeapon(class)
+        if IsValid(wep) then return wep end
+    end
+    return nil
+end
+
+--- Return the Cursed Deagle (weapon_ttt2_cursed_deagle).
+---@return WeaponInfo?
+function BotInventory:GetCursedGun()
+    local hasWeapon = self.bot:HasWeapon("weapon_ttt2_cursed_deagle")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    if not hasWeapon then return nil end
+
+    local weapon = "weapon_ttt2_cursed_deagle"
+    local wep = self.bot:GetWeapon(weapon)
+    if not IsValid(wep) then return nil end
+
+    return wep:Clip1() > 0 and wep or nil
+end
+
+--- Return the Standard Medigun (weapon_ttt_medigun).
+---@return WeaponInfo?
+function BotInventory:GetStandardMedigun()
+    local hasWeapon = self.bot:HasWeapon("weapon_ttt_medigun")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    if not hasWeapon then return nil end
+
+    local weapon = "weapon_ttt_medigun"
+    local wep = self.bot:GetWeapon(weapon)
+    if not IsValid(wep) then return nil end
+
+    return wep
+end
+
+--- Return the SwapDeagle (weapon_ttt2_role_swap_deagle).
+---@return WeaponInfo?
+function BotInventory:GetSwapDeagleGun()
+    local hasWeapon = self.bot:HasWeapon("weapon_ttt2_role_swap_deagle")
+    -- print("Has weapon: " .. tostring(hasWeapon))
+    if not hasWeapon then return nil end
+
+    local weapon = "weapon_ttt2_role_swap_deagle"
+    local wep = self.bot:GetWeapon(weapon)
+    if not IsValid(wep) then return nil end
+
+    return wep:Clip1() > 0 and wep or nil
+end
+
+--- Equip the SwapDeagle if we have it. Returns true if we equipped it, false if we didn't.
+--- Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipSwapDeagleGun()
+    local gun = self:GetSwapDeagleGun()
+    if not gun then return false end
+    self.bot:SetActiveWeapon(gun)
+    return true
+end
+
+--- Equip the Cursed Deagle if we have it. Returns true if we equipped it, false if we didn't.
+--- Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipCursedGun()
+    local gun = self:GetCursedGun()
+    if not gun then return false end
+    self.bot:SetActiveWeapon(gun)
+    return true
+end
+
+--- Equip the contract if we have it. Returns true if we equipped it, false if we didn't.
+--- Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipContract()
+    local contract = self:GetContract()
+    if not contract then return false end
+    self.bot:SetActiveWeapon(contract)
+    return true
+end
+
 --- Equip the Jackal's Sidekick Deagle if we have it. Returns true if we equipped it, false if we didn't.
 --- Doesn't error if we don't have it.
 ---@return boolean
@@ -460,15 +615,69 @@ function BotInventory:EquipJackalGun()
     return true
 end
 
---- Equip the Sheriff's Deputy Deagle if we have it. Returns true if we equipped it, false if we didn't.
+--- Equip the Slave's Deagle if we have it. Returns true if we equipped it, false if we didn't.
 --- Doesn't error if we don't have it.
 ---@return boolean
-function BotInventory:EquipSheriffGun()
-    local gun = self:GetSheriffGun()
+function BotInventory:EquipSlaveGun()
+    local gun = self:GetSlaveGun()
     if not gun then return false end
     self.bot:SetActiveWeapon(gun)
     return true
 end
+
+--- Equip the Lovers' Crossbow if we have it. Returns true if we equipped it, false if we didn't.
+--- Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipLoversGun()
+    local gun = self:GetLoversGun()
+    if not gun then return false end
+    self.bot:SetActiveWeapon(gun)
+    return true
+end
+
+--- Equip the Standard medic gun if we have it. Returns true if we equipped it, false if we didn't.
+--- Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipMedigun()
+    local gun = self:GetStandardMedigun()
+    if not gun then
+        gun = self:GetMedicMedigun()
+    end
+    if not gun then return false end
+    self.bot:SetActiveWeapon(gun)
+    return true
+end
+
+--- Equip the Deputy's Deagle if we have it. Returns true if we equipped it, false if we didn't.
+--- Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipDeputyGun()
+    local gun = self:GetDeputyGun()
+    if not gun then return false end
+    self.bot:SetActiveWeapon(gun)
+    return true
+end
+
+--- Equip the Priest's Deagle if we have it. Returns true if we equipped it, false if we didn't.
+--- Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipPriestGun()
+    local gun = self:GetPriestGun()
+    if not gun then return false end
+    self.bot:SetActiveWeapon(gun)
+    return true
+end
+
+---Equip the Medic Medigun if we have it. Returns true if we equipped it, false if we didn't.
+---Doesn't error if we don't have it.
+---@return boolean
+function BotInventory:EquipMedicMedigun()
+    local gun = self:GetMedicMedigun()
+    if not gun then return false end
+    self.bot:SetActiveWeapon(gun)
+    return true
+end
+
 ---Returns the weapon info table for the weapon we are holding, or what the target is holding if any.
 ---@param target Player|nil
 ---@return WeaponInfo?
@@ -494,6 +703,11 @@ end
 ---@return Weapon?, WeaponInfo?
 function BotInventory:GetSecondary()
     return self:GetBySlot("secondary")
+end
+
+---@return Weapon?, WeaponInfo?
+function BotInventory:GetSpecial()
+    return self:GetBySlot("special")
 end
 
 ---@return Weapon?, WeaponInfo?
@@ -527,6 +741,10 @@ end
 
 function BotInventory:HasSecondary()
     return self:GetByKindRaw(BotInventory.kindHash.secondary) == nil
+end
+
+function BotInventory:HasSpecialWeapon()
+    return self:GetByKindRaw(BotInventory.kindHash.special) == nil
 end
 
 ---Returns the first Weapon in the bots weapons list of int "kind"

@@ -15,13 +15,15 @@ local STATUS = TTTBots.STATUS
 ---@return Player?
 function FollowMaster.FindMaster(bot)
     local myRole = bot:GetRoleStringRaw()
+    local myBaseRole = bot:GetBaseRole()
     local myTeam = bot:GetTeam()
 
     local options = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
         local role = ply:GetRoleStringRaw()
+        local baseRole = ply:GetBaseRole()
         local team = ply:GetTeam()
 
-        return role ~= myRole and team == myTeam
+        return (role ~= myRole and team == myTeam and baseRole ~= ROLE_INNOCENT and role ~= 'pirate') 
     end)
 
     if table.IsEmpty(options) then return end
