@@ -575,6 +575,7 @@ local keywordeventCeaseFire = {
 
 local keywordEventsKOS = {
     ["kos"] = "CallKOS",
+    ["k.o.s"] = "CallKOS",
 }
 
 local keywordEventsCallWait = {

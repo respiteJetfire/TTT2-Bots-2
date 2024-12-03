@@ -302,7 +302,7 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
     --- enable chatter for the bot to report the killer and victim
     local chatter = self.bot:BotChatter()
     if not chatter then return end
-    print("Killed", victim:Nick(), attacker:Nick())
+    -- print("Killed", victim:Nick(), attacker:Nick())
     chatter:On("Kill", { victim = victim:Nick(), victimEnt = victim, attacker = attacker:Nick(), attackerEnt = attacker })
 end
 
@@ -586,7 +586,7 @@ local function preventCloaked(bot)
     if not IsValid(attackTarget) then return end
     local isCloaked = TTTBots.Match.IsPlayerCloaked(attackTarget)
     if isCloaked then
-        print("Preventing attack on cloaked player" .. attackTarget:Nick())
+        -- print("Preventing attack on cloaked player" .. attackTarget:Nick())
         bot:SetAttackTarget(nil)
     end
 end
@@ -616,7 +616,7 @@ local function preventAttack(bot)
     local isNeutral = TTTBots.Roles.GetRoleFor(attackTarget):GetNeutralOverride()
     local bot_zombie_cvar = TTTBots.Lib.GetConVarBool('cheat_bot_zombie')
     if isNeutral or bot_zombie_cvar then
-        print("Preventing attack on neutral", attackTarget:Nick())
+        -- print("Preventing attack on neutral", attackTarget:Nick())
         bot:SetAttackTarget(nil)
     end
 end
@@ -629,7 +629,7 @@ local function preventAttackAllies(bot)
     local isAllies = TTTBots.Roles.IsAllies(bot, attackTarget)
     local isChecked = TTTBots.Match.CheckedPlayers[attackTarget] or nil
     if isAllies and isChecked then
-        print("Preventing attack on ally", attackTarget:Nick())
+        -- print("Preventing attack on ally", attackTarget:Nick())
         bot:SetAttackTarget(nil)
     end
 end
@@ -644,7 +644,7 @@ local function attackNonAllies(bot)
     -- print("KOSing non-allies", kosnonallies, isINFECTEDS, kosrole)
     -- print(kosnonallies, isINFECTEDS)
     if kosnonallies or isINFECTEDs or kosrole then
-        print("KOSing non-allies")
+        -- print("KOSing non-allies")
         local nonAllies = TTTBots.Roles.GetNonAllies(bot)
         local closest = TTTBots.Lib.GetClosest(nonAllies, bot:GetPos())
         if closest and closest ~= NULL and TTTBots.Lib.IsPlayerAlive(closest) and table.HasValue(visible, closest) then
@@ -660,7 +660,7 @@ local function attackKOSedByAll(bot)
     local players = TTTBots.Roles.GetKOSedByAllPlayers()
     local closest = TTTBots.Lib.GetClosest(players, bot:GetPos())
     if closest and closest ~= NULL and closest ~= bot and TTTBots.Lib.IsPlayerAlive(closest) and table.HasValue(visible, closest) then
-        print("Attacking KOSed player", closest)
+        -- print("Attacking KOSed player", closest)
         bot:SetAttackTarget(closest)
     end
 end
@@ -678,7 +678,7 @@ local function attackUnknowns(bot)
         local closest = TTTBots.Lib.GetClosest(unknowns, bot:GetPos())
         -- print("closest", closest)
         if closest and closest ~= NULL and TTTBots.Lib.IsPlayerAlive(closest) then
-            print("Attacking unknown", closest)
+            -- print("Attacking unknown", closest)
             bot:SetAttackTarget(closest)
         end
     end
