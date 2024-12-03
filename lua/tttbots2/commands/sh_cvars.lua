@@ -67,8 +67,14 @@ bot_sh_cvar("chatter_dialogue", "1",
     "Whether or not bots can chitchat with each other in text chat.")
 bot_sh_cvar("chatter_typo_chance", "1",
     "A percent chance, from 1-100, that each character in a bot's message will have a typo.")
-bot_sh_cvar("chatter_voice_azure_voice_quality", "3",
-    "The quality of the Azure TTS voice. 1 = audio-8khz-8kbitrate-mono-mp3, 2 = audio-16khz-16kbitrate-mono-mp3, 3 = audio-16khz-32kbitrate-mono-mp3, 4 = audio-24khz-48kbitrate-mono-mp3, 5 = audio-24khz-96kbitrate-mono-mp3.")
+bot_sh_cvar_server_only("chatter_chatgpt_api_key", "",
+    "The API key for ChatGPT. This is required for bots to reply. You can get one at https://www.openai.com/")
+bot_sh_cvar("chatter_chatgpt_temperature", "0.9",
+    "The temperature for ChatGPT. This determines how random the responses are. Lower values = more predictable, higher values = more random.")
+bot_sh_cvar("chatter_chance_multi", "1",
+    "A multiplier value that affects a bots chance to reply to any chat message (voice if enabled + text). Higher values = more chatting. Set to 0 to disable chatting (Default 1 = 1x Frequency).")
+bot_sh_cvar("chatter_reply_chance_multi", "1",
+    "A multiplier value that affects a bots chance to reply to a message. Higher values = more replying. Set to 0 to disable replying (Default 1 = 1x Frequency).")
 
 -- Gameplay-effecting cvars
 bot_sh_cvar("plans_mindelay", "12",
@@ -193,18 +199,14 @@ bot_sh_cvar("chatter_voice_good_tts_chance", "0",
     "The % chance (therefore 0-100) that a bot will use a good TTS voice in voice chat (Required Elevenlabs Subscription + API Key). Otherwise will revert to a free TTS voice.")
 bot_sh_cvar("chatter_elevenlabs_voice_model", "0",
     "The Elevenlabs voice model to use for TTS. 0 = eleven_turbo_v2_5, 1 = eleven_multilingual_v2, 2 = eleven_monolingual_v1, 3 = eleven_monolingual_v1")
-bot_sh_cvar("chatter_chance_multi", "1",
-    "A multiplier value that affects a bots chance to reply to any chat message (voice if enabled + text). Higher values = more chatting. Set to 0 to disable chatting (Default 1 = 1x Frequency).")
-bot_sh_cvar("chatter_reply_chance_multi", "1",
-    "A multiplier value that affects a bots chance to reply to a message. Higher values = more replying. Set to 0 to disable replying (Default 1 = 1x Frequency).")
 bot_sh_cvar("chatter_voice_good_tts_custom_name_override", "0",
     "If set to 1, bots with the same name as a custom name will be forced to use that corresponding elevenlabs profile.")
 bot_sh_cvar("debug_chatter_voice_team_color", "0",
     "If set to 1, bots will use their team color in voice chat. This is a debug feature.")
 bot_sh_cvar_server_only("chatter_voice_elevenlabs_api_key", "",
     "The API key for Elevenlabs. This is required for good TTS voices. You can get one at https://www.eleven-labs.com/en/")
-bot_sh_cvar_server_only("chatter_voice_chatgpt_api_key", "",
-    "The API key for ChatGPT. This is required for bots to reply. You can get one at https://www.openai.com/")
+bot_sh_cvar("chatter_voice_azure_voice_quality", "3",
+    "The quality of the Azure TTS voice. 1 = audio-8khz-8kbitrate-mono-mp3, 2 = audio-16khz-16kbitrate-mono-mp3, 3 = audio-16khz-32kbitrate-mono-mp3, 4 = audio-24khz-48kbitrate-mono-mp3, 5 = audio-24khz-96kbitrate-mono-mp3.")
 bot_sh_cvar("chatter_voice_stt", "0",
     "If set to 1, audio recorded in voice chat will be sent to a local Speech-to-Text service for transcription and relayed to bots to reply to. This is an experimental feature.")
 bot_sh_cvar("chatter_voice_force_reply_player", "1",

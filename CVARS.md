@@ -1,4 +1,4 @@
-# TTT Bots 2 CVARS
+# TTT Bots 2 Console Commands
 
 ## Shared CVARS
 
@@ -12,7 +12,9 @@
   - Bots can have AI-related profile pictures in the scoreboard.
 
 - **ttt_bot_emulate_ping** (default: `0`)
-  - Bots will emulate a humanlike ping (cosmetic feature).
+  - Bots will emulate a humanlike ping (does not affect gameplay and is cosmetic).
+
+## Misc CVARS
 
 - **ttt_bot_chat_cmds** (default: `1`)
   - Allows chat commands to be used for administration. This cvar exists for mod compatibility.
@@ -87,8 +89,17 @@
 - **ttt_bot_chatter_typo_chance** (default: `1`)
   - A percent chance, from 1-100, that each character in a bot's message will have a typo.
 
-- **ttt_bot_chatter_voice_azure_voice_quality** (default: `3`)
-  - The quality of the Azure TTS voice. 1 = audio-8khz-8kbitrate-mono-mp3, 2 = audio-16khz-16kbitrate-mono-mp3, 3 = audio-16khz-32kbitrate-mono-mp3, 4 = audio-24khz-48kbitrate-mono-mp3, 5 = audio-24khz-96kbitrate-mono-mp3.
+- **ttt_bot_chatter_chatgpt_api_key** (default: `""`)
+  - The API key for ChatGPT.
+
+- **ttt_bot_chatter_chatgpt_temperature** (default: `0.9`)
+  - The temperature for ChatGPT. This determines how random the responses are.
+
+- **ttt_bot_chatter_chance_multi** (default: `1`)
+  - A multiplier value that affects a bot's chance to reply to any chat message.
+
+- **ttt_bot_chatter_reply_chance_multi** (default: `1`)
+  - A multiplier value that affects a bot's chance to reply to a message.
 
 ## Gameplay-effecting CVARS
 
@@ -271,12 +282,6 @@
 - **ttt_bot_chatter_elevenlabs_voice_model** (default: `0`)
   - The Elevenlabs voice model to use for TTS.
 
-- **ttt_bot_chatter_chance_multi** (default: `1`)
-  - A multiplier value that affects a bot's chance to reply to any chat message.
-
-- **ttt_bot_chatter_reply_chance_multi** (default: `1`)
-  - A multiplier value that affects a bot's chance to reply to a message.
-
 - **ttt_bot_chatter_voice_good_tts_custom_name_override** (default: `0`)
   - Bots with the same name as a custom name will be forced to use that corresponding elevenlabs profile.
 
@@ -286,8 +291,8 @@
 - **ttt_bot_chatter_voice_elevenlabs_api_key** (default: `""`)
   - The API key for Elevenlabs.
 
-- **ttt_bot_chatter_voice_chatgpt_api_key** (default: `""`)
-  - The API key for ChatGPT.
+- **ttt_bot_chatter_voice_azure_voice_quality** (default: `3`)
+  - The quality of the Azure TTS voice.
 
 - **ttt_bot_chatter_voice_stt** (default: `0`)
   - Audio recorded in voice chat will be sent to a local Speech-to-Text service for transcription.
