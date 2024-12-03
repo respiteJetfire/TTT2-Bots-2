@@ -29,24 +29,98 @@ You can find the maps custom-made for this add-on [here](https://www.github.com/
 
 This add-on supports a wide range of TTT2 roles. Here are some that have explicit compatibility:
 
-* Jester
-* Jackal
-* Sidekick
-* Hitman (needs work)
-* Serial Killer
-* Survivalist
+* Amnesiac
+* Anonymous
+* Ballas
+* Banker
+* Bloods
 * Bodyguard
-* Sheriff
+* Brainwasher
+* Clairvoyant
+* Clown
+* Crips
+* Cursed
+* Decipherer
+* Defector (WIP)
 * Deputy
+* Detective
+* Doctor
 * Drunk
+* Families
+* Graverobber (WIP)
+* Hitman (WIP)
+* Hoovers
+* Infected
+* Jackal
+* Jester
+* Killerclown
+* Marker
+* Medic
+* Mesmerist
+* Mimic
+* Occultist
+* Oracle
+* Pharaoh (WIP)
+* Pirate Captain
+* Pirate
+* Priest (WIP)
+* Restless
+* Revenant (WIP)
+* Serial Killer
+* Sheriff
+* Sidekick
+* Slave
+* Spy (WIP)
+* Survivalist
+* Swapper
+* Undecided
+* Unknown (WIP)
+* Vigilante
+* Wicked
 
 The mod also auto-generates compatibility with custom roles, but it is imperfect. It does not comprehend most 'public killer' roles (e.g., 'Speedrunner').
+
+
+## Major Change: Chatter evolution
+## OpenAI ChatGPT Support + Azure / Elevenlabs / Microsoft Voice API TTS Support
+
+This Modification to the TTT Bots mod supports bot replies to the player (and other bots), if you provide an OpenAI Key the bots will reply to text chat, either by name or proximity. This feature is in alpha and needs further testing and refining.
+
+The Bots also now have extra text/voice lines for many situations, including trying to copy/steal someone's role, announcing if a player seems suspicious or trustworthy, using certain weapons etc.
+
+They also can now respond to certain requests in chat such as the following (based on several conditions that must be currently active):
+
+* Making a Player into a Cursed / Defector / Medic / Doctor using special role changing Deagles
+* Healing a Player if they are on low health
+* Cease firing or Stop Shooting
+* Wait for the player
+* Attack another player
+* Following the player
+* Using the Role Checker (Addon in workshop collection)
+* Moving to the player's location
+
+This Mod also introduces Text to Speech through the bots chatter system, the current implementation has the downside of holding the UI updates back from the client until the TTS Voice clip is downloaded. I also haven't hooked it up to the TTT2 UI system so I've made a placeholder voice chat graphic in that case.
+
+For Azure TTS you will need the region (e.g en-US) and your Azure Subscription Key. As far as I'm aware this service is free to use at this point since we are only using their free Demo API
+
+For ElevenLabs TTS you will need an API Key.
+
+Alternatively you can opt to use the old Microsoft Sam Voice API but I've found that to be slow, if iconic at the very least.
+
+This feature is also in early Alpha so bugs are expected and a complete redesign of this is probably inevitable.
+
+## Custom Weapon Support
+
+Bots will use some of the custom TTT weapons in the above linked steam workshop collection but this is currently hardcoded to be purchasable by certain roles, I will try to figure out a way to tie this system better with the TTT2 shop system.
+
 
 ## Usage and Commands
 
 A basic usage guide can be found [on the wiki](https://github.com/thebigsleepjoe/TTT-Bots-2/wiki/Basic-Usage-Guide).
 
 It will give you all the info you need for 90% of cases. A more in-depth set of guides are a WIP.
+
+Commands can be found in the CVARS.md file.
 
 ## For developers
 
