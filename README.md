@@ -6,9 +6,13 @@ Please leave any bug reports or feature requests in the Issues section. THANK YO
 
 ## What is this?
 
-This is a player bot addon for the Trouble in Terrorist Town game mode in Garry's Mod.
+This is a modification to thebigsleepjoe's amazing player bot addon for the Trouble in Terrorist Town game mode in Garry's Mod.
 
-It is designed to be as modular as possible, allowing easy customization and expansion. It is designed for TTT2 while being fully playable in regular TTT.
+It is designed to be as modular as possible, allowing easy customization and expansion. It is designed for TTT2.
+
+This has been tested and designed to work on this steam workshop collection [here](https://steamcommunity.com/sharedfiles/filedetails/?id=3317752676), I have forked the original addon and will try to make changes in parallel to the original repository.
+
+This is my first time modifying any kind of game addons or working with lua, my coding background is more Python oriented so forgive the butchery I have done to some of this lovely code that was written.
 
 📝 Note: Please stick to the main branch. Most other branches are eitherunstable or significantly behind.
 
@@ -20,7 +24,7 @@ You can find the maps custom-made for this add-on [here](https://www.github.com/
 
 ## How to use
 
-1. Download the latest version from the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=1256344426).
+1. Download the latest test version from the [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3306701540).
 2. Start a Peer-to-Peer or SRCDS with sufficient player slots on a map with a navmesh or one of the included maps.
 3. *As a super admin,* either type `!botadd X` in chat or write `ttt_bot_add X` in the console.
 4. You're done!
