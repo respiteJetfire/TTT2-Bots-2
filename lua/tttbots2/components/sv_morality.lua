@@ -608,6 +608,28 @@ local function attackEnemies(bot)
     end
 end
 
+
+--- Attack any player that is on TEAM_INFECTED and has a zombie player model models/player/corpse1.mdl
+---@param bot Bot
+local function attackZombies(bot)
+    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Roles.GetNonAllies(bot))
+    local bestDist = math.huge
+    if isKillerRole or kosZombies then
+        for i, ply in visible do
+            --- attack the closest zombie by distance
+            if ply:GetModel() == "models/player/corpse1.mdl" then
+                local dist = bot:GetPos():Distance(ply:GetPos())
+                if dist < bestDist then
+                    bestDist = dist
+                end
+            end
+        end
+        if ply and ply ~= NULL and TTTBots.Lib.IsPlayerAlive(ply) then
+            bot:SetAttackTarget(ply)
+        end
+    end
+end
+
 --- Prevent attacking bots that have the Neutral override parameter set to true
 ---@param bot Bot
 local function preventAttack(bot)
@@ -681,17 +703,6 @@ local function attackUnknowns(bot)
             -- print("Attacking unknown", closest)
             bot:SetAttackTarget(closest)
         end
-    end
-end
-
---- KOS infected Zombies
----@param bot Bot
-local function attackInfected(bot)
-    local isINFECTEDs = INFECTEDS
-    local closest = TTTBots.Lib.GetClosest(isINFECTEDs, bot:GetPos())
-    if closest and closest ~= NULL and TTTBots.Lib.IsPlayerAlive(closest) then
-        print("Attacking infected", closest)
-        bot:SetAttackTarget(closest)
     end
 end
 
