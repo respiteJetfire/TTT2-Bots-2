@@ -34,6 +34,10 @@ function CaptureAnkh.GetNearestAnkh(bot)
     local nearestAnkh = lib.GetClosest(validAnkhs, bot:GetPos())
     if nearestAnkh then
         bot.targetAnkh = nearestAnkh
+        bot.lastSeenAnkhPos = nearestAnkh:GetPos() -- Remember the position of the ankh
+    elseif bot.lastSeenAnkhPos then
+        -- If no valid ankh is found, use the last seen position
+        bot.targetAnkh = bot.lastSeenAnkhPos
     end
     return nearestAnkh
 end
@@ -53,29 +57,36 @@ function CaptureAnkh.Validate(bot)
     if not TTTBots.Match.IsRoundActive() then return false end
     if bot.attackTarget ~= nil then return false end --- We are preoccupied with an attacker.
 
-    local isAnkhNearby = (bot.targetAnkh or CaptureAnkh.GetNearestAnkh(bot) ~= nil)
+    local isAnkhNearby = (bot.targetAnkh or CaptureAnk.GetNearestAnkh(bot) ~= nil)
     -- Players can only control one Ankh, and may not convert another until they use the one they control
-	if PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then
-		return false
-	end
+    if PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then
+        return false
+    end
 
     if not IsValid(bot.targetAnkh) then
         return false
     end
 
+    if bot.targetAnkh and bot:Visible(bot.targetAnkh) then
+        bot.lastSeenAnkhPos = bot.targetAnkh:GetPos()
+    end
+
     --- if not in line of sight, don't bother
     if bot.targetAnkh and not bot:Visible(bot.targetAnkh) then
+        --- if we don't remember the last seen position, don't bother
+        if not bot.lastSeenAnkhPos then
+            return false
+        end
+    end
+
+    --Pharaohs may only convert ankhs that have been stolen from them.
+    if bot:GetSubRole() == ROLE_PHARAOH and not PHARAOH_HANDLER:PlayerIsOriginalOwnerOfThisAnkh(bot, bot.targetAnkh) then
         return false
     end
 
-	--Pharaohs may only convert ankhs that have been stolen from them.
-	if bot:GetSubRole() == ROLE_PHARAOH and not PHARAOH_HANDLER:PlayerIsOriginalOwnerOfThisAnkh(bot, bot.targetAnkh) then
-		return false
-	end
-
     if bot.targetAnkh:GetNWBool("isReviving", false) then
-		return false
-	end
+        return false
+    end
 
     return isAnkhNearby
 end
