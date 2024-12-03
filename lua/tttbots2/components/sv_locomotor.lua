@@ -867,7 +867,7 @@ function BotLocomotor:UpdateMovement()
     end
 end
 
-function BotLocomoter:AdjustPathGoal()
+function BotLocomotor:AdjustPathGoal()
     local goal = self:GetGoal()
     local adjustment = 20
     --- adjust the goal position to be 20 units in a random axis
