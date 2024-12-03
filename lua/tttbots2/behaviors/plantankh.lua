@@ -25,6 +25,15 @@ end
 function PlantAnkh.Validate(bot)
     local inRound = TTTBots.Match.IsRoundActive()
     local hasAnkh = PlantAnkh.HasAnkh(bot)
+    --- check if there are any ttt_ankh entities on the map (if yes AND the bot is not the owner then return true, if no then return true, else return false)
+    local ankh = ents.FindByClass("ttt_ankh")
+    local ankhCount = 0
+    for _, ent in pairs(ankh) do
+        if IsValid(ent) and ent:GetOwner() == bot then
+            return false
+        end
+    end
+
     return inRound and hasAnkh
 end
 

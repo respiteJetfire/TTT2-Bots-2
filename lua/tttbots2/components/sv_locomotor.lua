@@ -869,8 +869,8 @@ end
 
 function BotLocomotor:AdjustPathGoal()
     local goal = self:GetGoal()
-    local adjustment = 20
-    --- adjust the goal position to be 20 units in a random axis
+    local adjustment = 100
+    --- adjust the goal position to be 100 units in a random axis
     if math.random(1, 2) == 1 then
         goal.x = goal.x + adjustment
     else

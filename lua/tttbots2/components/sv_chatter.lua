@@ -556,10 +556,9 @@ local keywordEventsCallDefector = {
 }
 
 local keywordeventsCallHeal = {
-    ["heal"] = "CallHeal",
     ["healer"] = "CallHeal",
-    ["heal"] = "CallHeal",
     ["health"] = "CallHeal",
+    ["heal me"] = "CallHeal",
 }
 
 local keywordeventsCallMedic = {
