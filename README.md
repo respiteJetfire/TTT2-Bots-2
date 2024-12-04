@@ -12,7 +12,7 @@ It is designed to be as modular as possible, allowing easy customization and exp
 
 This has been tested and designed to work on this steam workshop collection [here](https://steamcommunity.com/sharedfiles/filedetails/?id=3317752676), I have forked the original addon and will try to make changes in parallel to the original repository.
 
-This is my first time modifying any kind of game addons or working with lua, my coding background is more Python oriented so forgive the butchery I have done to some of this lovely code that was written.
+This is my first time modifying any kind of game addons or working with lua, my coding background is more Python oriented so forgive the butchery I have done to some of this lovely code that was originally written.
 
 📝 Note: Please stick to the main branch. Most other branches are eitherunstable or significantly behind.
 
