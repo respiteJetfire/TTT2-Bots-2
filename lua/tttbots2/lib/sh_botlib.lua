@@ -270,7 +270,7 @@ function TTTBots.Lib.FindCloseTarget(bot, range, filterVisible, filterMarked, fi
     local bestTarget = nil
 
     for _, other in ipairs(targets) do
-        if IsValid(other) then
+        if IsValid(other) and other ~= NULL then
             local dist = bot:GetPos():Distance(other:GetPos()) or bestDist * 2
             if dist < bestDist then
                 bestDist = dist

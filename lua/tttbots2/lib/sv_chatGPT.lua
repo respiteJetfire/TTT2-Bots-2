@@ -26,13 +26,13 @@ function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice)
             "model": "gpt-3.5-turbo",
             "messages": [{"role": "user", "content": "]] .. text .. [["}],
             "max_tokens": 150,
-            "temperature": '0.4'
+            "temperature": ]] .. temperature .. [[
         }]],
         success = function(code, body, headers)
             local response = TTTBots.ChatGPT.ProcessResponse(body)
             if response and bot and IsValid(bot) and response ~= text and not string.find(response, text) and not string.find(text, response) then
                 -- print("Response from ChatGPT API: " .. response)
-                local chatter = bot:GetChatter()
+                local chatter = bot:BotChatter()
                 chatter:textorTTS(bot, response, teamOnly, nil, wasVoice)
 
             elseif response and response.error and response.error.message then

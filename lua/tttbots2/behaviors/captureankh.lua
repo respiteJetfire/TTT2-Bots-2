@@ -57,7 +57,7 @@ function CaptureAnkh.Validate(bot)
     if not TTTBots.Match.IsRoundActive() then return false end
     if bot.attackTarget ~= nil then return false end --- We are preoccupied with an attacker.
 
-    local isAnkhNearby = (bot.targetAnkh or CaptureAnk.GetNearestAnkh(bot) ~= nil)
+    local isAnkhNearby = (bot.targetAnkh or CaptureAnkh.GetNearestAnkh(bot) ~= nil)
     -- Players can only control one Ankh, and may not convert another until they use the one they control
     if PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then
         return false

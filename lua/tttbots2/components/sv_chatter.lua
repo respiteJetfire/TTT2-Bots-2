@@ -853,6 +853,10 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                     end
                     handlerFunction(target, ply)
                     return true
+                elseif string.find(fulltxt, "me") then
+                    print("Handling me attack")
+                    handlerFunction(bot, ply)
+                    return true
                 elseif not string.find(fulltxt, "everyone") then
                     if not bot and ply then return end
                     handlerFunction(bot, ply, teamOnly)
@@ -895,8 +899,14 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
     local function handleKeywordEventsAttack(keywordEvents, handlerFunction, ply, fulltxt, bot, teamOnly, bots, targets)
         for keyword, event in pairs(keywordEvents) do
             if string.find(fulltxt, keyword) then
-            -- print("Handling attack")
-                if string.find(fulltxt, "someone") then
+                print("Handling attack for keyword: ", keyword)
+                
+                if string.find(fulltxt, "me") then
+                    print("Handling me attack")
+                    local target = ply
+                    handlerFunction(bot, ply, target, teamOnly)
+                    return true
+                elseif string.find(fulltxt, "someone") then
                     print("Handling someone attack")
                     local target = table.Random(targets)
                     while target == ply do
@@ -905,8 +915,8 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                     handlerFunction(bot, ply, target, teamOnly)
                     return true
                 elseif string.find(fulltxt, "everyone") then
-                    local botTargets = findPlayersInText(fulltxt)
                     print("Handling everyone attack")
+                    local botTargets = findPlayersInText(fulltxt)
                     for _, bot in ipairs(targets) do
                         local target = botTargets[1]
                         if not target then return end
@@ -918,7 +928,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                         end
                     end
                     return true
-                elseif teamOnly and #findPlayersInText(fulltxt) < 2 then
+                elseif teamOnly then
                     print("Handling team only attack")
                     --- select a random teammate that is not the player (if one exists)
                     --- then select a random non-team and not the player target
@@ -933,7 +943,6 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                         end
                     end
                     if not (target and bot) then return end
-                    -- print("Handling team only attack")
                     handlerFunction(bot, ply, target, teamOnly)
                     return true
                 elseif not string.find(fulltxt, "everyone") then
@@ -953,9 +962,9 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
     
     if bot then
         if handleKeywordEventsAttack(keywordEventsCallAttack, handleAttack, ply, fulltxt, bot, teamOnly, bots, targets) then return end
-        if handleKeywordEventsAttack(keywordEventsCallCursed, handleCursed, ply, fulltxt, bot, true, bots, targets) then return end
-        if handleKeywordEventsAttack(keywordEventsCallDefector, handleDefector, ply, fulltxt, bot, true, bots, targets) then return end
-        if handleKeywordEventsAttack(keywordeventsCallMedic, handleMedic, ply, fulltxt, bot, true, bots, targets) then return end
+        if handleKeywordEventsAttack(keywordEventsCallCursed, handleCursed, ply, fulltxt, bot, teamOnly, bots, targets) then return end
+        if handleKeywordEventsAttack(keywordEventsCallDefector, handleDefector, ply, fulltxt, bot, teamOnly, bots, targets) then return end
+        if handleKeywordEventsAttack(keywordeventsCallMedic, handleMedic, ply, fulltxt, bot, teamOnly, bots, targets) then return end
 
         local chatter = bot:BotChatter()
         local fulltxt = createPrompt(bot, text, teamOnly, ply)
@@ -967,7 +976,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         --     print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
         --     startIndex = endIndex + 1
         -- end
-        tTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice)
+        TTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice)
     end
 end
 
