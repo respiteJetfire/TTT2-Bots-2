@@ -43,7 +43,6 @@ function CaptureAnkh.GetNearestAnkh(bot)
 end
 
 function CaptureAnkh.UseAnkh(bot, ankh)
-    print("Bot " .. bot:Nick() .. " is using an ankh at " .. tostring(ankh:GetPos()))
     --- Wait 1 second before using the ankh
     PHARAOH_HANDLER:StartConversion(ankh, bot)
     timer.Simple(1, function()
@@ -119,6 +118,17 @@ end
 
 --- Called when the behavior returns a success state
 function CaptureAnkh.OnSuccess(bot)
+    --- if the ROLE_GRAVEROBBER is a witness, they might attack the player
+    --- get witnesses
+    local witnesses = TTTBots.Lib.GetAllWitnesses(bot:EyePos(), true)
+    --- so if the bot is ROLE_PHAROAH and the witneess is ROLE_GRAVEROBBER, the witness will attack the bot
+    for i, v in pairs(witnesses) do
+        if v:GetSubRole() == ROLE_GRAVEROBBER and bot:GetSubRole() == ROLE_PHARAOH then
+            v:SetAttackTarget(bot)
+        elseif v:GetSubRole() == ROLE_PHARAOH and bot:GetSubRole() == ROLE_GRAVEROBBER then
+            v:SetAttackTarget(bot)
+        end
+    end
 end
 
 --- Called when the behavior returns a failure state
