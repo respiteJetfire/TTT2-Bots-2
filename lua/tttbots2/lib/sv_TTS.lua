@@ -55,7 +55,7 @@ function TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly)
                     chatter:WriteDataFree(teamOnly, bot, true, FileID, FileContent)
                 end
             else
-                print("The HTTP request to fetch TTS audio failed. HTTP Code: " .. code)
+                print("The HTTP request to fetch TTS audio failed. HTTP Code: " .. code .. ". Response body: " .. body)
                 chatter:Say(fulltxt, teamOnly)
             end
         end,
@@ -114,7 +114,7 @@ function TTTBots.TTS.ElevenLabsSendRequest(ply, text, teamOnly)
         body = jsonBody,
         success = function(code, body)
             if code == 200 then
-                -- print("Received TTS audio from ElevenLabs API.")
+                print("Received TTS audio from ElevenLabs API.")
 
                 local FileContent = util.Compress(body)
                 local FileSize = #FileContent
@@ -163,17 +163,16 @@ end
 function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
     --- Send a request to Microsoft Azure Text-to-Speech API to get the TTS audio
     local azureRegion = TTTBots.Lib.GetConVarString("chatter_voice_azure_region")
-    local chatter = ply:BotChatter()
-    local azureSubscriptionKey = TTTBots.Lib.GetConVarString("chatter_voice_azure_subscription_key")
+    local azureResourceGroupName = TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_name")
+    local azureResourceSpeechAPIKey = TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_api_key")
     local azureVoiceName = ply:BotPersonality().voice.id
-    local azureStyle = "chat"
+    local chatter = ply:BotChatter()
     local azureTokenEndpoint = "https://" .. azureRegion .. ".api.cognitive.microsoft.com/sts/v1.0/issuetoken"
     local azureTTSEndpoint = "https://" .. azureRegion .. ".tts.speech.microsoft.com/cognitiveservices/v1"
 
     -- Function to handle the TTS response
     local function handleTTSResponse(code, body)
         if code == 200 then
-            -- print("Received TTS audio from Azure TTS API.")
             local FileContent = util.Compress(body)
             local FileSize = #FileContent
             local FileID = os.time()
@@ -208,14 +207,13 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
         else
             print("The HTTP request to Azure TTS API failed. HTTP Code: " .. code)
             chatter:Say(text, teamOnly)
-            -- print("Response body: " .. body)
-            -- print("Please check the Azure TTS API endpoint and request parameters.")
         end
     end
 
     -- Function to handle the access token response
     local function handleTokenResponse(body, len, headers, code)
         if code == 200 then
+            print("Received Azure access token.")
             local azureToken = body
             local azureVoiceQuality = {
                 "riff-8khz-8bit-mono-alaw",
@@ -231,7 +229,6 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
             end
 
             local outputFormat = azureVoiceQuality[qualityIndex]
-            -- print("Azure Voice Quality: " .. outputFormat)
 
             -- Prepare the SSML request body
             local ssmlBody = string.format(
@@ -250,7 +247,7 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
                     ["Content-Type"] = "application/ssml+xml",
                     ["Authorization"] = "Bearer " .. azureToken,
                     ["Connection"] = "Keep-Alive",
-                    ["User-Agent"] = "YohnSpSST",
+                    ["User-Agent"] = azureResourceGroupName,
                     ["X-Microsoft-OutputFormat"] = outputFormat,
                 },
                 body = ssmlBody,
@@ -264,19 +261,21 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
             --     print(k, v)
             -- end
         else
+            print("Failed to receive Azure access token. HTTP Code: " .. code)
+            print("Response body: " .. body)
         end
     end
 
     -- Get Azure access token
+    -- print("Getting Azure access token...")
     http.Post(azureTokenEndpoint, "",
         handleTokenResponse,
         function(err)
             print("HTTP Error: " .. err)
         end,
         {
-            ["Ocp-Apim-Subscription-Key"] = azureSubscriptionKey,
+            ["Ocp-Apim-Subscription-Key"] = azureResourceSpeechAPIKey,
             ["Content-Length"] = "0"
         }
     )
 end
-

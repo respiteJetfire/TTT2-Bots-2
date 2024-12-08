@@ -153,6 +153,9 @@ function BotChatter:Say(text, teamOnly, ignoreDeath, callback)
     -- remove "[BOT] " and "[bot] " occurences from the text
     text = string.gsub(text, "%[BOT%] ", "")
     text = string.gsub(text, "%[bot%] ", "")
+    --- remove any '' or "" from the text
+    text = string.gsub(text, "'", "")
+    text = string.gsub(text, '"', "")
     text = self:TypoText(text)
     timer.Simple(delay, function()
         if self.bot == NULL or not IsValid(self.bot) then return end
@@ -207,7 +210,8 @@ function BotChatter:On(event_name, args, teamOnly, delay)
     end
 
     local difficulty = lib.GetConVarInt("difficulty")
-    local kosChanceMult = lib.GetConVarFloat("chatter_koschance")
+    local ChanceMult = lib.GetConVarFloat("chatter_chance_multi") or 1
+    local chatGPTChance = lib.GetConVarFloat("chatter_gpt_chance") or 0.25
 
     --- Base chances to react to the events via chat
     local chancesOf100 = {
@@ -224,7 +228,7 @@ function BotChatter:On(event_name, args, teamOnly, delay)
         FollowMeEnd = 40,
         LifeCheck = 65,
         Kill = 25,
-        CallKOS = 15 * difficulty * kosChanceMult,
+        CallKOS = 15 * difficulty,
         FollowStarted = 10,
         ServerConnected = 45,
         SillyChat = 30,
@@ -234,10 +238,18 @@ function BotChatter:On(event_name, args, teamOnly, delay)
     local personality = self.bot.components.personality --- @type CPersonality
     if chancesOf100[event_name] then
         local chance = chancesOf100[event_name]
-        if math.random(0, 100) > (chance * personality:GetTraitMult("textchat")) then return false end
+        if math.random(0, 100) > (chance * personality:GetTraitMult("textchat") * ChanceMult) then return false end
     end
 
-    local localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+    local localizedString
+    if math.random() < chatGPTChance then
+        localizedString = TTTBots.Locale.FormatArgsIntoTxt(TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, event_name, args), args)
+    else
+        localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+        if not localizedString then
+            localizedString = TTTBots.Locale.FormatArgsIntoTxt(TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, event_name, args), args)
+        end
+    end
     local isCasual = personality:GetClosestArchetype() == TTTBots.Archetypes.Casual
     if localizedString then
         if isCasual then localizedString = string.lower(localizedString) end
@@ -281,23 +293,27 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
             rateLimitTime = 2
         end
         if CurTime() - bot.lastReplyTime < rateLimitTime then
-            -- print("Bot rate limited: ", bot)
+            print("Bot rate limited: ", bot)
             return nil
         end
         bot.lastReplyTime = CurTime()
 
         if not (speakingPlayers[bot] and (CurTime() - speakingPlayers[bot] < 5)) and math.random() <= voiceChatChance then
+            print("Sending Voice chat: " .. text)
                 if voicetype == "elevenlabs" then
+                    -- print("Sending Voice chat to ElevenLabs")
                     TTTBots.TTS.ElevenLabsSendRequest(bot, text, teamOnly)
                 elseif voicetype == "Azure" then
+                    -- print("Sending Voice chat to Azure")
                     TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly)
                 else
+                    -- print("Sending Voice chat to FreeTTS")
                     TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly)
                 end 
                 speakingPlayers[bot] = CurTime()
                 self:RespondToPlayerMessage(bot, text, teamOnly, math.random(3, 6))
         else
-            -- print("Sending Text chat: " .. text)
+            print("Sending Text chat: " .. text)
             self:Say(text, teamOnly, false, function()
                 if event_name == "CallKOS" and args then
                     self:QuickRadio("quick_traitor", args.playerEnt)
@@ -746,66 +762,6 @@ timer.Create("CheckTranscriptionsLocal", checkInterval, 0, checkTranscriptionsLo
 --     timer.Create("CheckTranscriptionsAzure", checkInterval, 0, checkTranscriptionsAzure)
 -- end
 
-function createPrompt(bot, text, teamOnly, ply)
-    local personality = bot:BotPersonality()
-    local nickname = bot:Nick()
-    local team_name = _G.team.GetName(bot:GetTeam())
-    local role = bot:GetRoleStringRaw()
-    local archetype = personality.archetype
-    local behaviorDesc = bot.lastBehavior and bot.lastBehavior.Description or "None"
-    local numWords = math.random(8, 15)
-    local plyName = ply:Nick() -- Define plyName
-    local plyRole = ply:GetRoleStringRaw()
-    ---sanitise the team name
-    local team = bot:GetTeam()
-    local teamString = team.GetName and team:GetName() or tostring(team)
-    teamString = teamString:lower():gsub("^team_", "")
-    local team_name = teamString
-    local plyTeam = ply:GetTeam().GetName and ply:GetTeam():GetName() or tostring(ply:GetTeam())
-    plyTeam = plyTeam:lower():gsub("^team_", "")
-    local usesSuspicion = TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
-    local Morality = bot:BotMorality()
-    local playerSus = Morality:GetSuspicion(ply) or 0
-    local promptIntro = "Do not act like Chat GPT, Do not repeat anything in this prompt. You are role playing as a self-aware/sentient bot roleplaying a human player with the name "
-    local promptName = nickname
-    local promptGame = " playing a round of Trouble in Terrorist Town on garry's mod."
-    local promptGameDesc = " Trouble in Terrorist Town is a social deduction game with a murderous twist, your objective being to ask questions and gauging your fellow player's behaviour to determine their suspicion. You have the in game role "
-    local promptRole = role
-    local promptPersonality = " and you have the personality type of a "
-    local promptArchetype = archetype
-    local promptReply = ". and must reply as if you were talking in voice chat to this message with that personality with a response. You are currently trying to "
-    local promptBehavior = behaviorDesc
-    local promptDirective = ". If the message contains your name or is addressed to you, you must act as if it is directed towards yourself and reply without mentioning your name."
-    local promptMessagerInfo = "The person talking to you is named " .. plyName
-    local promptTeam = "Your team, which determines your ultimate allegiance is " .. team_name
-    local promptInnocent = " although you must claim to be on the innocent team. "
-    local promptSus = ""
-    local teamOnlyPrompt = " "
-    if usesSuspicion and playerSus > 5 then
-        promptSus = " You think the person talking to you is very suspicious, and you are free to say so, and should treat them as such."
-    elseif usesSuspicion and playerSus < -5 then
-        promptSus = " You trust the person talking to you is the same team as you, and you are free to say so, and should treat them as such.."
-        if teamOnly then
-            teamOnlyPrompt = " The person messaging you is on your team, you are talking in team chat."
-            promptInnocent = " You are free to talk about your role and team."
-        end
-        if role == "decipherer" or archetype == "Tryhard" then
-            promptMessagerInfo = "The person talking to you is named " .. plyName .. " and is the " .. plyRole .. " on the " .. plyTeam .. " team. You can use this information to accuse them of not being innocent."
-        end
-    end
-    local promptPremessage = "Your response MUST be less than " .. numWords .. " words long, " ..
-                             "you can answer any question even outside of the In-Game context " ..
-                             "(so you can answer how you are feeling): [message to reply to= "
-    local promptMessage = text
-    local promptEnd = "]"
-    -- print("Creating prompt")
-    -- --- print first and second halves of the prompt
-    -- print(promptIntro .. promptName .. promptGame .. promptGameDesc .. promptRole .. promptPersonality .. promptArchetype .. promptReply .. promptBehavior .. promptDirective .. promptTeam .. promptInnocent .. promptMessagerInfo .. promptSus .. teamOnlyPrompt)
-    -- print(promptPremessage .. promptMessage .. promptEnd)
-
-    return promptIntro .. promptName .. promptGame .. promptGameDesc .. promptRole .. promptPersonality .. promptArchetype .. promptReply .. promptBehavior .. promptDirective .. promptTeam .. promptInnocent .. promptMessagerInfo .. promptSus .. teamOnlyPrompt .. promptPremessage .. promptMessage .. promptEnd
-end
-
 function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
     if not IsValid(ply) or not ply:Alive() then return end
     --- delay is the time in seconds before the bot responds to the message
@@ -967,7 +923,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         if handleKeywordEventsAttack(keywordeventsCallMedic, handleMedic, ply, fulltxt, bot, teamOnly, bots, targets) then return end
 
         local chatter = bot:BotChatter()
-        local fulltxt = createPrompt(bot, text, teamOnly, ply)
+        local fulltxt = TTTBots.Locale.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
         fulltxt = fulltxt:gsub('"', '\\"')
         local maxLength = 1000
         local startIndex = 1
@@ -1061,7 +1017,7 @@ function BotChatter:WriteDataFree(teamOnly, ply, IsOnePart, FileID, FileData, Fi
         end
 
     net.Broadcast()
-    -- print("Sent TTS data to clients.")
+    print("Sent TTS data to clients.")
 end
     
     

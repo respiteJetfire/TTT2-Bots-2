@@ -75,6 +75,8 @@ bot_sh_cvar("chatter_chance_multi", "1",
     "A multiplier value that affects a bots chance to reply to any chat message (voice if enabled + text). Higher values = more chatting. Set to 0 to disable chatting (Default 1 = 1x Frequency).")
 bot_sh_cvar("chatter_reply_chance_multi", "1",
     "A multiplier value that affects a bots chance to reply to a message. Higher values = more replying. Set to 0 to disable replying (Default 1 = 1x Frequency).")
+bot_sh_cvar("chatter_gpt_chance", "1",
+    "A multiplier value that affects a bots chance to use ChatGPT to generate bot chatter. Higher values = more ChatGPT. Set to 0 to disable ChatGPT Custom Chatter (Default 1 = 1x Frequency).")
 
 -- Gameplay-effecting cvars
 bot_sh_cvar("plans_mindelay", "12",
@@ -211,8 +213,10 @@ bot_sh_cvar("chatter_voice_stt", "0",
     "If set to 1, audio recorded in voice chat will be sent to a local Speech-to-Text service for transcription and relayed to bots to reply to. This is an experimental feature.")
 bot_sh_cvar("chatter_voice_force_reply_player", "1",
     "If set to 1, bots will always reply to players in voice chat. If set to 0, bots will not always reply to players in voice chat.")
-bot_sh_cvar("chatter_voice_azure_subscription_key", "",
+bot_sh_cvar("chatter_voice_azure_resource_api_key", "",
     "The API key for Azure Speech-to-Text. This is required for bots to reply to voice chat. You can get one at https://azure.microsoft.com/en-us/services/cognitive-services/speech-to-text/")
+bot_sh_cvar("chatter_voice_azure_resource_name", "",
+    "The subscription name for Azure Speech-to-Text. This is required for bots to reply to voice chat. You can get one at https://azure.microsoft.com/en-us/services/cognitive-services/speech-to-text/")
 bot_sh_cvar("chatter_voice_azure_region", "eastus",
     "The region for Azure Speech-to-Text. This is required for bots to reply to voice chat. You can get one at https://azure.microsoft.com/en-us/services/cognitive-services/speech-to-text/")
 bot_sh_cvar("chatter_voice_tts_provider", "0",

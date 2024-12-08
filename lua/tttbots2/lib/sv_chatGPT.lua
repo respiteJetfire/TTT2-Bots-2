@@ -25,7 +25,7 @@ function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice)
         body = [[{
             "model": "gpt-3.5-turbo",
             "messages": [{"role": "user", "content": "]] .. text .. [["}],
-            "max_tokens": 150,
+            "max_tokens": 250,
             "temperature": ]] .. temperature .. [[
         }]],
         success = function(code, body, headers)

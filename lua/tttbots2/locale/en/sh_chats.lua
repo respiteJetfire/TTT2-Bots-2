@@ -15,9 +15,9 @@ local LoadLang = function()
     local Line = function(line, archetype)
         return TTTBots.Locale.AddLine(currentEvent, line, "en", archetype)
     end
-    local RegisterCategory = function(event, priority)
+    local RegisterCategory = function(event, priority, description)
         currentEvent = event
-        return TTTBots.Locale.RegisterCategory(event, "en", priority)
+        return TTTBots.Locale.RegisterCategory(event, "en", priority, description)
     end
     local f = string.format
     local ACTS = TTTBots.Plans.ACTIONS
@@ -27,8 +27,8 @@ local LoadLang = function()
     -----------------------------------------------------------
 
 
-    RegisterCategory("DisconnectBoredom", P.CRITICAL)
-    Line("I'm bored. Bye.", A.Default)
+    RegisterCategory("DisconnectBoredom", P.CRITICAL, "When a bot is bored and sends a message when leaving the server.")
+    Line("I'm bored. Bye.",  A.Default)
     Line("Nothing's happening here. I'm out.", A.Default)
     Line("See ya when there's more action.", A.Default)
     Line("Not much going on. Catch you later.", A.Default)
@@ -85,7 +85,7 @@ local LoadLang = function()
     Line("Going to up my game elsewhere. Ta-ta.", A.Tryhard)
 
 
-    RegisterCategory("DisconnectRage", P.CRITICAL)
+    RegisterCategory("DisconnectRage", P.CRITICAL, "When a bot is angry and sends a message when leaving the server.")
     Line("Screw you guys.", A.Default)
     Line("I've had it with this!", A.Default)
     Line("This is just too much. I'm out!", A.Default)
@@ -188,7 +188,7 @@ local LoadLang = function()
     Line("It's not worth it. Goodbye losers.", A.Tryhard)
 
 
-    RegisterCategory("ServerConnected", P.NORMAL)
+    RegisterCategory("ServerConnected", P.NORMAL, "When a bot joins the server they will send a message to announce it.")
     Line("I'm back!", A.Default)
     Line("Hi everyone.", A.Default)
     Line("Ready to go.", A.Default)
@@ -228,7 +228,7 @@ local LoadLang = function()
     -- TARGET ASSIGNMENT / ATTACK
     -----------------------------------------------------------
 
-    RegisterCategory("DisguisedPlayer", P.IMPORTANT) -- When a bot spots someone with a disguise
+    RegisterCategory("DisguisedPlayer", P.IMPORTANT, "When a bot spots a disguised player they will announce it or tell the disguised player.")
     Line("This guy is disguised!", A.Default)
     Line("Seems like someone's playing hide and seek!", A.Default)
     Line("A mystery guest among us, huh?", A.Default)
@@ -251,7 +251,7 @@ local LoadLang = function()
     Line("Disguise or not, I'll find you", A.Tryhard)
     Line("You're not escaping my sight", A.Tryhard)
 
-    RegisterCategory("DeclareSuspicious", P.IMPORTANT) -- When a bot spots {{player}} acting suspicious
+    RegisterCategory("DeclareSuspicious", P.IMPORTANT, "When a bot finds another {{player}} suspicious they will tell the {{player}} or everyone else.")
     -- Default
     Line("{{player}} is acting suspicious.", A.Default)
     Line("I think {{player}} is up to something.", A.Default)
@@ -374,7 +374,7 @@ local LoadLang = function()
     Line("{{player}}, why are you acting so weird?", A.Sus)
     Line("there is an imposter among us", A.Sus)
 
-    RegisterCategory("DeclareInnocent", P.IMPORTANT) -- When a bot trusts {{player}}'s innocence
+    RegisterCategory("DeclareInnocent", P.IMPORTANT, "When a bot slightly trusts another {{player}} they will tell them or everyone else.")
     -- Default
     Line("I trust {{player}}.", A.Default)
     Line("I think {{player}} is innocent.", A.Default)
@@ -445,7 +445,7 @@ local LoadLang = function()
     Line("{{player}} is innocent, trust me", A.Tryhard)
     Line("{{player}} is not the traitor, guaranteed", A.Tryhard)
 
-    RegisterCategory("DeclareTrustworthy", P.IMPORTANT) -- When a bot trusts {{player}} but still not 100% on them being innocent
+    RegisterCategory("DeclareTrustworthy", P.IMPORTANT, "When a bot trusts another {{player}} they will tell them or everyone else.")
     -- Default
     Line("{{player}} seems trustworthy.", A.Default)
     Line("I think {{player}} may be innocent but not sure yet.", A.Default)
@@ -517,7 +517,7 @@ local LoadLang = function()
     Line("I trust {{player}}, but let's not let our guard down.", A.Tryhard)
 
     --- Report witnessing an attacker murder a victim
-    RegisterCategory("Kill", P.CRITICAL)
+    RegisterCategory("Kill", P.CRITICAL, "When a bot witnesses {{victim}} being killed by {{attacker}} they will report this.")
     Line("{{attacker}} killed {{victim}}!", A.Default)
     Line("I saw {{attacker}} murder {{victim}}!", A.Default)
     Line("{{attacker}} murdered {{victim}}!", A.Default)
@@ -617,7 +617,7 @@ local LoadLang = function()
     Line("{{attacker}} just dispatched {{victim}}, stay vigilant.", A.Tryhard)
 
         --- Respond affirmatively to a request to follow the player, named {target}
-    RegisterCategory("FollowMe", P.NORMAL)
+    RegisterCategory("FollowMe", P.NORMAL, "When a bot is asked to follow the player, named {{target}}, they will respond affirmatively.")
     Line("I'll follow {{target}}.", A.Default)
     Line("Sure {{target}}, I'll follow you.", A.Default)
     Line("I'll stick with you, {{target}}.", A.Default)
@@ -720,7 +720,7 @@ local LoadLang = function()
     Line("I'll stick with you, {{target}}, no mistakes.", A.Tryhard)
     Line("Right behind you, {{target}}, let's execute the plan.", A.Tryhard)
 
-    RegisterCategory("FollowMeRefuse", P.IMPORTANT) -- When a bot refuses to follow the player, named {target}, mostly due to suspicion
+    RegisterCategory("FollowMeRefuse", P.IMPORTANT, "When a bot refuses to follow the player, named {{target}}, they will respond negatively.")
     -- Default
     Line("I can't follow you, {{target}}.", A.Default)
     Line("I'm not following you, {{target}}.", A.Default)
@@ -793,7 +793,7 @@ local LoadLang = function()
     Line("I can't follow you, {{target}}. I have my own strategy.", A.Tryhard)
 
 
-    RegisterCategory("FollowMeEnd", P.NORMAL)
+    RegisterCategory("FollowMeEnd", P.NORMAL, "When a bot decides to stop following the player, named {{target}}, they will announce this.")
     Line("I'm done following you.", A.Default)
     Line("I'm going my own way now.", A.Default)
     Line("I'm not following you anymore.", A.Default)
@@ -903,7 +903,7 @@ local LoadLang = function()
     Line("I'm going my own way now, {{target}}. Let's execute the plan.", A.Tryhard)
 
     --- Respond affirmatively (so Yes) to a request to wait (or stand still) for the player, named {target}, vary sentence structure massively
-    RegisterCategory("WaitStart", P.NORMAL)
+    RegisterCategory("WaitStart", P.NORMAL, "When a bot is asked to wait for the player, named {{target}}, they will respond affirmatively.")
     Line("I'll wait for you, {{target}}.", A.Default)
     Line("I'll stand still, {{target}}.", A.Default)
     Line("I'll hold position, {{target}}.", A.Default)
@@ -985,7 +985,7 @@ local LoadLang = function()
     Line("I'll wait for you, {{target}}, stay sharp.", A.Tryhard)
 
     --- Refuse to wait for the player, named {target}, vary sentence structure massively
-    RegisterCategory("WaitRefuse", P.IMPORTANT)
+    RegisterCategory("WaitRefuse", P.IMPORTANT, "When a bot refuses to wait for the player, named {{target}}, they will respond negatively.")
     Line("I can't wait for you, {{target}}.", A.Default)
     Line("I'm not waiting for you, {{target}}.", A.Default)
     Line("I'm going my own way, {{target}}.", A.Default)
@@ -1050,7 +1050,7 @@ local LoadLang = function()
     Line("I'm not waiting for you, {{target}}. I have my own plans.", A.Tryhard)
     Line("I can't wait for you, {{target}}. I have my own strategy.", A.Tryhard)
 
-    RegisterCategory("WaitEnd", P.NORMAL)
+    RegisterCategory("WaitEnd", P.NORMAL, "When a bot decides to stop waiting for the player, named {{target}}, they will announce this.")
     Line("I'm done waiting.", A.Default)
     Line("I'm moving now.", A.Default)
     Line("I'm not waiting anymore.", A.Default)
@@ -1122,7 +1122,7 @@ local LoadLang = function()
 
     -----------------------------------------------------------
 
-    RegisterCategory("ComeHereStart", P.NORMAL) -- When a bot is going to the same location as the player, named {target}.
+    RegisterCategory("ComeHereStart", P.NORMAL, "When a bot is asked to come to the player, named {{target}}, they will respond affirmatively.")
     Line("I'm coming to you, {{target}}.", A.Default)
     Line("I'm on my way, {{target}}.", A.Default)
     Line("I'm coming, {{target}}.", A.Default)
@@ -1185,7 +1185,7 @@ local LoadLang = function()
     Line("I'm heading to you, {{target}}, let's execute the plan.", A.Tryhard)
     Line("I'm coming to you, {{target}}, stay sharp.", A.Tryhard)
 
-    RegisterCategory("ComeHereRefuse", P.IMPORTANT) -- When a bot is refusing to go to the same location as the player, named {target}.
+    RegisterCategory("ComeHereRefuse", P.IMPORTANT, "When a bot refuses to come to the player, named {{target}}, vary sentence structure massively")
     Line("I can't come to you, {{target}}.", A.Default)
     Line("I'm not coming to you, {{target}}.", A.Default)
     Line("I'm going my own way, {{target}}.", A.Default)
@@ -1230,7 +1230,7 @@ local LoadLang = function()
     Line("I'm not coming to you, {{target}}. I have my own objectives.", A.Tryhard)
     Line("I have my own goals, {{target}}, and you're not part of them.", A.Tryhard)
 
-    RegisterCategory("ComeHereEnd", P.NORMAL) -- When a bot is done going to the same location as the player, named {target}.
+    RegisterCategory("ComeHereEnd", P.NORMAL, "When a bot decides to stop coming to the player, named {{target}}, they will announce this.")
     Line("I'm here.", A.Default)
     Line("I've arrived.", A.Default)
     Line("I'm at your location.", A.Default)
@@ -1272,7 +1272,7 @@ local LoadLang = function()
     Line("I've arrived, {{target}}. Let's do this.", A.Tryhard)
 
     -----------------------------------------------------------
-    RegisterCategory("AttackStart", P.CRITICAL) -- When a bot is responding positively to a request to attack the player, named {target}.
+    RegisterCategory("AttackStart", P.CRITICAL, "When a bot is asked to attack the player, named {{target}} they will respond affirmatively.")
     Line("I'm going to attack {{target}}.", A.Default)
     Line("I've got {{target}}.", A.Default)
     Line("I'll take {{target}}.", A.Default)
@@ -1328,7 +1328,7 @@ local LoadLang = function()
     Line("I'll take down {{target}}, let's execute the plan.", A.Tryhard)
 
     -----------------------------------------------------------
-    RegisterCategory("AttackRefuse", P.IMPORTANT) -- When a bot is refusing to attack the player, named {target}.
+    RegisterCategory("AttackRefuse", P.IMPORTANT, "When a bot refuses to attack the player, named {{target}}")
     Line("I can't attack {{target}}.", A.Default)
     Line("I'm not attacking {{target}}.", A.Default)
     Line("I'm going my own way, {{target}}.", A.Default)
@@ -1372,18 +1372,18 @@ local LoadLang = function()
     Line("I'm not attacking {{target}}. I have my own objectives.", A.Tryhard)
     Line("I have my own goals, and you're not part of them.", A.Tryhard)
 
-    RegisterCategory("AttackEnd", P.NORMAL) -- When a bot is done attacking the player, named {target}.
+    RegisterCategory("AttackEnd", P.NORMAL, "When a bot decides to stop attacking the player, named {{target}}, they will announce this.")
     Line("I'm done attacking.", A.Default)
     Line("I'm moving now.", A.Default)
     Line("I'm not attacking anymore.", A.Default)
 
-    RegisterCategory("RoleCheckerRequestAccepted", P.NORMAL) -- When a bot is accepting a request to check the role of the player, named {target}.
+    RegisterCategory("RoleCheckerRequestAccepted", P.NORMAL, "When a bot is asked to use the role checker to reveal their role to the player, named {{target}}.")
     Line("Sure, I'll show you my role {{target}}.", A.Default)
 
-    RegisterCategory("RoleCheckerRequestRefused", P.IMPORTANT) -- When a bot is refusing to check the role of the player, named {target}.
+    RegisterCategory("RoleCheckerRequestRefused", P.IMPORTANT, "When a bot refuses to use the role checker to reveal their role to the player, named {{target}}.")
     Line("I can't show you my role, {{target}}.", A.Default)
 
-    RegisterCategory("CallKOS", P.CRITICAL) -- When a bot is going to call KOS on another player.
+    RegisterCategory("CallKOS", P.CRITICAL, "When a bot calls KOS on a {{player}} They will announce it.")
     Line("KOS on {{player}}!", A.Default)
     Line("{{player}} is KOS", A.Default)
     Line("KOS on {{player}}", A.Default)
@@ -1417,7 +1417,7 @@ local LoadLang = function()
     -----------------------------------------------------------
 
     local ATTACKANY = ACTS.ATTACKANY
-    RegisterCategory(f("Plan.%s", ATTACKANY), P.CRITICAL) -- When a traitor bot is going to attack a player/bot.
+    RegisterCategory(f("Plan.%s", ATTACKANY), P.CRITICAL, "When a bot is going to attack {{player}} as planned.")
     Line("I'm going to attack {{player}}.", A.Default)
     Line("I've got {{player}}.", A.Default)
     Line("I'll take {{player}}.", A.Default)
@@ -1443,7 +1443,7 @@ local LoadLang = function()
     Line("Dibs on {{player}}. Don't take my ace", A.Tryhard)
 
     local ATTACK = ACTS.ATTACK
-    RegisterCategory(f("Plan.%s", ATTACK), P.CRITICAL) -- When a traitor bot is going to attack a player/bot.
+    RegisterCategory(f("Plan.%s", ATTACK), P.CRITICAL, "When a bot is going to attack {{player}} as planned.")
     Line("I'm going to attack {{player}}.", A.Default)
     Line("I've got {{player}}.", A.Default)
     Line("I'll take {{player}}.", A.Default)
@@ -1469,18 +1469,18 @@ local LoadLang = function()
     Line("Dibs on {{player}}. Don't take my ace", A.Tryhard)
 
     local PLANT = ACTS.PLANT
-    RegisterCategory(f("Plan.%s", PLANT), P.CRITICAL) -- When a traitor bot is going to plant a bomb.
+    RegisterCategory(f("Plan.%s", PLANT), P.CRITICAL, "When a traitor bot is going to plant a C4 bomb.")
     Line("I'm going to plant a bomb.", A.Default)
     Line("I'm planting a bomb.", A.Default)
     Line("Placing a bomb!", A.Default)
     Line("Gonna rig this place to blow.", A.Default)
 
     local DEFUSE = ACTS.DEFUSE
-    RegisterCategory(f("Plan.%s", DEFUSE), P.CRITICAL) -- When a traitor bot is going to defuse a bomb.
+    RegisterCategory(f("Plan.%s", DEFUSE), P.CRITICAL, "When a traitor bot is going to defuse a C4 bomb.")
     Line("I'm going to defuse a bomb.", A.Default)
 
     local FOLLOW = ACTS.FOLLOW
-    RegisterCategory(f("Plan.%s", FOLLOW), P.CRITICAL) -- When a traitor bot is going to follow a player/bot.
+    RegisterCategory(f("Plan.%s", FOLLOW), P.CRITICAL, "When a traitor bot is going to follow another {{player}}.")
     -- Default
     Line("I'm going to follow {{player}}", A.Default)
     Line("I'll follow {{player}}", A.Default)
@@ -1545,7 +1545,7 @@ local LoadLang = function()
 
 
     local GATHER = ACTS.GATHER
-    RegisterCategory(f("Plan.%s", GATHER), P.CRITICAL) -- When a traitor bot is going to gather with other bots.
+    RegisterCategory(f("Plan.%s", GATHER), P.CRITICAL, "When a bot is asking other bots to come here.")
     Line("Let's all gather over there.", A.Default)
     Line("Gather over here.", A.Default)
     Line("come hither lads", A.Casual)
@@ -1567,16 +1567,15 @@ local LoadLang = function()
 
 
     local DEFEND = ACTS.DEFEND
-    RegisterCategory(f("Plan.%s", DEFEND), P.CRITICAL) -- When a traitor bot is going to defend an area.
+    RegisterCategory(f("Plan.%s", DEFEND), P.CRITICAL, "When a bot is going to defend an area.")
     Line("I'm going to defend this area.", A.Default)
 
-
     local ROAM = ACTS.ROAM
-    RegisterCategory(f("Plan.%s", ROAM), P.CRITICAL) -- When a traitor bot is going to roam.
+    RegisterCategory(f("Plan.%s", ROAM), P.CRITICAL, "When a bot is going to roam around.")
     Line("I'm going to roam around for a bit.", A.Default)
 
     local IGNORE = ACTS.IGNORE
-    RegisterCategory(f("Plan.%s", IGNORE), P.CRITICAL) -- When a traitor bot wants to ignore the plans.
+    RegisterCategory(f("Plan.%s", IGNORE), P.CRITICAL, "When a bot is going to ignore the player.")
     Line("I feel like doing my own thing this time around.", A.Default)
     Line("Going rogue sounds fun right now.", A.Default)
     Line("Let's mix things up, I'm not following the plan.", A.Default)
@@ -1597,7 +1596,7 @@ local LoadLang = function()
     -- FOLLOWING
     -----------------------------------------------------------
 
-    RegisterCategory("FollowRequest", P.CRITICAL) -- When a traitor bot is responding to a request to follow from teammie
+    RegisterCategory("FollowRequest", P.CRITICAL, "When a bot is asked to follow the player, named {{player}}")
     Line("Sure, I'll follow you.", A.Default)
     Line("Okay, I'll follow you.", A.Default)
     Line("Alright, I'll follow you.", A.Default)
@@ -1647,7 +1646,7 @@ local LoadLang = function()
     Line("sure, bud", A.Casual)
 
 
-    RegisterCategory("FollowStarted", P.NORMAL) -- When a inno/other bot begins following someone random
+    RegisterCategory("FollowStarted", P.NORMAL, "When a bot starts following the player, named {{player}}")
     Line("I'm gonna follow you for a bit, {{player}}.", A.Default)
     Line("I'll follow you for a bit, {{player}}.", A.Default)
     Line("Mind if I tag along?", A.Default)
@@ -1688,7 +1687,7 @@ local LoadLang = function()
     Line("I'm gonna follow this kid.", A.Hothead)
     Line("You'd better have room for 2, {{player}}", A.Hothead)
 
-    RegisterCategory("PersonalSpace", P.IMPORTANT) -- Warning another player about their personal space
+    RegisterCategory("PersonalSpace", P.IMPORTANT, "When a bot is asked to give the {{player}} some personal space.")
     Line("Hey, {{player}}, you're a bit close.", A.Default)
     Line("Please back off.", A.Default)
     Line("Please back off {{player}}", A.Default)
@@ -1706,7 +1705,7 @@ local LoadLang = function()
     -----------------------------------------------------------
 
 
-    RegisterCategory("InvestigateCorpse", P.IMPORTANT) -- When a bot begins the InvestigateCorpse behavior (sees a revivable player)
+    RegisterCategory("InvestigateCorpse", P.IMPORTANT, "When a bot finds a dead body and wants to investigate it.")
     Line("I found someone's corpse.", A.Default)
     Line("There's a dead player here.", A.Default)
     Line("Someone's dead over here.", A.Default)
@@ -1761,7 +1760,7 @@ local LoadLang = function()
     Line("I see a dead player, let's help.", A.Tryhard)
     Line("Found someone who needs reviving, let's go.", A.Tryhard)
 
-    RegisterCategory("InvestigateNoise", P.NORMAL) -- When a bot hears a noise and it wants to investigate it.
+    RegisterCategory("InvestigateNoise", P.NORMAL, "When a bot hears a noise and wants to investigate it.")
     Line("I heard something.", A.Default)
     Line("What was that?", A.Default)
     Line("What was that noise?", A.Default)
@@ -1869,12 +1868,12 @@ local LoadLang = function()
     -- SPOTTING A PLAYER OR ENTITY
     -----------------------------------------------------------
 
-    RegisterCategory("HoldingTraitorWeapon", P.IMPORTANT) -- When a bot sees a player with a traitor-exclusive weapon.
+    RegisterCategory("HoldingTraitorWeapon", P.IMPORTANT, "When a bot sees another {{player}} holding a traitor weapon.")
     Line("{{player}} is holding a traitor weapon!", A.Default)
     Line("traitor weapon on {{player}}", A.Casual)
     Line("hey he's holding a traitor weapon", A.Casual)
 
-    RegisterCategory("SpottedC4", P.CRITICAL) -- When an innocent bot sees a C4.
+    RegisterCategory("SpottedC4", P.CRITICAL, "When a bot sees a C4 bomb.")
     Line("I found a bomb!", A.Default)
     Line("I found a C4!", A.Default)
     Line("C4 over here!", A.Default)
@@ -1894,7 +1893,7 @@ local LoadLang = function()
     Line("Interesting... a bomb", A.Sus)
     Line("I found a bomb, what do we do?", A.Sus)
 
-    RegisterCategory("DefusingC4", P.IMPORTANT) -- When an innocent bot is defusing a C4.
+    RegisterCategory("DefusingC4", P.IMPORTANT, "When a bot is defusing a C4 bomb.")
     Line("I'm defusing that bomb.", A.Default)
     Line("Defusing the bomb, stay sharp.", A.Tryhard)
     Line("I'm defusing this bomb, cover me!", A.Hothead)
@@ -1906,7 +1905,7 @@ local LoadLang = function()
     Line("Defusing the bomb, hope it works.", A.Sus)
     Line("I'm defusing the bomb, no big deal.", A.Casual)
 
-    RegisterCategory("DefusingSuccessful", P.IMPORTANT) -- When an innocent bot is defusing a C4.
+    RegisterCategory("DefusingSuccessful", P.IMPORTANT, "When a bot successfully defuses a C4 bomb.")
     Line("I defused it!", A.Default)
     Line("Bomb defused successfully.", A.Default)
     Line("Bomb defused.", A.Default)
@@ -1962,7 +1961,7 @@ local LoadLang = function()
     Line("Handled the bomb, no sweat.", A.Tryhard)
     Line("Bomb's defused, let's keep going.", A.Tryhard)
 
-    RegisterCategory("RevivingPlayer", P.IMPORTANT) -- When a bot is reviving a player.
+    RegisterCategory("RevivingPlayer", P.IMPORTANT, "When a bot is reviving a {{player}}.")
     Line("I'm reviving {{player}}.", A.Default)
     Line("Reviving {{player}} now.", A.Casual)
     Line("Bringing {{player}} back to life.", A.Nice)
@@ -1974,7 +1973,7 @@ local LoadLang = function()
     Line("Reviving {{player}}. Don't move.", A.Sus)
     Line("{{player}}, I'm reviving you. Hang tight.", A.Dumb)
 
-    RegisterCategory("CreatingDoctor", P.IMPORTANT) -- When a bot is creating a doctor.
+    RegisterCategory("CreatingDoctor", P.IMPORTANT, "When a bot is creating a doctor named {{player}}.")
     Line("{{player}}, I'm making you a doctor", A.Default)
     Line("{{player}}, you're gonna be a doctor", A.Casual)
     Line("{{player}}, I'm making you a doctor. Congrats!", A.Nice)
@@ -1986,7 +1985,7 @@ local LoadLang = function()
     Line("{{player}}, I'm making you a doctor. Hope you know what you're doing.", A.Sus)
     Line("{{player}}, you're a doctor now. Yay!", A.Dumb)
 
-    RegisterCategory("CreatingDeputy", P.IMPORTANT) -- When a bot is creating a deputy.
+    RegisterCategory("CreatingDeputy", P.IMPORTANT, "When a bot is creating a deputy named {{player}}.")
     Line("{{player}}, I'm making you a deputy", A.Default)
     Line("{{player}}, you're gonna be a deputy", A.Casual)
     Line("{{player}}, I'm making you a deputy. Congrats!", A.Nice)
@@ -1998,7 +1997,7 @@ local LoadLang = function()
     Line("{{player}}, I'm making you a deputy. Hope you know what you're doing.", A.Sus)
     Line("{{player}}, you're a deputy now. Yay!", A.Dumb)
 
-    RegisterCategory("CreatingCursed", P.IMPORTANT) -- When a bot is creating a cursed (Team Only).
+    RegisterCategory("CreatingCursed", P.IMPORTANT, "When a bot is converting a role to a Cursed for a player named {{player}} they will announce it to their teammates.")
     Line("I'm going to make {{player}} a cursed", A.Default)
     Line("making {{player}} a cursed", A.Casual)
     Line("I feel bad for {{player}}, they're gonna be a cursed", A.Nice)
@@ -2010,7 +2009,7 @@ local LoadLang = function()
     Line("Oops, going to make {{player}} a cursed", A.Sus)
     Line("Hope I dont miss {{player}} with the cursed deagle", A.Dumb)
 
-    RegisterCategory("CreatingDefector", P.IMPORTANT) -- When a bot is creating a defector (Team Only).
+    RegisterCategory("CreatingDefector", P.IMPORTANT, "When a bot is creating a defector (Team Only).")
     Line("I'm going to make {{player}} a defector", A.Default)
     Line("making {{player}} a defector", A.Casual)
     Line("Going to make {{player}} a defector. Good luck!", A.Nice)
@@ -2022,7 +2021,7 @@ local LoadLang = function()
     Line("Oops, going to make {{player}} a defector", A.Sus)
     Line("Hope I dont miss {{player}} with the defector deagle", A.Dumb)
 
-    RegisterCategory("CreatingSidekick", P.IMPORTANT) -- When a bot is creating a sidekick (Team Only).
+    RegisterCategory("CreatingSidekick", P.IMPORTANT, "When a bot is creating a sidekick (Team Only).")
     Line("I'm going to make {{player}} a sidekick", A.Default)
     Line("making {{player}} a sidekick", A.Casual)
     Line("Going to make {{player}} a sidekick. Good luck!", A.Nice)
@@ -2034,7 +2033,7 @@ local LoadLang = function()
     Line("Oops, going to make {{player}} a sidekick", A.Sus)
     Line("Hope I dont miss {{player}} with the sidekick deagle", A.Dumb)
 
-    RegisterCategory("CreatingMedic", P.IMPORTANT) -- When a bot is creating a medic (Team Only).
+    RegisterCategory("CreatingMedic", P.IMPORTANT, "When a bot is creating a medic (Team Only).")
     Line("I'm going to make {{player}} a medic", A.Default)
     Line("making {{player}} a medic", A.Casual)
     Line("Going to make {{player}} a medic. Good luck!", A.Nice)
@@ -2046,14 +2045,14 @@ local LoadLang = function()
     Line("Oops, going to make {{player}} a medic", A.Sus)
     Line("Hope I dont miss {{player}} with the medic deagle", A.Dumb)
 
-    RegisterCategory("RoleDefibPlayer", P.IMPORTANT) -- When a bot is reviving a player with a defibrillator (Team Only).
+    RegisterCategory("RoleDefibPlayer", P.IMPORTANT, "When a bot is reviving a player with a role defibrillator.")
     Line("I'm reviving {{player}} with a role defibrillator.", A.Default)
     Line("Reviving {{player}} with a role defibrillator.", A.Casual)
     Line("Bringing {{player}} back to life with a role defibrillator.", A.Nice)
     Line("{{player}} is getting revived with a role defibrillator.", A.Stoic)
     
 
-    RegisterCategory("UsingRoleChecker", P.IMPORTANT) -- When a bot is heading to use a role checker.
+    RegisterCategory("UsingRoleChecker", P.IMPORTANT, "When a bot is using the role checker.")
     Line("I'm going to use the role checker.", A.Default)
     Line("Heading to the role checker.", A.Default)
     Line("I'm going to report in to the role checker.", A.Default)
@@ -2070,7 +2069,7 @@ local LoadLang = function()
     Line("I'm going to check my role, wish me luck.", A.Tryhard)
     Line("Role Checker? You can't make me but I'll go anyway", A.Sus)
 
-    RegisterCategory("OracleReveal", P.IMPORTANT) -- When a bot is revealing two players's possible team (one of them is the team name and the other is a random name). Args are {{name1}}, {{name2}}, {{team}}
+    RegisterCategory("OracleReveal", P.IMPORTANT, "When a bot is revealing two players' possible team (one of them is the team name and the other is a random name). Args are {{name1}}, {{name2}}, {{team}}")
     Line("{{name1}} or {{name2}} is on the {{team}} team.", A.Default)
     Line("sweet, looks like {{name1}} or {{name2}} is on the {{team}} team", A.Casual)
     Line("{{name1}} or {{name2}} is on the {{team}} team, interesting", A.Nice)
@@ -2081,52 +2080,52 @@ local LoadLang = function()
     Line("uhh, i'm not sure but {{team}} might have {{name1}} or {{name2}}", A.Dumb)
     Line("{{name1}} or {{name2}} is on the {{team}} team, I think", A.Sus)
 
-    RegisterCategory("ClairvoyantReveal", P.IMPORTANT) -- When a bot is revealing a player's role as special. Args are {{name}}
+    RegisterCategory("ClairvoyantReveal", P.IMPORTANT, "When a bot is revealing a player's role as a special role (this could be good or bad). Args are {{name}}")
     Line("{{name}} is a special role.", A.Default)
 
-    RegisterCategory("CeaseFireStart", P.IMPORTANT) -- When a bot is accepting a request to cease fire.
+    RegisterCategory("CeaseFireStart", P.IMPORTANT, "When a bot is stopping shooting.")
     Line("I'll stop shooting.", A.Default)
     Line("I'll stop shooting, {{player}}.", A.Default)
     Line("I'll stop shooting, okay?", A.Default)
 
-    RegisterCategory("CeaseFireRefuse", P.IMPORTANT) -- When a bot is refusing a request to cease fire.
+    RegisterCategory("CeaseFireRefuse", P.IMPORTANT, "When a bot is refusing to stop shooting.")
     Line("I'm not stopping.", A.Default)
     Line("I'm not stopping, {{player}}.", A.Default)
     Line("I'm not stopping, okay?", A.Default)
 
-    RegisterCategory("HealAccepted", P.IMPORTANT) -- When a bot is accepting a request for them to heal you
+    RegisterCategory("HealAccepted", P.IMPORTANT, "When a bot is accepting a request for them to heal someone")
     Line("I'll heal you.", A.Default)
     Line("I'll heal you, {{player}}.", A.Default)
     Line("I'll heal you, okay?", A.Default)
 
-    RegisterCategory("HealRefused", P.IMPORTANT) -- When a bot is refusing a request for them to heal you
+    RegisterCategory("HealRefused", P.IMPORTANT, "When a bot is refusing a request for them to heal someone")
     Line("I'm not healing you.", A.Default)
     Line("I'm not healing you, {{player}}.", A.Default)
     Line("I'm not healing you, okay?", A.Default)
 
-    RegisterCategory("ReviveAccepted", P.IMPORTANT) -- When a bot is accepting a request for them to revive you
+    RegisterCategory("ReviveAccepted", P.IMPORTANT, "When a bot is accepting a request for them to revive {{player}}")
     Line("I'll revive {{player}}.", A.Default)
     Line("I'll revive {{player}}, okay?", A.Default)
     Line("I'll revive {{player}} for you.", A.Default)
 
-    RegisterCategory("ReviveRefused", P.IMPORTANT) -- When a bot is refusing a request for them to revive you
+    RegisterCategory("ReviveRefused", P.IMPORTANT, "When a bot is refusing a request for them to revive {{player}}")
     Line("I'm not reviving {{player}}.", A.Default)
     Line("I'm not reviving {{player}}, okay?", A.Default)
     Line("I'm not reviving {{player}} for you.", A.Default)
 
-    RegisterCategory("JihadBombWarn", P.IMPORTANT) -- When a bot is warning their team about the jihad bomb (Team Only).
+    RegisterCategory("JihadBombWarn", P.IMPORTANT, "When a bot is warning themselves using a Jihad bomb.")
     Line("Guys, watch out! Using a Jihad!", A.Default)
     Line("RUN! GET OUT OF HERE! JIHAD!", A.Default)
     Line("It's been fun, but I'm going out with a bang!", A.Default)
     Line("I'm going to blow up, get away!", A.Default)
 
-    RegisterCategory("JihadBombUse", P.IMPORTANT) -- When a bot is about to set off a suicide bomb.
+    RegisterCategory("JihadBombUse", P.IMPORTANT, "When a bot is using a Jihad bomb")
     Line("May God Help you all", A.Default)
     Line("Fuck you all!", A.Default)
     Line("I misclicked, don't run!", A.Default)
     Line("Hahahahahahaha", A.Default)
 
-    RegisterCategory("DroppingContract", P.CRITICAL) --- When a bot is dropping a contract to another player.
+    RegisterCategory("DroppingContract", P.CRITICAL, "When a bot is dropping a contract to {{player}} so they can join {{player}}'s team")
     Line("Pick up the contract I've just dropped for you {{player}}!", A.Default)
     Line("Freeze {{player}}, I've dropped a contract to you!", A.Default)
     Line("Oi Dickhead fucking stop so I can give you a contract", A.Hothead)
@@ -2134,11 +2133,11 @@ local LoadLang = function()
     Line("Hey beautiful, let me give you a present!", A.Nice)
     Line("Yo lets make my team and your team allies {{player}}", A.Teamer)
 
-    RegisterCategory("NewContract", P.IMPORTANT) --- When a bot has joined a player's team.
+    RegisterCategory("NewContract", P.IMPORTANT, "When a bot is offering a new contract to a {{player}}.")
     Line("{{player}}, we're on your side now", A.Default)
     Line("Hey fuckhead, try not to shoot us now we're on your team!", A.Hothead)
 
-    RegisterCategory("SwappingRole", P.IMPORTANT) --- When a bot is trying to swap roles with you, they will pretend to be a mimic.
+    RegisterCategory("SwappingRole", P.IMPORTANT, "When a bot wants to copy {{player}}'s role")
     Line("{{player}} stand still, don't be alarmed!", A.Default)
     Line("I'm definitely a mimic {{player}}, please stand still and let me copy your role!", A.Sus)
     Line("Stand still fucking {{player}} I don't want to be this fucking role anymore!", A.Hothead)
@@ -2146,7 +2145,7 @@ local LoadLang = function()
     Line("Hey don't shoot, I want to join your team!", A.Teamer)
     Line("yo stand still {{player}} i wanna show you somethin", A.Casual)
 
-    RegisterCategory("CopyingRole", P.IMPORTANT) --- When a bot is trying to copy roles with you
+    RegisterCategory("CopyingRole", P.IMPORTANT, "When a bot is copying another {{player}}'s role.")
     Line("{{player}} stand still, I want to copy your role!", A.Default)
     Line("I'm definitely a mimic {{player}}, please stand still and let me copy your role!", A.Sus)
     Line("Oi, Don't shoot me you moron, I'm trying to copy your role {{player}}!", A.Hothead)
@@ -2159,7 +2158,7 @@ local LoadLang = function()
     -- TRAITOROUS ACTIONS
     -----------------------------------------------------------
 
-    RegisterCategory("BombArmed", P.CRITICAL)
+    RegisterCategory("BombArmed", P.CRITICAL, "When a bot arms a C4 bomb.")
     Line("I armed some C4.", A.Default)
     Line("C4 is armed.", A.Default)
     Line("C4 is set.", A.Default)
@@ -2173,7 +2172,7 @@ local LoadLang = function()
     -----------------------------------------------------------
 
 
-    RegisterCategory("LifeCheck", P.IMPORTANT) -- Response to "life check" or "lc" in chat.
+    RegisterCategory("LifeCheck", P.IMPORTANT, "When a bot is checking in to confirm they are still alive.")
     Line("I'm alive", A.Default)
     Line("Reporting in!", A.Default)
     Line("Functioning as expected.", A.Default)
@@ -2232,7 +2231,7 @@ local LoadLang = function()
     -- SILLY CHATS
     -----------------------------------------------------------
 
-    RegisterCategory("SillyChat", P.NORMAL) -- When a bot is chatting randomly.
+    RegisterCategory("SillyChat", P.NORMAL, "When a bot wants to say something funny or a joke")
     Line("I'm a traitor.", A.Default)
     Line("Anyone else feel lonely lately?", A.Default)
     Line("Erm ok what the flip", A.Default)
@@ -2331,7 +2330,7 @@ local LoadLang = function()
     -----------------------------------------------------------
     -- DIALOG
     -----------------------------------------------------------
-    RegisterCategory("DialogGreetNext", P.NORMAL)
+    RegisterCategory("DialogGreetNext", P.NORMAL, "When a bot is greeting {{nextBot}}.")
     Line("Hello {{nextBot}}!")
     Line("Hey {{nextBot}}")
     Line("Hi {{nextBot}}")
@@ -2346,7 +2345,7 @@ local LoadLang = function()
     Line("hehe {{nextBot}}", A.Dumb)
     Line("heya {{nextBot}}", A.Dumb)
 
-    RegisterCategory("DialogGreetLast", P.NORMAL)
+    RegisterCategory("DialogGreetLast", P.NORMAL, "When a bot is greeting {{lastBot}}.")
     Line("Hello to you, {{lastBot}}!")
     Line("Hey {{lastBot}}")
     Line("Hi")
@@ -2364,7 +2363,7 @@ local LoadLang = function()
     Line("Hi friend", A.Nice)
     Line("What's up, {{lastBot}}?", A.Nice)
 
-    RegisterCategory("DialogHowAreYou", P.NORMAL)
+    RegisterCategory("DialogHowAreYou", P.NORMAL, "When a bot is asking how {{nextBot}} is doing.")
     Line("How are you?")
     Line("How are you doing, {{nextBot}}?")
     Line("How's it going?")
@@ -2375,14 +2374,14 @@ local LoadLang = function()
     Line("how r u", A.Casual)
     Line("how's it goin'", A.Casual)
 
-    RegisterCategory("DialogWhatsUp", P.NORMAL)
+    RegisterCategory("DialogWhatsUp", P.NORMAL, "When a bot is asking what's up.")
     Line("what did you do today", A.Casual)
     Line("What did you do today?")
     Line("What's up?")
     Line("wsg", A.Casual)
     Line("whats up?", A.Casual)
 
-    RegisterCategory("DialogHowAreYouResponse", P.NORMAL)
+    RegisterCategory("DialogHowAreYouResponse", P.NORMAL, "When a bot is responding to how they are doing.")
     Line("I'm doing well, thanks for asking!")
     Line("I'm doing great, thanks!")
     Line("I'm well")
@@ -2394,7 +2393,7 @@ local LoadLang = function()
     Line("im alr {{lastBot}}", A.Casual)
     Line("all good here", A.Casual)
 
-    RegisterCategory("DialogWhatsUpResponse", P.NORMAL)
+    RegisterCategory("DialogWhatsUpResponse", P.NORMAL, "When a bot is responding to what's up.")
     Line("I'm alright")
     Line("Not much.")
     Line("Not a whole lot.")
@@ -2407,7 +2406,7 @@ local LoadLang = function()
     Line("no thanks", A.Dumb)
     Line("hard.", A.Dumb)
 
-    RegisterCategory("DialogAnyoneBored", P.NORMAL)
+    RegisterCategory("DialogAnyoneBored", P.NORMAL, "When a bot is asking if anyone else is bored.")
     Line("Anyone else bored?")
     Line("I'm getting a little bored.")
     Line("Not a whole lot going on here, huh")
@@ -2422,14 +2421,14 @@ local LoadLang = function()
     Line("snooooze", A.Dumb)
     Line("zzzzzzzzz", A.Dumb)
 
-    RegisterCategory("DialogNegativeResponse", P.NORMAL)
+    RegisterCategory("DialogNegativeResponse", P.NORMAL, "When a bot is responding negatively to a question.")
     Line("Nope")
     Line("Nah")
     Line("Not really")
     Line("Not much")
     Line("Not a whole lot")
 
-    RegisterCategory("DialogPositiveResponse", P.NORMAL)
+    RegisterCategory("DialogPositiveResponse", P.NORMAL, "When a bot is responding positively to a question.")
     Line("Yeah")
     Line("Yep")
     Line("Sure")
@@ -2439,7 +2438,7 @@ local LoadLang = function()
     Line("I suppose")
     Line("I guess")
 
-    RegisterCategory("DialogRudeResponse", P.NORMAL)
+    RegisterCategory("DialogRudeResponse", P.NORMAL, "When a bot is responding rudely to a question.")
     Line("No way.")
     Line("That's.. silly.")
     Line("Shut up.")
