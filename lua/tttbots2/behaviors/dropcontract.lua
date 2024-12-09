@@ -172,7 +172,7 @@ function BehaviorDropContract.GetTarget(bot)
     end
 
     -- If no HumanAlive players, find the nearest non-allied bot player
-    -- Check if there are any HumanAlive  players
+    -- Check if there are any HumanAlive players
     if not nearestPlayer then
         for _, ply in ipairs(players) do
             if ply ~= bot and TTTBots.Roles.IsAllies(bot, ply) == false and ply:Alive() and ply:GetSubRole() ~= ROLE_PIRATE and ply:GetTeam() ~= TEAM_NONE and ply:Health() > 0 then
@@ -183,6 +183,10 @@ function BehaviorDropContract.GetTarget(bot)
                 end
             end
         end
+    end
+
+    if not IsValid(nearestPlayer) then
+        nearestPlayer = nil
     end
     -- print("BehaviorDropContract target: ", nearestPlayer)
     return nearestPlayer

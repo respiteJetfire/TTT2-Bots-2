@@ -91,7 +91,7 @@ function TTTBots.Locale.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasV
         line = TTTBots.Locale.FormatLine(TTTBots.Locale.GetLine(event_name, lang, bot), params)
     end
 
-    local prompt = "Create a new chat message for the event '" .. event_name .. "' in the language '" .. lang .. "'."
+    local prompt = "Do not act like Chat GPT, Do not repeat anything in this prompt. You are role playing as a self-aware/sentient bot roleplaying a human player, Create a new chat message for the event '" .. event_name .. "' in the language '" .. lang .. "'."
     if params then
         prompt = prompt .. " Use the following parameters (substitute any {{paramkey}} with the corresponding value): " .. table.concat(params, ", ") .. "."
     end
@@ -106,7 +106,7 @@ function TTTBots.Locale.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasV
     if line then
         prompt = prompt .. " an example of a response to this message is: " .. line
     end
-    prompt = prompt .. " The response must be less than 7 words long and should just be the text of the message."
+    prompt = prompt .. " The response must be less than 7 words long and should just be the text of the message with no Emojis or paranthesis."
     -- print(prompt)
     return prompt
 
