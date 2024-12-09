@@ -4,19 +4,14 @@ if not ROLE_MEDIC then return false end
 local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 
-local alliedTeams = {
-    [TEAM_NONE] = true,
-    [TEAM_INNOCENT] = true,
-    [TEAM_TRAITOR] = true,
-    [TEAM_RESTLESS] = true,
-    [TEAM_JESTER] = true,
-    [TEAM_BALLAS] = true,
-    [TEAM_BLOODS] = true,
-    [TEAM_CRIPS] = true,
-    [TEAM_DOOMSLAYER] = true,
-    [TEAM_PIRATE] = true,
-    [TEAM_SERIALKILLER] = true,
-}
+local alliedTeams = {}
+
+local listofTeams = roles.GetAvailableTeams()
+
+--- Iterate over all TTT2 teams and add them to the list of allied teams and set to true
+for i, v in pairs(listofTeams) do
+    alliedTeams[v] = true
+end
 
 local bTree = {
     -- _prior.Support,
@@ -37,6 +32,7 @@ medic:SetKOSUnknown(false)
 medic:SetUsesSuspicion(false)
 medic:SetBuyableWeapons("weapon_ttt_defibrillator")
 medic:SetAlliedRoles({"medic", "innocent"})
+medic:SetLovesTeammates(true)
 medic:SetNeutralOverride(true)
 medic:SetAlliedTeams(alliedTeams)
 TTTBots.Roles.RegisterRole(medic)
