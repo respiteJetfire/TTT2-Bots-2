@@ -297,7 +297,7 @@ function BotChatter:On(event_name, args, teamOnly, delay)
     local isCasual = personality:GetClosestArchetype() == TTTBots.Archetypes.Casual
     if localizedString then
         if isCasual then localizedString = string.lower(localizedString) end
-        print("TeamOnly: ", teamOnly)
+        -- print("TeamOnly: ", teamOnly)
         if delay then
             timer.Simple(delay, function()
                 self:textorTTS(self.bot, localizedString, teamOnly, event_name, args)
@@ -344,7 +344,7 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
         bot.lastReplyTime = CurTime()
 
         if not (speakingPlayers[bot] and (CurTime() - speakingPlayers[bot] < 5)) and math.random() <= voiceChatChance then
-            print("Sending Voice chat: " .. text)
+            -- print("Sending Voice chat: " .. text)
                 if voicetype == "elevenlabs" then
                     -- print("Sending Voice chat to ElevenLabs")
                     TTTBots.TTS.ElevenLabsSendRequest(bot, text, teamOnly)
@@ -358,7 +358,7 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
                 speakingPlayers[bot] = CurTime()
                 self:RespondToPlayerMessage(bot, text, teamOnly, math.random(3, 6))
         else
-            print("Sending Text chat: " .. text)
+            -- print("Sending Text chat: " .. text)
             self:Say(text, teamOnly, false, function()
                 if event_name == "CallKOS" and args then
                     self:QuickRadio("quick_traitor", args.playerEnt)
@@ -489,25 +489,27 @@ local function findBestBot(ply, bots, fulltxt, wasVoice, teamOnly)
 
     local chance
     for _, b in ipairs(bots) do
-        local dist = ply:GetPos():Distance(b:GetPos())
-        --- Check if the bot's name or a similar string is in the message
-        if isNameInMessage(b, fulltxt) and b ~= ply then
-            -- print("Bot mentioned by name: ", b)
-            chance = 100 --- If bot is mentioned by name it should always reply
-            bot = b
-            break
-        elseif dist < bestDist and b ~= ply then
-            chance = math.max(5, 60 - ((dist / 500) * 55)) -- Quicker drop off
-            bestDist = dist
-            bot = b
-        elseif teamOnly and b ~= ply and not ply:IsBot() and b:GetTeam() == ply:GetTeam() then
-            chance = 100
-            bot = b
+        if IsValid(b) then
+            local dist = ply:GetPos():Distance(b:GetPos())
+            --- Check if the bot's name or a similar string is in the message
+            if isNameInMessage(b, fulltxt) and b ~= ply then
+                -- print("Bot mentioned by name: ", b)
+                chance = 100 --- If bot is mentioned by name it should always reply
+                bot = b
+                break
+            elseif dist < bestDist and b ~= ply then
+                chance = math.max(5, 60 - ((dist / 500) * 55)) -- Quicker drop off
+                bestDist = dist
+                bot = b
+            elseif teamOnly and b ~= ply and not ply:IsBot() and b:GetTeam() == ply:GetTeam() then
+                chance = 100
+                bot = b
+            end
         end
     end
 
-    if bot and ((not ply:IsBot() and not wasVoice) or (not ply:IsBot() and forceReply)) then print("Best bot: ", bot) return bot end
-    if not (chance and bot) then print("No chance and bot") return end -- If no chance or bot is set, then return
+    if bot and ((not ply:IsBot() and not wasVoice) or (not ply:IsBot() and forceReply)) then return bot end
+    if not (chance and bot) then return end -- If no chance or bot is set, then return
     chance = chance * chatterMult
     -- print("Chance: ", chance)
     if math.random(1, 100) > chance then return nil end -- If the random number is greater than the chance, then return nil
@@ -767,7 +769,7 @@ local function checkTranscriptionsLocal()
                     -- print("File exists")
                     local text = file.Read(textFilePath, "DATA")
                     if text then
-                        print("Text: ", text)
+                        print("Transcription Detected, Text: ", text)
                         local ply = player.GetBySteamID64(steamID)
                         if IsValid(ply) then
                             --- sanitise the text
@@ -784,7 +786,7 @@ local function checkTranscriptionsLocal()
                             -- Example usage
                             local sanitizedText = sanitizeText(text)
                             BotChatter:RespondToPlayerMessage(ply, sanitizedText, false, false, true)
-                            print("Responding to player message")
+                            print("Responding to player voice chat")
 
                             -- Delete the log file after processing
                             file.Delete(textFilePath)
@@ -855,7 +857,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                     handlerFunction(target, ply)
                     return true
                 elseif string.find(fulltxt, "me") then
-                    print("Handling me attack")
+                    -- print("Handling me event")
                     handlerFunction(bot, ply)
                     return true
                 elseif not string.find(fulltxt, "everyone") then
@@ -900,15 +902,15 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
     local function handleKeywordEventsAttack(keywordEvents, handlerFunction, ply, fulltxt, bot, teamOnly, bots, targets)
         for keyword, event in pairs(keywordEvents) do
             if string.find(fulltxt, keyword) then
-                print("Handling attack for keyword: ", keyword)
+                -- print("Handling attack for keyword: ", keyword)
                 
                 if string.find(fulltxt, "me") then
-                    print("Handling me attack")
+                    -- print("Handling me attack")
                     local target = ply
                     handlerFunction(bot, ply, target, teamOnly)
                     return true
                 elseif string.find(fulltxt, "someone") then
-                    print("Handling someone attack")
+                    -- print("Handling someone attack")
                     local target = table.Random(targets)
                     while target == ply do
                         target = table.Random(targets)
@@ -916,7 +918,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                     handlerFunction(bot, ply, target, teamOnly)
                     return true
                 elseif string.find(fulltxt, "everyone") then
-                    print("Handling everyone attack")
+                    -- print("Handling everyone attack")
                     local botTargets = findPlayersInText(fulltxt)
                     for _, bot in ipairs(targets) do
                         local target = botTargets[1]
@@ -930,16 +932,16 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                     end
                     return true
                 elseif teamOnly then
-                    print("Handling team only attack")
+                    -- print("Handling team only attack")
                     --- select a random teammate that is not the player (if one exists)
                     --- then select a random non-team and not the player target
                     local bot = table.Random(bots)
-                    print("Bot: ", bot)
+                    -- print("Bot: ", bot)
                     local target = nil
                     for _, player in ipairs(TTTBots.Lib.GetAlivePlayers()) do
                         if player ~= ply and player:GetTeam() ~= ply:GetTeam() then
                             target = player
-                            print("Target: ", target)
+                            -- print("Target: ", target)
                             break
                         end
                     end
@@ -947,7 +949,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                     handlerFunction(bot, ply, target, teamOnly)
                     return true
                 elseif not string.find(fulltxt, "everyone") then
-                    print("Handling single attack")
+                    -- print("Handling single attack")
                     local botTargets = findPlayersInText(fulltxt)
                     local target = botTargets[2]
                     if not target and ply then return end
@@ -971,11 +973,11 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         local fulltxt = TTTBots.Locale.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
         local maxLength = 1000
         local startIndex = 1
-        while startIndex <= #fulltxt do
-            local endIndex = math.min(startIndex + maxLength - 1, #fulltxt)
-            print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
-            startIndex = endIndex + 1
-        end
+        -- while startIndex <= #fulltxt do
+        --     local endIndex = math.min(startIndex + maxLength - 1, #fulltxt)
+        --     print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
+        --     startIndex = endIndex + 1
+        -- end
         TTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice, function(response)
             if response then
                 response = response:gsub('"', '\\"')
@@ -1068,7 +1070,7 @@ function BotChatter:WriteDataFree(teamOnly, ply, IsOnePart, FileID, FileData, Fi
         end
 
     net.Broadcast()
-    print("Sent TTS data to clients.")
+    -- print("Sent TTS data to clients.")
 end
     
     

@@ -214,7 +214,7 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
     -- Function to handle the access token response
     local function handleTokenResponse(body, len, headers, code)
         if code == 200 then
-            print("Received Azure access token.")
+            -- print("Received Azure access token.")
             local azureToken = body
             local azureVoiceQuality = {
                 "riff-8khz-8bit-mono-alaw",
@@ -254,7 +254,7 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
                 body = ssmlBody,
                 success = handleTTSResponse,
                 failed = function(err)
-                    print("HTTP request to Azure TTS API failed: " .. err)
+                    print("HTTP request to Azure TTS API failed: " .. err .. ". Response body: " .. (body or ""))
                 end
             })
             ---print the headers inside for debugging
