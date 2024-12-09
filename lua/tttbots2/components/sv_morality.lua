@@ -575,6 +575,8 @@ end
 
 local function preventAttackAlly(bot)
     local attackTarget = bot.attackTarget
+    local role = TTTBots.Roles.GetRoleFor(attackTarget)
+    if not role then return end
     local isAllies = TTTBots.Roles.IsAllies(bot, attackTarget)
     if isAllies then
         bot:SetAttackTarget(nil)
@@ -635,7 +637,9 @@ end
 local function preventAttack(bot)
     local attackTarget = bot.attackTarget
     if not IsValid(attackTarget) then return end
-    local isNeutral = TTTBots.Roles.GetRoleFor(attackTarget):GetNeutralOverride()
+    local role = TTTBots.Roles.GetRoleFor(attackTarget)
+    if not role then return end
+    local isNeutral = role:GetNeutralOverride()
     local bot_zombie_cvar = TTTBots.Lib.GetConVarBool('cheat_bot_zombie')
     if isNeutral or bot_zombie_cvar then
         -- print("Preventing attack on neutral", attackTarget:Nick())
@@ -648,6 +652,8 @@ end
 local function preventAttackAllies(bot)
     local attackTarget = bot.attackTarget
     if not IsValid(attackTarget) then return end
+    local role = TTTBots.Roles.GetRoleFor(attackTarget)
+    if not role then return end
     local isAllies = TTTBots.Roles.IsAllies(bot, attackTarget)
     local isChecked = TTTBots.Match.CheckedPlayers[attackTarget] or nil
     if isAllies and isChecked then
@@ -714,15 +720,17 @@ local function attackNPCs(bot)
     local closest = nil
     local minDist = math.huge
     for _, npc in pairs(npcs) do
-        local dist = bot:GetPos():Distance(npc:GetPos())
-        if dist < minDist then
-            minDist = dist
-            closest = npc
+        if bot:Visible(npc) then
+            local dist = bot:GetPos():Distance(npc:GetPos())
+            if dist < minDist then
+                minDist = dist
+                closest = npc
+            end
         end
     end
     if closest and closest ~= NULL then
         print("Attacking NPC", closest)
-        bot.attackTarget = closest
+        bot:SetAttackTarget(closest)
     end
 end
 
@@ -806,7 +814,7 @@ end
 local function commonSense(bot)
     if not (bot.attackTarget ~= nil and bot.attackTarget:IsNPC() and not table.HasValue(TTTBots.Bots, bot.attackTarget)) then
         attackKOSedByAll(bot)
-        -- attackNPCs(bot)
+        attackNPCs(bot)
         attackEnemies(bot)
         attackNonAllies(bot)
         attackZombies(bot)
@@ -815,8 +823,6 @@ local function commonSense(bot)
         preventAttackAll(bot)
         personalSpace(bot)
         noticeTraitorWeapons(bot)
-    else
-        print("Attacking NPC In Loop", bot.attackTarget)
     end
 end
 

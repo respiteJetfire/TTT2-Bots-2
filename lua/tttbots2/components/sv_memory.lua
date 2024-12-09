@@ -181,7 +181,8 @@ end
 ---@return Vector|nil
 function Memory:GetKnownPositionFor(ply)
     if not IsValid(ply) then return nil end
-    local pnp = self.playerKnownPositions[ply:Nick()]
+    local nick = ply:IsPlayer() and ply:Nick() or tostring(ply)
+    local pnp = self.playerKnownPositions[nick]
     if not pnp then return nil end
     return pnp.pos
 end
@@ -239,7 +240,7 @@ function Memory:UpdateKnownPositionFor(ply, pos)
     -- Create the knownPos entry
     local knownPos = {
         ply = ply,                                    -- The player object
-        nick = ply:Nick(),                            -- The player's nickname
+        nick = ply:IsPlayer() and ply:Nick() or nil,  -- The player's nickname if it's a player
         pos = pos or ply:GetPos(),                    -- The position of the player
         inferred = (pos and true) or false,           -- Whether or not this position is inferred (and probably not accurate)
         time = ct,                                    -- The time this position was last updated
@@ -257,14 +258,14 @@ function Memory:UpdateKnownPositionFor(ply, pos)
         local ts = CurTime() - knownPos.time
 
         -- Get the corresponding known position of the player
-        local pKP = self.playerKnownPositions[ply:Nick()]
+        local pKP = self.playerKnownPositions[ply:IsPlayer() and ply:Nick() or ply]
 
         -- Return whether the elapsed time is greater than the forget time
         return (ts > pKP.forgetTime) or self.bot:VisibleVec(pKP.pos)
     end
 
     -- Update the known position for this player
-    self.playerKnownPositions[ply:Nick()] = knownPos
+    self.playerKnownPositions[ply:IsPlayer() and ply:Nick() or ply] = knownPos
 
     return knownPos
 end

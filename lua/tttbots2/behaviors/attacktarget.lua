@@ -92,7 +92,7 @@ function Attack.GetTargetHeadPos(targetPly)
 end
 
 function Attack.GetTargetBodyPos(targetPly)
-    local fallback = targetPly:GetPos() + Vector(0, 0, 30)
+    local fallback = targetPly:GetPos() + Vector(0, 0, 0)
 
     local spine_bone_index = targetPly:LookupBone("ValveBiped.Bip01_Spine2")
     if not spine_bone_index then
@@ -347,8 +347,10 @@ function Attack.PredictMovement(target, mult)
     local dvlpr = lib.GetDebugFor("attack")
     if dvlpr then
         -- Draw a cross at the predicted position
-        TTTBots.DebugServer.DrawCross(target:GetPos() + predictionRelative, 8, Color(255, 0, 0), predictionSecs,
-            target:Nick() .. ".attack.prediction")
+        if target:IsPlayer() then
+            TTTBots.DebugServer.DrawCross(target:GetPos() + predictionRelative, 8, Color(255, 0, 0), predictionSecs,
+                target:Nick() .. ".attack.prediction")
+        end
     end
 
     return predictionRelative
@@ -386,10 +388,12 @@ function Attack.RunningAttackLogic(bot)
     local memory = bot.components.memory
     local target = bot.attackTarget
     local targetPos, canSee = memory:GetCurrentPosOf(target)
+    local isAlive = bot.attackTarget:Health() > 0
     local mode = ATTACKMODE.Seeking -- Default to seeking
     local canShoot = lib.CanShoot(bot, target)
+    -- print("Can bot ".. bot:Nick() .. " shoot target? " .. tostring(canShoot))
 
-    if canShoot then mode = ATTACKMODE.Engaging end -- We can shoot them, we are engaging
+    if canShoot and isAlive then mode = ATTACKMODE.Engaging end -- We can shoot them, we are engaging
 
     local switchcase = {
         [ATTACKMODE.Seeking] = Attack.Seek,
@@ -410,9 +414,9 @@ function Attack.ValidateTarget(bot)
     local targetIsValid = target and target:IsValid() or false
     local notSeenRecently = bot.components.memory:GetLastSeenTime(target) + 30 < CurTime()
     local botIsAlive = bot and bot:Health() > 0 or false
-    local targetIsAlive = target and (target:IsPlayer() and target:Alive() or target:IsNPC() and target:Health() > 0) or false
+    local targetIsAlive = target and target:IsPlayer() and target:Health() > 0 or false
     local targetIsPlayer = target and target:IsPlayer() or false
-    local targetIsNPC = target and target:IsNPC() or false
+    local targetIsNPC = (target and target:IsNPC() and not table.HasValue(TTTBots, target)) or false
     local targetIsPlayerAndAlive = targetIsPlayer and TTTBots.Lib.IsPlayerAlive(target) or false
     local targetIsNPCAndAlive = targetIsNPC and target:Health() > 0 or false
     local targetIsPlayerOrNPCAndAlive = (targetIsPlayerAndAlive or targetIsNPCAndAlive) and targetIsAlive or false
@@ -423,6 +427,12 @@ function Attack.ValidateTarget(bot)
     -- print("| hasTarget: " .. tostring(hasTarget))
     -- print("| targetName: " .. tostring(target:Nick()))
     -- print("| targetIsValid: " .. tostring(targetIsValid))
+    -- if targetIsNPCAndAlive then
+    --     print("| targetNPCName: " .. tostring(target:GetClass()))
+    -- end
+    -- if targetIsPlayerAndAlive then
+    --     print("| targetName: " .. tostring(target:Nick()))
+    -- end
     -- print("| targetIsAlive: " .. tostring(targetIsAlive))
     -- print("| targetIsPlayer: " .. tostring(targetIsPlayer))
     -- print("| targetIsNPC: " .. tostring(targetIsNPC))
@@ -441,8 +451,15 @@ function Attack.ValidateTarget(bot)
         and not isAlly
     )
 
-    if not checkPassed then
-        -- print(bot:Nick() .. " failed to validate attack target behavior.")
+    local NPCPass = {
+        hasTarget
+        and targetIsValid
+        and botIsAlive
+        and targetIsNPCAndAlive
+    }
+
+    if not (checkPassed or NPCPass) then
+        print(bot:Nick() .. " failed to validate attack target behavior.")
         bot:SetAttackTarget(nil)
         if bot.attackBehaviorMode == ATTACKMODE.Engaging then
             bot:BotLocomotor():StopAttack()
@@ -453,10 +470,12 @@ function Attack.ValidateTarget(bot)
         end
     end
 
-    return checkPassed
+    return checkPassed or NPCPass
 end
 
 function Attack.IsTargetAlly(bot)
+    --- if bot.attackTarget is an NPC, return false
+    if not (IsValid(bot.attackTarget) and bot.attackTarget:IsNPC()) then return false end
     if not (IsValid(bot.attackTarget) and bot.attackTarget:IsPlayer()) then return false end
     return TTTBots.Roles.IsAllies(bot, bot.attackTarget)
 end
@@ -466,6 +485,7 @@ end
 ---@return BStatus status
 function Attack.OnRunning(bot)
     local target = bot.attackTarget
+    -- print("Bot " .. bot:Nick() .. " is attacking " .. tostring(target))
     -- We could probably do Attack.Validate but this is more explicit:
     if not Attack.ValidateTarget(bot) then return STATUS.FAILURE end -- Target is not valid
     if Attack.IsTargetAlly(bot) then return STATUS.FAILURE end       -- Target is an ally. No attack!

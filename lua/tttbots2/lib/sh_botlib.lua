@@ -128,8 +128,8 @@ end)
 ---@return number
 ---@realm server
 function TTTBots.Lib.RateIsolation(bot, other)
-    if not (bot and IsValid(bot)) then return -math.huge end
-    if not (other and IsValid(other)) then return -math.huge end
+    if not (bot and IsValid(bot) and bot.GetRole) then return -math.huge end
+    if not (other and IsValid(other) and other.GetRole) then return -math.huge end
     local cacheKey = bot:UserID() .. "_" .. other:UserID()
     if isolationCache[cacheKey] then
         return isolationCache[cacheKey]
@@ -147,8 +147,8 @@ function TTTBots.Lib.FindIsolatedTarget(bot)
     local nonAllies = TTTBots.Roles.GetNonAllies(bot)
     local bestIsolation = -math.huge
     local bestTarget = nil
-
     for _, other in ipairs(nonAllies) do
+        --- make sure the player is not nil
         local isolation = TTTBots.Lib.RateIsolation(bot, other)
         if isolation > bestIsolation then
             bestIsolation = isolation
@@ -236,15 +236,16 @@ end
 ---@return table<Player>
 ---@realm server
 function TTTBots.Lib.FindCloseTargets(bot, range, filterVisible, filterMarked, filterRole, filterTeam)
+    if not bot then return {} end
     local Alive = TTTBots.Lib.GetAlivePlayers()
     local targets = {}
     local marked = MARKER_DATA.marked_players
-    local role = bot:GetSubRole()
+    local role = bot.GetSubRole and bot:GetSubRole() or nil
 
     for _, other in ipairs(Alive) do
         if other ~= bot and (not range or bot:GetPos():Distance(other:GetPos()) < range) then
             if (not filterVisible or bot:Visible(other)) and (not filterMarked or not marked[other:SteamID64()]) then
-                if not filterRole or bot:GetRole() ~= other:GetRole() then
+                if not filterRole or (bot.GetRole and bot:GetRole() ~= other:GetRole()) then
                     if not filterTeam or bot:GetTeam() ~= other:GetTeam() then
                         table.insert(targets, other)
                     end
@@ -263,9 +264,11 @@ end
 ---@param filterMarked boolean
 ---@param filterRole boolean
 ---@return Player?
----@realm server
 function TTTBots.Lib.FindCloseTarget(bot, range, filterVisible, filterMarked, filterRole, filterTeam)
-    local targets = TTTBots.Lib.FindCloseTargets(bot, range, filterVisible, filterMarked, filterRole, filterTeam)
+    if not IsValid(bot) then return nil end
+    if not table.contains(TTTBots.Bots, bot) then return nil end
+    local targets = TTTBots.Lib.FindCloseTargets(bot, range, filterVisible, filterMarked, filterRole, filterTeam) or {}
+    if not targets or #targets == 0 then return nil end
     local bestDist = math.huge
     local bestTarget = nil
 
@@ -281,6 +284,7 @@ function TTTBots.Lib.FindCloseTarget(bot, range, filterVisible, filterMarked, fi
 
     return bestTarget
 end
+
 
 --- Returns a list of all NPCs in the world, excluding TTTBots.
 ---@return table<Bot>
