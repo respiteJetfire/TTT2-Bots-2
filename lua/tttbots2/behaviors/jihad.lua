@@ -131,7 +131,7 @@ function BehaviorJihad.OnRunning(bot)
     loco:StartAttack()
     -- print("Jihad OnRunning, chance and value", chance, value)
     
-    chatter:On("JihadBombUse", {})
+    chatter:On("JihadBombUse")
 
     return STATUS.RUNNING
 end

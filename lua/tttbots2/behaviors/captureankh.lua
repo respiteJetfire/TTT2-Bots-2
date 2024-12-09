@@ -53,11 +53,11 @@ function CaptureAnkh.UseAnkh(bot, ankh)
     for i, v in pairs(witnesses) do
         if v:GetSubRole() == ROLE_GRAVEROBBER and bot:GetSubRole() == ROLE_PHARAOH then
             print("Witness is a graverobber")
-            v:SetAttackTarget(bot)
+            v.attackTarget = bot
             print(v.attackTarget)
         elseif v:GetSubRole() == ROLE_PHARAOH and bot:GetSubRole() == ROLE_GRAVEROBBER then
             print("Witness is a pharaoh")
-            v:SetAttackTarget(bot)
+            v.attackTarget = bot
             print(v.attackTarget)
         end
     end
