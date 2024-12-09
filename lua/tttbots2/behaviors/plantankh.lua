@@ -65,7 +65,7 @@ function PlantAnkh.OnRunning(bot)
     bot:SetActiveWeapon(ankh)
     locomotor:LookAt(spot)
     locomotor:StartAttack()
-    print("Bot " .. bot:Nick() .. " is planting an ankh at " .. tostring(spot))
+    -- print("Bot " .. bot:Nick() .. " is planting an ankh at " .. tostring(spot))
     ankh = PlantAnkh.GetAnkh(bot)
     if not ankh then return STATUS.SUCCESS end
     bot.ankhFailCounter = attempt + 1
@@ -75,6 +75,8 @@ end
 
 --- Called when the behavior returns a success state
 function PlantAnkh.OnSuccess(bot)
+    local chatter = bot:BotChatter()
+    chatter:On("PlacedAnkh")
 end
 
 --- Called when the behavior returns a failure state

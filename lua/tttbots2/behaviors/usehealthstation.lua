@@ -85,8 +85,10 @@ end
 
 --- Called when the behavior's last state is running
 function UseHealthStation.OnRunning(bot)
+    local chatter = bot:BotChatter()
     if UseHealthStation.HasHealthStation(bot) then
         UseHealthStation.PlaceHealthStation(bot)
+        chatter:On("PlacingHealthStation")
         return STATUS.RUNNING
     end
 

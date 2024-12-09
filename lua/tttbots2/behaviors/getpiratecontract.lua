@@ -41,7 +41,9 @@ function GetPirateContract.GetNearestContract(bot)
 end
 
 function GetPirateContract.PickUpContract(bot, contract)
+    local chatter = bot:BotChatter()
     contract:Use(bot)
+    chatter:On("ContractAccepted")
 end
 
 --- Validate the behavior
