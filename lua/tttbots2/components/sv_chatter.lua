@@ -233,6 +233,32 @@ function BotChatter:On(event_name, args, teamOnly, delay)
         ServerConnected = 45,
         SillyChat = 30,
         SillyChatDead = 15,
+        AttackStart = 80,
+        AttackRefuse = 80,
+        CreatingCursed = 80,
+        CreatingDefector = 80,
+        CreatingMedic = 80,
+        CreatingDoctor = 80,
+        CreatingSidekick = 80,
+        CreatingDeputy = 80,
+        CreatingSlave = 60,
+        CeaseFireStart = 60,
+        CeaseFireRefuse = 60,
+        CeaseFireEnd = 60,
+        HealAccepted = 80,
+        HealRefused = 50,
+        RoleCheckerRequestAccepted = 90,
+        UsingRoleChecker = 50,
+        ComeHereStart = 75,
+        ComeHereRefuse = 50,
+        ComeHereEnd = 50,
+        InvestigateCorpse = 65,
+        JihadBombWarn = 75,
+        JihadBombUse = 100,
+        PlacedAnkh = 75,
+        NewContract = 75,
+        ContractAccepted = 75,
+        FollowMe = 20,
     }
 
     local personality = self.bot.components.personality --- @type CPersonality
@@ -240,19 +266,38 @@ function BotChatter:On(event_name, args, teamOnly, delay)
         local chance = chancesOf100[event_name]
         if math.random(0, 100) > (chance * personality:GetTraitMult("textchat") * ChanceMult) then return false end
     end
-
-    local localizedString
+    local localizedString = nil
+    local function handleChatResponse(response)
+        if response then
+            localizedString = TTTBots.Locale.FormatArgsIntoTxt(response, args)
+            print("ChatGPT response: ", localizedString)
+        else
+            localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+            print("ChatGPT failed, using default response: ", localizedString)
+            if not localizedString then
+                localizedString = "I don't know what to say."
+            end
+        end
+        -- Process the localizedString as needed
+    end
+    
     if math.random() < chatGPTChance then
-        localizedString = TTTBots.Locale.FormatArgsIntoTxt(TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, event_name, args), args)
+        TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, function(response)
+            handleChatResponse(response)
+        end)
     else
         localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
         if not localizedString then
-            localizedString = TTTBots.Locale.FormatArgsIntoTxt(TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, event_name, args), args)
+            TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, function(response)
+                handleChatResponse(response)
+            end)
         end
     end
+    
     local isCasual = personality:GetClosestArchetype() == TTTBots.Archetypes.Casual
     if localizedString then
         if isCasual then localizedString = string.lower(localizedString) end
+        print("TeamOnly: ", teamOnly)
         if delay then
             timer.Simple(delay, function()
                 self:textorTTS(self.bot, localizedString, teamOnly, event_name, args)
@@ -924,15 +969,21 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
 
         local chatter = bot:BotChatter()
         local fulltxt = TTTBots.Locale.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
-        fulltxt = fulltxt:gsub('"', '\\"')
         local maxLength = 1000
         local startIndex = 1
-        -- while startIndex <= #fulltxt do
-        --     local endIndex = math.min(startIndex + maxLength - 1, #fulltxt)
-        --     print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
-        --     startIndex = endIndex + 1
-        -- end
-        TTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice)
+        while startIndex <= #fulltxt do
+            local endIndex = math.min(startIndex + maxLength - 1, #fulltxt)
+            print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
+            startIndex = endIndex + 1
+        end
+        TTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice, function(response)
+            if response then
+                response = response:gsub('"', '\\"')
+                chatter:textorTTS(bot, response, teamOnly, false, wasVoice)
+            else
+                print("ChatGPT request returned nil")
+            end
+        end)
     end
 end
 

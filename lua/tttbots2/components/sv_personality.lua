@@ -506,7 +506,7 @@ function BotPersonality:Initialize(bot)
         print("ElevenLabs API key is not set. Ignore if not using ElevenLabs TTS.")
     end
 
-    if TTTBots.Lib.GetConVarString("chatter_voice_azure_subscription_key") == "" then
+    if TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_api_key") == "" then
         print("Azure TTS API key is not set. Ignore if not using Azure TTS.")
     end
 

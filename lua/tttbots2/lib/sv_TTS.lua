@@ -166,6 +166,7 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
     local azureResourceGroupName = TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_name")
     local azureResourceSpeechAPIKey = TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_api_key")
     local azureVoiceName = ply:BotPersonality().voice.id
+    -- print("Azure Voice Name: " .. azureVoiceName)
     local chatter = ply:BotChatter()
     local azureTokenEndpoint = "https://" .. azureRegion .. ".api.cognitive.microsoft.com/sts/v1.0/issuetoken"
     local azureTTSEndpoint = "https://" .. azureRegion .. ".tts.speech.microsoft.com/cognitiveservices/v1"
@@ -205,7 +206,7 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
                 chatter:WriteDataFree(teamOnly, ply, true, FileID, FileContent)
             end
         else
-            print("The HTTP request to Azure TTS API failed. HTTP Code: " .. code)
+            print("The HTTP request to Azure TTS API failed. HTTP Code: " .. code .. ". Response body: " .. body)
             chatter:Say(text, teamOnly)
         end
     end
@@ -232,8 +233,8 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
 
             -- Prepare the SSML request body
             local ssmlBody = string.format(
-                "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='%s'><voice name='%s'>%s</voice></speak>",
-                "en-US", azureVoiceName, text
+                "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='%s'>%s</voice></speak>",
+                azureVoiceName, text
             )
 
             -- Print the SSML body for debugging
@@ -247,7 +248,7 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
                     ["Content-Type"] = "application/ssml+xml",
                     ["Authorization"] = "Bearer " .. azureToken,
                     ["Connection"] = "Keep-Alive",
-                    ["User-Agent"] = azureResourceGroupName,
+                    ["User-Agent"] = "Mozilla/5.0",
                     ["X-Microsoft-OutputFormat"] = outputFormat,
                 },
                 body = ssmlBody,

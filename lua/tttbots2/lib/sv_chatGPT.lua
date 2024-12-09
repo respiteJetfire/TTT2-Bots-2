@@ -4,7 +4,7 @@ local lib = TTTBots.Lib
 
 --- Sends a request to the ChatGPT API.
 ---@param text string
-function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice)
+function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice, responseCallback)
     local apiKey = TTTBots.Lib.GetConVarString("chatter_chatgpt_api_key")
     local temperature = TTTBots.Lib.GetConVarFloat("chatter_chatgpt_temperature")
     wasVoice = wasVoice or false
@@ -29,14 +29,16 @@ function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice)
             "temperature": ]] .. temperature .. [[
         }]],
         success = function(code, body, headers)
-            local response = TTTBots.ChatGPT.ProcessResponse(body)
-            if response and bot and IsValid(bot) and response ~= text and not string.find(response, text) and not string.find(text, response) then
-                -- print("Response from ChatGPT API: " .. response)
-                local chatter = bot:BotChatter()
-                chatter:textorTTS(bot, response, teamOnly, nil, wasVoice)
-
-            elseif response and response.error and response.error.message then
-                print("Error message from API: " .. response.error.message)
+            local apiResponse = TTTBots.ChatGPT.ProcessResponse(body)
+            if apiResponse and bot and IsValid(bot) and apiResponse ~= text and not string.find(apiResponse, text) and not string.find(text, apiResponse) then
+                if responseCallback then
+                    responseCallback(apiResponse)
+                end
+            elseif apiResponse and apiResponse.error and apiResponse.error.message then
+                print("Error message from API: " .. apiResponse.error.message)
+                if responseCallback then
+                    responseCallback(nil)
+                end
             end
         end,
         failed = function(err)

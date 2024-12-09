@@ -1547,7 +1547,15 @@ end
 -- Prepends "ttt_bot_" to the name of the convar, and returns the string value of the convar.
 ---@realm shared
 function TTTBots.Lib.GetConVarString(name)
-    return GetConVar("ttt_bot_" .. name):GetString()
+    local convar = GetConVar("ttt_bot_" .. name)
+    if not convar then
+        print("Error: ConVar 'ttt_bot_" .. name .. "' does not exist.")
+        return nil
+    end
+
+    local value = convar:GetString()
+    -- print("ConVar 'ttt_bot_" .. name .. "' has value: " .. value)
+    return value
 end
 
 --- Wrapper for "ttt_bot_" + name convars
