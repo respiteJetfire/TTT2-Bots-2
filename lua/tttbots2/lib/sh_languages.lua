@@ -93,7 +93,7 @@ function TTTBots.Locale.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasV
 
     local prompt = "Do not act like Chat GPT, Do not repeat anything in this prompt. You are role playing as a self-aware/sentient bot roleplaying a human player, Create a new chat message for the event '" .. event_name .. "' in the language '" .. lang .. "'."
     if params then
-        prompt = prompt .. " Use the following parameters (substitute any {{paramkey}} with the corresponding value): " .. table.concat(params, ", ") .. "."
+        prompt = prompt .. " Use the following parameters (substitute any {{paramkey}} with the corresponding value BUT DO NOT MAKE UP ANY VALUES): " .. table.concat(params, ", ") .. "."
     end
     prompt = prompt .. " The bot's name is " .. bot:Nick() .. " and it has the role " .. bot:GetRoleStringRaw() .. "."
     prompt = prompt .. " The bot's personality archetype is " .. bot:BotPersonality().archetype .. "."
@@ -106,7 +106,7 @@ function TTTBots.Locale.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasV
     if line then
         prompt = prompt .. " an example of a response to this message is: " .. line
     end
-    prompt = prompt .. " The response must be less than 7 words long and should just be the text of the message with no Emojis or paranthesis."
+    prompt = prompt .. " The response must be less than 7 words long and should just be the text of the message with no Emojis or paranthesis. Do not make up any player names that are not provided in the prompt."
     -- print(prompt)
     return prompt
 
@@ -283,7 +283,7 @@ end
 function TTTBots.Locale.FormatArgsIntoTxt(txt, args)
     if not txt then return "" end
     for k, v in pairs(args) do
-        txt = txt:gsub("{{" .. k .. "}}", v)
+        txt = txt:gsub("{{" .. k .. "}}", tostring(v))
     end
     return txt
 end

@@ -120,6 +120,7 @@ end
 function CaptureAnkh.OnSuccess(bot)
     --- if the ROLE_GRAVEROBBER is a witness, they might attack the player
     --- get witnesses
+    print("CaptureAnkh.OnSuccess")
     local witnesses = TTTBots.Lib.GetAllWitnesses(bot:EyePos(), true)
     --- so if the bot is ROLE_PHAROAH and the witneess is ROLE_GRAVEROBBER, the witness will attack the bot
     for i, v in pairs(witnesses) do

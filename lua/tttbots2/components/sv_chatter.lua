@@ -183,7 +183,8 @@ end
 ---@param args table<any>? A table of arguments passed to the event
 ---@param teamOnly boolean? Should the message be team only
 ---@param delay number? Optional delay before executing the event
-function BotChatter:On(event_name, args, teamOnly, delay)
+---@param description string? Optional description of the event
+function BotChatter:On(event_name, args, teamOnly, delay, description)
     local dvlpr = lib.GetConVarBool("debug_misc")
     if dvlpr then
         print(string.format("Event %s called with %d args.", event_name, args and #args))
@@ -268,6 +269,7 @@ function BotChatter:On(event_name, args, teamOnly, delay)
     end
     local localizedString = nil
     local function handleChatResponse(response)
+        local localizedString
         if response then
             localizedString = TTTBots.Locale.FormatArgsIntoTxt(response, args)
             print("ChatGPT response: ", localizedString)
@@ -278,19 +280,36 @@ function BotChatter:On(event_name, args, teamOnly, delay)
                 localizedString = "I don't know what to say."
             end
         end
-        -- Process the localizedString as needed
+        return localizedString
     end
     
+    local localizedString
+    local function setLocalizedString(response)
+        localizedString = handleChatResponse(response)
+        print("Localized String: ", localizedString)
+        local isCasual = personality:GetClosestArchetype() == TTTBots.Archetypes.Casual
+        if localizedString then
+            if isCasual then localizedString = string.lower(localizedString) end
+            if delay then
+                timer.Simple(delay, function()
+                    self:textorTTS(self.bot, localizedString, teamOnly, event_name, args)
+                end)
+            else
+                self:textorTTS(self.bot, localizedString, teamOnly, event_name, args)
+            end
+            return true
+        end
+        return false
+    end
+
     if math.random() < chatGPTChance then
-        TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, function(response)
-            handleChatResponse(response)
-        end)
+        TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, setLocalizedString)
     else
         localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
         if not localizedString then
-            TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, function(response)
-                handleChatResponse(response)
-            end)
+            TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, setLocalizedString)
+        else
+            setLocalizedString(localizedString)
         end
     end
     
