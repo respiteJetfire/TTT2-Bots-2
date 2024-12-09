@@ -48,6 +48,19 @@ function CaptureAnkh.UseAnkh(bot, ankh)
     timer.Simple(1, function()
         PHARAOH_HANDLER:TransferAnkhOwnership(ankh, bot)
     end)
+    local witnesses = TTTBots.Lib.GetAllWitnesses(bot:GetPos(), true)
+    --- so if the bot is ROLE_PHAROAH and the witneess is ROLE_GRAVEROBBER, the witness will attack the bot
+    for i, v in pairs(witnesses) do
+        if v:GetSubRole() == ROLE_GRAVEROBBER and bot:GetSubRole() == ROLE_PHARAOH then
+            print("Witness is a graverobber")
+            v:SetAttackTarget(bot)
+            print(v.attackTarget)
+        elseif v:GetSubRole() == ROLE_PHARAOH and bot:GetSubRole() == ROLE_GRAVEROBBER then
+            print("Witness is a pharaoh")
+            v:SetAttackTarget(bot)
+            print(v.attackTarget)
+        end
+    end
     return STATUS.SUCCESS
 end
 
@@ -118,18 +131,6 @@ end
 
 --- Called when the behavior returns a success state
 function CaptureAnkh.OnSuccess(bot)
-    --- if the ROLE_GRAVEROBBER is a witness, they might attack the player
-    --- get witnesses
-    print("CaptureAnkh.OnSuccess")
-    local witnesses = TTTBots.Lib.GetAllWitnesses(bot:EyePos(), true)
-    --- so if the bot is ROLE_PHAROAH and the witneess is ROLE_GRAVEROBBER, the witness will attack the bot
-    for i, v in pairs(witnesses) do
-        if v:GetSubRole() == ROLE_GRAVEROBBER and bot:GetSubRole() == ROLE_PHARAOH then
-            v:SetAttackTarget(bot)
-        elseif v:GetSubRole() == ROLE_PHARAOH and bot:GetSubRole() == ROLE_GRAVEROBBER then
-            v:SetAttackTarget(bot)
-        end
-    end
 end
 
 --- Called when the behavior returns a failure state

@@ -77,7 +77,7 @@ function TTTBots.Locale.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
 end
 
 
-function TTTBots.Locale.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasVoice)
+function TTTBots.Locale.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasVoice, description)
     local lang = TTTBots.Lib.GetConVarString("language")
     if not teamOnly then teamOnly = false end
     if not wasVoice then wasVoice = false end
@@ -100,6 +100,9 @@ function TTTBots.Locale.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasV
     prompt = prompt .. " The bot's team is " .. _G.team.GetName(bot:GetTeam()) .. "."
     prompt = prompt .. " The bot's last behavior was " .. (bot.lastBehavior and bot.lastBehavior.Description or "None") .. "."
     eventDesc = TTTBots.Locale.Description[event_name]
+    if not eventDesc then
+        eventDesc = description
+    end
     if eventDesc then
         prompt = prompt .. " The chat event description is: " .. eventDesc
     end

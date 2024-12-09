@@ -272,10 +272,10 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
         local localizedString
         if response then
             localizedString = TTTBots.Locale.FormatArgsIntoTxt(response, args)
-            print("ChatGPT response: ", localizedString)
+            -- print("ChatGPT response: ", localizedString)
         else
             localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
-            print("ChatGPT failed, using default response: ", localizedString)
+            -- print("ChatGPT failed, using default response: ", localizedString)
             if not localizedString then
                 localizedString = "I don't know what to say."
             end
@@ -286,7 +286,7 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     local localizedString
     local function setLocalizedString(response)
         localizedString = handleChatResponse(response)
-        print("Localized String: ", localizedString)
+        -- print("Localized String: ", localizedString)
         local isCasual = personality:GetClosestArchetype() == TTTBots.Archetypes.Casual
         if localizedString then
             if isCasual then localizedString = string.lower(localizedString) end
@@ -303,11 +303,11 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     end
 
     if math.random() < chatGPTChance then
-        TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, setLocalizedString)
+        TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
     else
         localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
         if not localizedString then
-            TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true), self.bot, teamOnly, false, setLocalizedString)
+            TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
         else
             setLocalizedString(localizedString)
         end
@@ -348,21 +348,22 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
         local personality = bot:BotPersonality()
         local voicetype = personality.voice.type
 
-        -- Rate limiting
-        bot.lastReplyTime = bot.lastReplyTime or 0
-        local rateLimitTime
-        if wasVoice then
-            rateLimitTime = 4
-        else
-            rateLimitTime = 2
-        end
-        if CurTime() - bot.lastReplyTime < rateLimitTime then
-            print("Bot rate limited: ", bot)
-            return nil
-        end
-        bot.lastReplyTime = CurTime()
+        
 
-        if not (speakingPlayers[bot] and (CurTime() - speakingPlayers[bot] < 5)) and math.random() <= voiceChatChance then
+        if math.random() <= voiceChatChance then
+                    -- Rate limiting
+                bot.lastReplyTime = bot.lastReplyTime or 0
+                local rateLimitTime
+                if wasVoice then
+                    rateLimitTime = 4
+                else
+                    rateLimitTime = 2
+                end
+                if CurTime() - bot.lastReplyTime < rateLimitTime then
+                    print("Bot rate limited: ", bot)
+                    return nil
+                end
+                bot.lastReplyTime = CurTime()
             -- print("Sending Voice chat: " .. text)
                 if voicetype == "elevenlabs" then
                     -- print("Sending Voice chat to ElevenLabs")
@@ -375,6 +376,7 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
                     TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly)
                 end 
                 speakingPlayers[bot] = CurTime()
+                print(bot:Nick() .. " [VOICE CHAT]: " .. text)
                 self:RespondToPlayerMessage(bot, text, teamOnly, math.random(3, 6))
         else
             -- print("Sending Text chat: " .. text)

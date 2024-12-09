@@ -6,9 +6,10 @@ local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 
 local bTree = {
-    _bh.PlantAnkh,
+    
     _prior.Requests,
     _prior.FightBack,
+    _bh.PlantAnkh,
     _bh.CaptureAnkh,
     _prior.Support,
     _bh.Defuse,

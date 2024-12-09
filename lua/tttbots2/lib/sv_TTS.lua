@@ -114,7 +114,7 @@ function TTTBots.TTS.ElevenLabsSendRequest(ply, text, teamOnly)
         body = jsonBody,
         success = function(code, body)
             if code == 200 then
-                print("Received TTS audio from ElevenLabs API.")
+                -- print("Received TTS audio from ElevenLabs API.")
 
                 local FileContent = util.Compress(body)
                 local FileSize = #FileContent
@@ -257,7 +257,7 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly)
     local azureResourceGroupName = TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_name")
     local azureResourceSpeechAPIKey = TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_api_key")
     local azureVoiceName = ply:BotPersonality().voice.id
-    print("Azure Voice Name: " .. azureVoiceName)
+    -- print("Azure Voice Name: " .. azureVoiceName)
     local chatter = ply:BotChatter()
     local azureTokenEndpoint = "https://" .. azureRegion .. ".api.cognitive.microsoft.com/sts/v1.0/issuetoken"
     local azureTTSEndpoint = "https://" .. azureRegion .. ".tts.speech.microsoft.com/cognitiveservices/v1"
