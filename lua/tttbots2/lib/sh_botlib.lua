@@ -266,7 +266,16 @@ end
 ---@return Player?
 function TTTBots.Lib.FindCloseTarget(bot, range, filterVisible, filterMarked, filterRole, filterTeam)
     if not IsValid(bot) then return nil end
-    if not table.contains(TTTBots.Bots, bot) then return nil end
+    local function tableContains(tbl, val)
+        for _, v in ipairs(tbl) do
+            if v == val then
+                return true
+            end
+        end
+        return false
+    end
+
+    if not tableContains(TTTBots.Bots, bot) then return nil end
     local targets = TTTBots.Lib.FindCloseTargets(bot, range, filterVisible, filterMarked, filterRole, filterTeam) or {}
     if not targets or #targets == 0 then return nil end
     local bestDist = math.huge

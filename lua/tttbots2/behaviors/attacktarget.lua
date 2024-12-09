@@ -49,6 +49,11 @@ function Attack.Seek(bot, targetPos)
     local lastSeenTime = memory:GetLastSeenTime(target)
     local timeNow = CurTime()
     local secsSince = timeNow - lastSeenTime
+    local isAlive = target:Health() > 0
+    if not isAlive then
+        bot:SetAttackTarget(nil)
+        return
+    end
 
     if lastKnownPos and secsSince > 4 and secsSince < 46 then
         loco:SetGoal(lastKnownPos)
