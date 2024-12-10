@@ -51,20 +51,17 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
 
     local jsonBody = util.TableToJSON({
         text = text,
+        voice_id = voiceID,
         model_id = model_id,
-        voice_settings = {
-            stability = 0.8,
-            similarity_boost = 1.0
-        },
+        api_key = TTTBots.Lib.GetConVarString("chatter_voice_elevenlabs_api_key")
     })
 
     HTTP({
-        url = 'https://api.elevenlabs.io/v1/text-to-speech/' .. voiceID,
+        url = 'http://gmodttsapi-hsb8eeeqa8b2acbk.uksouth-01.azurewebsites.net:80/elevenlabs',
         type = 'application/json',
         method = 'post',
         headers = {
-            ['Content-Type'] = 'application/json',
-            ['xi-api-key'] = TTTBots.Lib.GetConVarString("chatter_voice_elevenlabs_api_key")
+            ['Content-Type'] = 'application/json'
         },
         body = jsonBody,
         success = function(code, body)
@@ -72,10 +69,10 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
                 local response = util.JSONToTable(body)
                 if response then
                     print("ElevenLabs response: " .. body)
-                    if response.audio_url then
-                        playTTSUrl(ply, response.audio_url, teamOnly)
+                    if response.download_url then
+                        playTTSUrl(ply, response.download_url, teamOnly)
                     else
-                        print("Failed to get audio URL from ElevenLabs response.")
+                        print("Failed to get download URL from ElevenLabs response.")
                     end
                 else
                     print("Failed to parse ElevenLabs response.")
