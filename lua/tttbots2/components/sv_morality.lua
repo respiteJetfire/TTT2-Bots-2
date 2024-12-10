@@ -729,7 +729,7 @@ local function attackNPCs(bot)
         end
     end
     if closest and closest ~= NULL then
-        print("Attacking NPC", closest)
+        -- print("Attacking NPC", closest)
         bot:SetAttackTarget(closest)
     end
 end

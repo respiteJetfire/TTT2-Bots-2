@@ -43,7 +43,12 @@ end
 ---@param bot Bot
 ---@param target Player?
 function CreateCursed.SetTarget(bot, target)
-    bot.CursedTarget = target or CreateCursed.FindTarget(bot)
+    local newTarget = target or CreateCursed.FindTarget(bot)
+    if newTarget then
+        bot.CursedTarget = newTarget
+    else
+        bot.CursedTarget = nil
+    end
 end
 
 function CreateCursed.GetTarget(bot)

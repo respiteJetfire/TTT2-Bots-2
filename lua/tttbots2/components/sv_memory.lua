@@ -261,7 +261,7 @@ function Memory:UpdateKnownPositionFor(ply, pos)
         local pKP = self.playerKnownPositions[ply:IsPlayer() and ply:Nick() or ply]
 
         -- Return whether the elapsed time is greater than the forget time
-        return (ts > pKP.forgetTime) or self.bot:VisibleVec(pKP.pos)
+        return (ts > pKP.forgetTime) or (pKP and self.bot:VisibleVec(pKP.pos))
     end
 
     -- Update the known position for this player
