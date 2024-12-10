@@ -84,6 +84,8 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
         end,
         failed = function(err)
             print("HTTP request to ElevenLabs API failed: " .. err)
+            print("URL: http://gmodttsapi-hsb8eeeqa8b2acbk.uksouth-01.azurewebsites.net:80/elevenlabs")
+            print("Request Body: " .. jsonBody)
         end
     })
 end
