@@ -2,6 +2,76 @@ local speakingPlayers = {}
 local speakingTeamPlayers = {}
 local speakingFilePaths = {}
 
+local function playFileURL(ply, url, teamOnly)
+    -- Add player to speakingPlayers table
+    local localPlayer = LocalPlayer()
+    print("Local player: ", localPlayer)
+    local localPlayerTeam = localPlayer and localPlayer:GetTeam()
+    print("Local player team: ", localPlayerTeam)
+    print("ply team: ", ply:GetTeam())
+    local cantPlay = ((teamOnly and (localPlayerTeam ~= ply:GetTeam() or localPlayerTeam == "nones")) or false)
+    if cantPlay then
+        print("Can't play sound file for player: " .. ply:Nick())
+        return
+    end
+
+    -- Check if the file is already being played by another player
+    for _, player in pairs(speakingPlayers) do
+        if player == ply then
+            print("File is already being played by player: " .. ply:Nick())
+            return
+        end
+    end
+
+    sound.PlayURL(url, "noplay", function(channel, errID, errStr)
+        --- check if ply is alive and not spectating
+        if not IsValid(ply) or not ply:Alive() or ply:IsSpec() then
+            return
+        end
+        local ID = ply:SteamID64()
+        if IsValid(channel) then
+            channel:SetVolume(3)
+            channel:Play()
+            if not ID then
+                print("Player has no SteamID64")
+                return
+            end
+            -- print("Played sound file", url)
+            
+            local debugChatterVoiceTeamColor = GetConVar("ttt_bot_debug_chatter_voice_team_color")
+
+            if IsValid(localPlayer) and localPlayerTeam ~= nil and ((teamOnly and localPlayerTeam == ply:GetTeam() and localPlayerTeam ~= "nones") or (debugChatterVoiceTeamColor and debugChatterVoiceTeamColor:GetBool())) then
+                print("Team only")
+                speakingTeamPlayers[ID] = ply
+            elseif not teamOnly then
+                print("Not team only")
+                speakingPlayers[ID] = ply
+            end
+
+            if IsValid(ply) then
+                -- print("Started voice for player: " .. ply:Nick())
+                timer.Create("VoiceTimer_" .. ID, 0.1, 0, function()
+                    if not IsValid(channel) or channel:GetState() ~= GMOD_CHANNEL_PLAYING then
+                        if IsValid(ply) then
+                            -- print("Ended voice for player: " .. ply:Nick())
+                        end
+                        timer.Remove("VoiceTimer_" .. ID)
+                        -- Remove player from speakingPlayers table
+                        if teamOnly then
+                            speakingTeamPlayers[ID] = nil
+                        else
+                            speakingPlayers[ID] = nil
+                        end
+                    end
+                end)
+            end
+        else
+            print("Failed to play sound file: " .. errStr)
+        end
+    end)
+end
+
+
 local function playFile(ply, path, teamOnly)
     -- Add player to speakingPlayers table
     local localPlayer = LocalPlayer()
@@ -162,6 +232,15 @@ local function SetFileNameFree(name)
 
     return string.format(format, os.time(), name)
 end
+
+net.Receive("SayTTSUrlStart", function()
+    print("Received TTS URL data")
+    local ply = net.ReadEntity()
+    local url = net.ReadString()
+    local teamOnly = net.ReadBool()
+
+    playFileURL(ply, url, teamOnly)
+end)
 
 
 local g_file = {}

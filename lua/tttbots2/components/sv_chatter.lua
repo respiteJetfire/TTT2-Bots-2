@@ -347,6 +347,8 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
 
         local personality = bot:BotPersonality()
         local voicetype = personality.voice.type
+        local urlMode = TTTBots.Lib.GetConVarInt("chatter_voice_url_mode")
+        -- print("URL Mode: ", urlMode)
 
         
 
@@ -367,14 +369,26 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
             -- print("Sending Voice chat: " .. text)
                 if voicetype == "elevenlabs" then
                     -- print("Sending Voice chat to ElevenLabs")
+                    -- if urlMode == 1 then
+                    --     TTTBots.TTSURL.ElevenLabsSendRequest(bot, text, teamOnly)
+                    -- else
                     TTTBots.TTS.ElevenLabsSendRequest(bot, text, teamOnly)
+                    -- end
                 elseif voicetype == "Azure" then
                     -- print("Sending Voice chat to Azure")
+                    -- if urlMode == 1 then
+                    --     TTTBots.TTSURL.AzureTTSSendRequest(bot, text, teamOnly)
+                    -- else
                     TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly)
+                    -- end
                 else
                     -- print("Sending Voice chat to FreeTTS")
-                    TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly)
-                end 
+                    if urlMode == 1 then
+                        TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly)
+                    else
+                        TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly)
+                    end
+                end
                 speakingPlayers[bot] = CurTime()
                 print(bot:Nick() .. " [VOICE CHAT]: " .. text)
                 self:RespondToPlayerMessage(bot, text, teamOnly, math.random(3, 6))

@@ -227,3 +227,5 @@ bot_sh_cvar("chatter_voice_microsoft_tts_chance", "0",
     "The % chance (therefore 0-100) that a bot will use a Azure TTS voice in voice chat. This is only used if chatter_voice_tts_provider is set to 3.")
 bot_sh_cvar("chatter_voice_elevenlabs_tts_chance", "0",
     "The % chance (therefore 0-100) that a bot will use a Elevenlabs TTS voice in voice chat. This is only used if chatter_voice_tts_provider is set to 3.")
+bot_sh_cvar("chatter_voice_url_mode", "0",
+    "To enable URL mode set this to 1, this will make the bot voice chat go through URL rather than net.Send which should be quicker, to disable set to 0 (default).")
