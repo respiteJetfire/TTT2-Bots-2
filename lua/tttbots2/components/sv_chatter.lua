@@ -368,7 +368,7 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
                 bot.lastReplyTime = CurTime()
             -- print("Sending Voice chat: " .. text)
                 if voicetype == "elevenlabs" then
-                    print("Sending Voice chat to ElevenLabs")
+                    -- print("Sending Voice chat to ElevenLabs")
                     if urlMode == 1 then
                         TTTBots.TTSURL.ElevenLabsSendRequest(bot, text, teamOnly)
                     else

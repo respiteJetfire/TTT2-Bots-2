@@ -8,7 +8,13 @@ local function playFileURL(ply, url, teamOnly)
     print("Local player: ", localPlayer)
     local localPlayerTeam = localPlayer and localPlayer:GetTeam()
     print("Local player team: ", localPlayerTeam)
-    print("ply team: ", ply:GetTeam())
+    print("URL: ", url)
+    if IsValid(ply) then
+        print("ply team: ", ply:GetTeam())
+    else
+        print("Invalid player entity.")
+        return
+    end
     local cantPlay = ((teamOnly and (localPlayerTeam ~= ply:GetTeam() or localPlayerTeam == "nones")) or false)
     if cantPlay then
         print("Can't play sound file for player: " .. ply:Nick())
