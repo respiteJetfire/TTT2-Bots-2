@@ -376,11 +376,11 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
                     end
                 elseif voicetype == "Azure" then
                     -- print("Sending Voice chat to Azure")
-                    -- if urlMode == 1 then
-                    --     TTTBots.TTSURL.AzureTTSSendRequest(bot, text, teamOnly)
-                    -- else
-                    TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly)
-                    -- end
+                    if urlMode == 1 then
+                        TTTBots.TTSURL.AzureTTSSendRequest(bot, text, teamOnly)
+                    else
+                        TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly)
+                    end
                 else
                     -- print("Sending Voice chat to FreeTTS")
                     if urlMode == 1 then
