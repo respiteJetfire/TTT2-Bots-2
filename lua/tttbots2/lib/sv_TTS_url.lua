@@ -39,7 +39,7 @@ function TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly)
 end
 
 function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
-    print("Sending to ElevenLabs: " .. text)
+    -- print("Sending to ElevenLabs: " .. text)
     local personality = ply:BotPersonality()
     local voiceID = personality.voice.id
     local teamOnly = teamOnly or false
@@ -85,9 +85,9 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
             if code == 200 then
                 local response = util.JSONToTable(body)
                 if response then
-                    print("ElevenLabs response: " .. body)
+                    -- print("ElevenLabs response: " .. body)
                     if response.download_url then
-                        local downloadURL = 'http://gmodttsapi-hsb8eeeqa8b2acbk.uksouth-01.azurewebsites.net:80' .. response.download_url
+                        local downloadURL = 'http://gmodttsapi-hsb8eeeqa8b2acbk.uksouth-01.azurewebsites.net:80/elevenlabs' .. response.download_url
                         playTTSUrl(ply, downloadURL, teamOnly)
                     else
                         print("Failed to get download URL from ElevenLabs response.")
