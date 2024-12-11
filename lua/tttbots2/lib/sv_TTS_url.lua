@@ -105,3 +105,46 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
         end
     })
 end
+
+function TTTBots.TTSURL.AzureSendRequest(ply, text, teamOnly)
+    local personality = ply:BotPersonality()
+    local voice_name = personality.voice.id
+    local teamOnly = teamOnly or false
+    text = string.sub(text, 1, 1000) -- Limit the text length to 1000 characters
+
+    local jsonBody = util.TableToJSON({
+        text = text,
+        voice_name = voice_name,
+        region = TTTBots.Lib.GetConVarString("chatter_voice_azure_region"),
+        api_key = TTTBots.Lib.GetConVarString("chatter_voice_azure_resource_api_key")
+    })
+
+    local url = 'http://gmodttsapi-hsb8eeeqa8b2acbk.uksouth-01.azurewebsites.net:80/azure'
+
+    HTTP({
+        url = url,
+        method = 'post',
+        type = 'application/json',
+        headers = {
+            ["Content-Type"] = "application/json"
+        },
+        body = jsonBody,
+        success = function(code, body)
+            if code == 200 then
+                local response = util.JSONToTable(body)
+                if response and response.download_url then
+                    local downloadURL = response.download_url
+                    playTTSUrl(ply, downloadURL, teamOnly)
+                else
+                    print("Failed to get download URL from Azure response.")
+                end
+            else
+                print("The HTTP request to Azure API failed. HTTP Code: " .. code)
+                print("Body: " .. body)
+            end
+        end,
+        failed = function(err)
+            print("HTTP request to Azure API failed: " .. err)
+        end
+    })
+end
