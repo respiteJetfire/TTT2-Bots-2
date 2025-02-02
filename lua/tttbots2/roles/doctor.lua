@@ -13,6 +13,7 @@ local alliedRoles = {
 }
 
 local bTree = {
+    _prior.Chatter,
     _prior.FightBack,
     _prior.Requests,
     _prior.Support,

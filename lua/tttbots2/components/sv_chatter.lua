@@ -22,8 +22,6 @@ end
 
 speakingPlayers = {}
 
-
-
 function BotChatter:Initialize(bot)
     -- print("Initializing")
     bot.components = bot.components or {}
@@ -54,6 +52,9 @@ end
 function BotChatter:SayRaw(text, teamOnly)
     if not IsValid(self.bot) then return end
     self.bot:Say(text, teamOnly)
+    for _, bot in ipairs(TTTBots.Lib.GetAliveBots()) do
+        bot:BotMemory():UpdateMessages(text, self.bot)
+    end
 end
 
 local keyboardLayout = {
@@ -157,6 +158,13 @@ function BotChatter:Say(text, teamOnly, ignoreDeath, callback)
     text = string.gsub(text, "'", "")
     text = string.gsub(text, '"', "")
     text = self:TypoText(text)
+
+    -- Make the bot remain still before sending the message
+    local locomotor = self.bot.components.locomotor
+    if locomotor then
+        locomotor:StopMoving()
+    end
+
     timer.Simple(delay, function()
         if self.bot == NULL or not IsValid(self.bot) then return end
         if ignoreDeath or lib.IsPlayerAlive(self.bot) then
@@ -271,7 +279,7 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     local function handleChatResponse(response)
         local localizedString
         if response then
-            localizedString = TTTBots.Locale.FormatArgsIntoTxt(response, args)
+            localizedString = TTTBots.Locale.FormatArgsIntoTxt(response, args) or response
             -- print("ChatGPT response: ", localizedString)
         else
             localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
@@ -303,11 +311,11 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     end
 
     if math.random() < chatGPTChance then
-        TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
+        TTTBots.ChatGPT.SendRequest(TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
     else
         localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
         if not localizedString then
-            TTTBots.ChatGPT.SendRequest(TTTBots.Locale.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
+            TTTBots.ChatGPT.SendRequest(TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
         else
             setLocalizedString(localizedString)
         end
@@ -350,48 +358,91 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
         local urlMode = TTTBots.Lib.GetConVarInt("chatter_voice_url_mode")
         -- print("URL Mode: ", urlMode)
 
-        
-
         if math.random() <= voiceChatChance then
-                    -- Rate limiting
-                bot.lastReplyTime = bot.lastReplyTime or 0
-                local rateLimitTime
-                if wasVoice then
-                    rateLimitTime = 4
-                else
-                    rateLimitTime = 2
-                end
-                if CurTime() - bot.lastReplyTime < rateLimitTime then
-                    print("Bot rate limited: ", bot)
-                    return nil
-                end
-                bot.lastReplyTime = CurTime()
+            -- print("SpeakingBot: ", TTTBots.Match.speakingBot)
+            if TTTBots.Match.speakingBot and TTTBots.Match.speakingBot ~= bot then
+                -- print("Sending Text chat: " .. text)
+                self:Say(text, teamOnly, false, function()
+                    if event_name == "CallKOS" and args then
+                        self:QuickRadio("quick_traitor", args.playerEnt)
+                    end
+                end)
+                self:RespondToPlayerMessage(bot, text, teamOnly, math.random(2, 4))
+                return
+            end
+            TTTBots.Match.speakingBot = bot
+
+            -- Rate limiting
+            bot.lastReplyTime = bot.lastReplyTime or 0
+            local rateLimitTime
+            if wasVoice then
+                rateLimitTime = 4
+            else
+                rateLimitTime = 2
+            end
+            if CurTime() - bot.lastReplyTime < rateLimitTime then
+                print("Bot rate limited: ", bot)
+                return nil
+            end
+            bot.lastReplyTime = CurTime()
+
+            local function onVoiceComplete(duration)
+                TTTBots.Match.speakingBot = nil
+                -- VOICE.SetSpeaking(false)
+                timer.Simple(duration + 1, function()
+                    TTTBots.Match.speakingBot = nil
+                    self:RespondToPlayerMessage(bot, text, teamOnly, false, true)
+                end)
+            end
+
+            -- text sanitazation, for example im should be I'm, full stops and commas allowed but no other punctuation
+            text = string.gsub(text, "im", "I'm")
+            text = string.gsub(text, "Im", "I'm")
+            text = string.gsub(text, "Ill", "I'll")
+            text = string.gsub(text, "ill", "I'll")
+            text = string.gsub(text, "dont", "don't")
+            text = string.gsub(text, "Dont", "Don't")
+            text = string.gsub(text, "cant", "can't")
+            text = string.gsub(text, "Cant", "Can't")
+            text = string.gsub(text, "wont", "won't")
+            -- remove any '' or "" or \ or / from the text
+            text = string.gsub(text, "'", "")
+            text = string.gsub(text, '"', "")
+            text = string.gsub(text, "\\", "")
+            text = string.gsub(text, "/", "")
+            
+            -- Update memory of all alive bots with the message
+            for _, aliveBot in ipairs(TTTBots.Lib.GetAliveBots()) do
+                aliveBot:BotMemory():UpdateMessages(text, bot)
+            end
+
             -- print("Sending Voice chat: " .. text)
-                if voicetype == "elevenlabs" then
-                    -- print("Sending Voice chat to ElevenLabs")
-                    if urlMode == 1 then
-                        TTTBots.TTSURL.ElevenLabsSendRequest(bot, text, teamOnly)
-                    else
-                        TTTBots.TTS.ElevenLabsSendRequest(bot, text, teamOnly)
-                    end
-                elseif voicetype == "Azure" then
-                    -- print("Sending Voice chat to Azure")
-                    if urlMode == 1 then
-                        TTTBots.TTSURL.AzureSendRequest(bot, text, teamOnly)
-                    else
-                        TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly)
-                    end
+            -- VOICE.SetSpeaking(true)
+            if voicetype == "elevenlabs" then
+                print("Sending Voice chat to ElevenLabs")
+                if urlMode == 1 then
+                    TTTBots.TTSURL.ElevenLabsSendRequest(bot, text, teamOnly, onVoiceComplete)
                 else
-                    -- print("Sending Voice chat to FreeTTS")
-                    if urlMode == 1 then
-                        TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly)
-                    else
-                        TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly)
-                    end
+                    TTTBots.TTS.ElevenLabsSendRequest(bot, text, teamOnly, onVoiceComplete)
                 end
-                speakingPlayers[bot] = CurTime()
-                print(bot:Nick() .. " [VOICE CHAT]: " .. text)
-                self:RespondToPlayerMessage(bot, text, teamOnly, math.random(3, 6))
+            elseif voicetype == "Azure" then
+                print("Sending Voice chat to Azure")
+                if urlMode == 1 then
+                    TTTBots.TTSURL.AzureSendRequest(bot, text, teamOnly, onVoiceComplete)
+                else
+                    TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
+                end
+            else
+                -- print("Sending Voice chat to FreeTTS")
+                if urlMode == 1 then
+                    TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
+                else
+                    TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
+                end
+            end
+            speakingPlayers[bot] = CurTime()
+            print(bot:Nick() .. " [VOICE CHAT]: " .. text)
+            
         else
             -- print("Sending Text chat: " .. text)
             self:Say(text, teamOnly, false, function()
@@ -399,6 +450,7 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
                     self:QuickRadio("quick_traitor", args.playerEnt)
                 end
             end)
+            self:RespondToPlayerMessage(bot, text, teamOnly, math.random(2, 4))
         end
     end
 end
@@ -602,7 +654,6 @@ local keywordeventCeaseFire = {
     ["stop shooting"] = "CallCeaseFire",
     ["don't shoot"] = "CallCeaseFire",
 }
-
 
 local keywordEventsKOS = {
     ["kos"] = "CallKOS",
@@ -1005,7 +1056,7 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         if handleKeywordEventsAttack(keywordeventsCallMedic, handleMedic, ply, fulltxt, bot, teamOnly, bots, targets) then return end
 
         local chatter = bot:BotChatter()
-        local fulltxt = TTTBots.Locale.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
+        local fulltxt = TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
         local maxLength = 1000
         local startIndex = 1
         -- while startIndex <= #fulltxt do
@@ -1038,40 +1089,40 @@ function BotChatter:GetPlayers()
     return tbl
 end
 
-function BotChatter:WriteDataEL(teamOnly, ply, IsOnePart, FileID, FileData, FileCurrentPart, FileLastPart)
-    local FileSize = #FileData
-    local MaxChunkSize = 60000 -- Adjusted chunk size to avoid exceeding net.WriteData limit
+-- function BotChatter:WriteDataEL(teamOnly, ply, IsOnePart, FileID, FileData, FileCurrentPart, FileLastPart)
+--     local FileSize = #FileData
+--     local MaxChunkSize = 60000 -- Adjusted chunk size to avoid exceeding net.WriteData limit
 
-    net.Start("SayTTSEL")
-        net.WriteBool(IsOnePart)
-        net.WriteBool(teamOnly)
-        net.WriteString(FileID)
-        net.WriteEntity(ply)
+--     net.Start("SayTTSEL")
+--         net.WriteBool(IsOnePart)
+--         net.WriteBool(teamOnly)
+--         net.WriteString(FileID)
+--         net.WriteEntity(ply)
 
-        if IsOnePart then
-            net.WriteUInt(FileSize, 16) -- Increased to 32 bits to handle larger sizes
-            net.WriteData(FileData, FileSize)
-        else
-            -- Send in what queue is in the file
-            net.WriteUInt(FileCurrentPart, 16) -- Increased to 32 bits to handle larger sizes
-            net.WriteUInt(FileLastPart, 16) -- Increased to 32 bits to handle larger sizes
+--         if IsOnePart then
+--             net.WriteUInt(FileSize, 16) -- Increased to 32 bits to handle larger sizes
+--             net.WriteData(FileData, FileSize)
+--         else
+--             -- Send in what queue is in the file
+--             net.WriteUInt(FileCurrentPart, 16) -- Increased to 32 bits to handle larger sizes
+--             net.WriteUInt(FileLastPart, 16) -- Increased to 32 bits to handle larger sizes
 
-            -- Send FileData in chunks
-            local chunks = math.ceil(FileSize / MaxChunkSize)
-            net.WriteUInt(chunks, 16) -- Increased to 32 bits to handle larger sizes
-            for i = 1, chunks do
-                local startIdx = (i - 1) * MaxChunkSize + 1
-                local endIdx = math.min(i * MaxChunkSize, FileSize)
-                local chunkData = string.sub(FileData, startIdx, endIdx)
-                local chunkSize = #chunkData
-                net.WriteUInt(chunkSize, 16) -- Increased to 32 bits to handle larger sizes
-                net.WriteData(chunkData, chunkSize)
-            end
-        end
+--             -- Send FileData in chunks
+--             local chunks = math.ceil(FileSize / MaxChunkSize)
+--             net.WriteUInt(chunks, 16) -- Increased to 32 bits to handle larger sizes
+--             for i = 1, chunks do
+--                 local startIdx = (i - 1) * MaxChunkSize + 1
+--                 local endIdx = math.min(i * MaxChunkSize, FileSize)
+--                 local chunkData = string.sub(FileData, startIdx, endIdx)
+--                 local chunkSize = #chunkData
+--                 net.WriteUInt(chunkSize, 16) -- Increased to 32 bits to handle larger sizes
+--                 net.WriteData(chunkData, chunkSize)
+--             end
+--         end
 
-    net.Broadcast()
-    -- print("Sent TTS data to clients.")
-end
+--     net.Broadcast()
+--     -- print("Sent TTS data to clients.")
+-- end
 
 function BotChatter:WriteDataFree(teamOnly, ply, IsOnePart, FileID, FileData, FileCurrentPart, FileLastPart)
     local FileSize = #FileData

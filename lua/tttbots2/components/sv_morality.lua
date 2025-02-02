@@ -303,6 +303,8 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
     local chatter = self.bot:BotChatter()
     if not chatter then return end
     -- print("Killed", victim:Nick(), attacker:Nick())
+    -- if the bot is on the same team as the attacker (but not innocent) they should not report the kill.
+    if TTTBots.Roles.IsAllies(self.bot, attacker) and self.bot:GetTeam() ~= TEAM_INNOCENT then return end
     chatter:On("Kill", { victim = victim:Nick(), victimEnt = victim, attacker = attacker:Nick(), attackerEnt = attacker })
 end
 

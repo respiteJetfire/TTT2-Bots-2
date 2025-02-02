@@ -4,6 +4,7 @@ if not ROLE_CURSED then return false end
 local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
+    _prior.Chatter,
     _prior.Convert,
     _prior.Requests,
     _bh.Interact,

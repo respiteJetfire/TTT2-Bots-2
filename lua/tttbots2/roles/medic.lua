@@ -14,6 +14,7 @@ for i, v in pairs(listofTeams) do
 end
 
 local bTree = {
+    _prior.Chatter,
     -- _prior.Support,
     -- _bh.DefibPlayer,
     _prior.Requests,

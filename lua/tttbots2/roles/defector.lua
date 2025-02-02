@@ -13,6 +13,7 @@ local allyTeams = {
 
 local bTree = {
     _bh.Jihad,
+    _prior.Chatter,
     -- _prior.Restore,
     -- _bh.Stalk,
     -- _prior.Minge,

@@ -2,9 +2,12 @@ local speakingPlayers = {}
 local speakingTeamPlayers = {}
 local speakingFilePaths = {}
 
+local MAX_SPEAKERS = 2
+
 local function playFileURL(ply, url, teamOnly)
     -- Add player to speakingPlayers table
     local localPlayer = LocalPlayer()
+    ply.speaking = true
     print("Local player: ", localPlayer)
     local localPlayerTeam = localPlayer and localPlayer:GetTeam()
     print("Local player team: ", localPlayerTeam)
@@ -27,6 +30,12 @@ local function playFileURL(ply, url, teamOnly)
             print("File is already being played by player: " .. ply:Nick())
             return
         end
+    end
+
+    -- Limit the number of speakers
+    if table.Count(speakingPlayers) >= MAX_SPEAKERS then
+        print("Max speakers reached. Can't play sound file for player: " .. ply:Nick())
+        return
     end
 
     sound.PlayURL(url, "noplay", function(channel, errID, errStr)
@@ -68,6 +77,7 @@ local function playFileURL(ply, url, teamOnly)
                         else
                             speakingPlayers[ID] = nil
                         end
+                        ply.speaking = false
                     end
                 end)
             end
@@ -97,6 +107,12 @@ local function playFile(ply, path, teamOnly)
             print("File is already being played by player: " .. ply:Nick())
             return
         end
+    end
+
+    -- Limit the number of speakers
+    if table.Count(speakingPlayers) >= MAX_SPEAKERS then
+        print("Max speakers reached. Can't play sound file for player: " .. ply:Nick())
+        return
     end
 
     if not speakingFilePaths[path] then

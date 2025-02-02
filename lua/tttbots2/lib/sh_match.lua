@@ -39,6 +39,7 @@ Match.InvisiblePlayers = {}
 Match.CheckedPlayers = {}
 Match.MarkedForDefib = {}
 Match.MarkedPlayers = {}
+Match.speakingBot = nil 
 MARKER_DATA = MARKER_DATA or {}
 MARKER_DATA.marked_players = {}
 

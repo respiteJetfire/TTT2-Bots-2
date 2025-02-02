@@ -5,11 +5,12 @@ TTTBots.TTSURL.Cache = {}
 
 local lib = TTTBots.Lib
 
-local function playTTSUrl(ply, url, teamOnly)
+local function playTTSUrl(ply, url, teamOnly, duration)
     net.Start("SayTTSUrlStart")
     net.WriteEntity(ply)
     net.WriteString(url)
     net.WriteBool(teamOnly)
+    net.WriteFloat(duration)
     net.Broadcast()
 end
 
@@ -21,7 +22,7 @@ local function TableToQueryString(tbl)
     return string.sub(queryString, 1, -2) -- Remove the trailing '&'
 end
 
-function TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly)
+function TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
     -- Sanitize the text to make it URL-friendly
     -- print("Sending to FreeTTS: " .. text)
     local fulltxt = text
@@ -35,10 +36,13 @@ function TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly)
     local url = "https://tetyys.com/SAPI4/SAPI4?voice=" .. voice.name .. "&pitch=" .. voice.pitch .. "&speed=" .. voice.speed .. "&text=" .. text
 
     -- Play the TTSURL audio directly from the URL
-    playTTSUrl(bot, url, teamOnly)
+    playTTSUrl(bot, url, teamOnly, 0) -- Duration is not available for FreeTTS
+    if onVoiceComplete then
+        onVoiceComplete(0)
+    end
 end
 
-function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
+function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly, onVoiceComplete)
     -- print("Sending to ElevenLabs: " .. text)
     local personality = ply:BotPersonality()
     local voiceID = personality.voice.id
@@ -86,11 +90,14 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
                 local response = util.JSONToTable(body)
                 if response then
                     -- print("ElevenLabs response: " .. body)
-                    if response.download_url then
-                        local downloadURL = 'http://gmodttsapi-hsb8eeeqa8b2acbk.uksouth-01.azurewebsites.net:80/elevenlabs' .. response.download_url
-                        playTTSUrl(ply, downloadURL, teamOnly)
+                    if response.download_url and response.duration then
+                        local downloadURL = url .. response.download_url
+                        playTTSUrl(ply, downloadURL, teamOnly, response.duration)
+                        if onVoiceComplete then
+                            onVoiceComplete(response.duration)
+                        end
                     else
-                        print("Failed to get download URL from ElevenLabs response.")
+                        print("Failed to get download URL or duration from ElevenLabs response.")
                     end
                 else
                     print("Failed to parse ElevenLabs response.")
@@ -106,7 +113,7 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly)
     })
 end
 
-function TTTBots.TTSURL.AzureSendRequest(ply, text, teamOnly)
+function TTTBots.TTSURL.AzureSendRequest(ply, text, teamOnly, onVoiceComplete)
     local personality = ply:BotPersonality()
     local voice_name = personality.voice.id
     local teamOnly = teamOnly or false
@@ -132,11 +139,14 @@ function TTTBots.TTSURL.AzureSendRequest(ply, text, teamOnly)
         success = function(code, body)
             if code == 200 then
                 local response = util.JSONToTable(body)
-                if response and response.download_url then
-                    local downloadURL = response.download_url
-                    playTTSUrl(ply, downloadURL, teamOnly)
+                if response and response.download_url and response.duration then
+                    local downloadURL = url .. response.download_url
+                    playTTSUrl(ply, downloadURL, teamOnly, response.duration)
+                    if onVoiceComplete then
+                        onVoiceComplete(response.duration)
+                    end
                 else
-                    print("Failed to get download URL from Azure response.")
+                    print("Failed to get download URL or duration from Azure response.")
                 end
             else
                 print("The HTTP request to Azure API failed. HTTP Code: " .. code)

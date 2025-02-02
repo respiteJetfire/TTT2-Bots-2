@@ -18,6 +18,7 @@ local enemyTeams = {
 }
 
 local bTree = {
+    _prior.Chatter,
     _prior.FightBack,
     _prior.Requests,
     _bh.Roledefib,

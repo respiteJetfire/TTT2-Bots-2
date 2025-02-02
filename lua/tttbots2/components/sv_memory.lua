@@ -111,6 +111,7 @@ function Memory:ResetMemory()
     self.playerKnownPositions = {}   -- List of where this bot last saw each player and how long ago
     self.PlayerLifeStates = {}       -- List of what this bot understands each bot's current life state to be
     self.UseRadar = shouldUseRadar() -- Whether or not this bot should use radar
+    self.messages = {}               -- List of messages this bot has received
 
     self.m_genericmemory = { game = {}, round = {} }
 end
@@ -149,6 +150,7 @@ function Memory:Initialize(bot)
     ---@type table<table>
     self.recentSounds = {}
     self.forgetTime = FORGET.GetRememberTime(self.bot)
+    self.messages = {}
 
     self:ResetMemory()
 end
@@ -161,6 +163,19 @@ function Memory:UpdateRadar(ply)
 
     local pos = ply:GetPos()
     self:UpdateKnownPositionFor(ply, pos)
+end
+
+--- Updates messages in the bot's memory with the given message, and sender if applicable.
+---@param message string The message to add to the bot's memory.
+---@param sender Player|nil The player that sent the message, if applicable.
+function Memory:UpdateMessages(message, sender)
+    table.insert(self.messages, { message = message, sender = sender })
+end
+
+--- Returns the last messages in the bot's memory.
+---@return table<table> messages
+function Memory:GetLastMessages()
+    return self.messages
 end
 
 function Memory:HandleUnseenPlayer(ply)

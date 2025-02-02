@@ -74,6 +74,7 @@ local function includeShared(isReload)
     includeSharedFile("tttbots2/data/sh_traits.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_languages.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_botlib.lua", isReload)
+    includeSharedFile("tttbots2/lib/sh_chatgpt_prompts.lua", isReload)
 end
 
 -- These first two need to run on both realms so we can AddCSLuaFile.

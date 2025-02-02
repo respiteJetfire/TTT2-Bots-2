@@ -25,6 +25,10 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.AttackTarget
     },
 
+    Chatter = {
+        _bh.ChatterHelp,
+    },
+
     Convert = {
         _bh.CreateDefector,
         _bh.CreateMedic,
@@ -64,7 +68,6 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.Healgun,
         _bh.Roledefib
     },
-
     Requests = {
         _bh.CeaseFire,
         _bh.Wait,
@@ -81,6 +84,7 @@ local _prior = TTTBots.Behaviors.PriorityNodes
 TTTBots.Behaviors.DefaultTrees = {
     innocent = {
         _prior.Requests,
+        _prior.Chatter,
         _prior.FightBack,
         _prior.Support,
         _bh.Defuse,
@@ -93,6 +97,7 @@ TTTBots.Behaviors.DefaultTrees = {
     },
     traitor = {
         _bh.Jihad,
+        _prior.Chatter,
         _prior.FightBack,
         _prior.Requests,
         _prior.Convert,
@@ -108,6 +113,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Patrol
     },
     detective = {
+        _prior.Chatter,
         _prior.FightBack,
         _prior.Requests,
         _prior.Support,

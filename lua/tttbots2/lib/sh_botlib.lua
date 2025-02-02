@@ -1,5 +1,7 @@
 TTTBots.Lib = TTTBots.Lib or {}
 
+TTTBots.Lib.speakingBot = nil
+
 if SERVER then
     include("tttbots2/lib/sv_namemanager.lua")
     -- Import components for bot creation
@@ -1218,6 +1220,26 @@ function TTTBots.Lib.IsPlayer(ply)
         valid = false
     end
     return valid
+end
+
+---Get the closest player to the given bot.
+---@param bot Player
+---@return Player|nil
+function TTTBots.Lib.GetClosestPlayer(bot)
+    local players = TTTBots.Lib.GetAlivePlayers()
+    local closestDist = math.huge
+    local closestPlayer = nil
+
+    for i, ply in pairs(players) do
+        if not TTTBots.Lib.IsPlayer(ply) then continue end
+        local dist = bot:GetPos():Distance(ply:GetPos())
+        if dist < closestDist then
+            closestDist = dist
+            closestPlayer = ply
+        end
+    end
+
+    return closestPlayer
 end
 
 ---Test if there are player slots and notify the server if not on first call.

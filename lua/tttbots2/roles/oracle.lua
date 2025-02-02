@@ -6,6 +6,7 @@ local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 
 local bTree = {
+    _prior.Chatter,
     _bh.Oracle,
     _prior.Requests,
     _prior.FightBack,

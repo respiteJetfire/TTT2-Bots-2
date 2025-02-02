@@ -10,6 +10,7 @@ local allyTeams = {
 local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
+    _prior.Chatter,
     _prior.Requests,
     _bh.Interact,
     _prior.Investigate,

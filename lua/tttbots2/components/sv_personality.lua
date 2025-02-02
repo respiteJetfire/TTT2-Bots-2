@@ -352,7 +352,7 @@ function decideOnVoiceElevenLabs(self, bot)
         return
     --- else if callum or armedjetfire23 is in the name, then use the voice "OvGLOVTuYN2qDoW5MAR5" (not case sensitive)
     elseif string.find(string.lower(name), "callum") or string.find(string.lower(name), "armedjetfire23") then
-        self.voice = { id = "OvGLOVTuYN2qDoW5MAR5", type = "elevenlabs" }
+        self.voice = { id = "HGkbumsunOcslYeS8ww4", type = "elevenlabs" }
         self.archetype = "Tryhard/nerd"
         --- print("Using voice for callum or armedjetfire23")
         return
