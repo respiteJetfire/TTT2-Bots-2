@@ -133,7 +133,7 @@ function CreateDefector.OnRunning(bot)
     loco:LookAt(targetEyes)
     loco:SetGoal()
     inv:PauseAutoSwitch()
-    defectorgun = CreateDefector.GetDefectorGun(bot)
+    local defectorgun = CreateDefector.GetDefectorGun(bot)
     local equipped = bot:SetActiveWeapon(defectorgun)
     -- if not equipped then return STATUS.RUNNING end
     local bodyPos = TTTBots.Behaviors.AttackTarget.GetTargetBodyPos(target)

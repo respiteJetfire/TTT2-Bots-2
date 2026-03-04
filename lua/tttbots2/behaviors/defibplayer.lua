@@ -116,6 +116,8 @@ function DefibPlayer.Validate(bot)
     if hasCorpse then return true end
 
     -- get new target
+    local role = bot:GetSubRole()
+    local corpse, rag
     if role == ROLE_DOCTOR then
         corpse, rag = DefibPlayer.GetCorpse(bot, true)
     elseif role == ROLE_MEDIC then

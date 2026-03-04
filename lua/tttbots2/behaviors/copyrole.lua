@@ -15,8 +15,6 @@ CopyRole.Name = "CopyRole"
 CopyRole.Description = "Copies the role of the nearest non-allied player."
 CopyRole.Interruptible = true
 
-CopyRole.Target = nil
-
 local STATUS = TTTBots.STATUS
 
 --- Validate the behavior before we can start it (or continue running)
@@ -28,16 +26,18 @@ function CopyRole.Validate(bot)
     if role ~= ROLE_MIMIC then
         return false
     end
+    local state = TTTBots.Behaviors.GetState(bot, "CopyRole")
     local target = CopyRole.GetTarget(bot)
-    return target ~= nil or CopyRole.Target ~= nil
+    return target ~= nil or state.target ~= nil
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.
 ---@param bot Bot
 ---@return BStatus
 function CopyRole.OnStart(bot)
+    local state = TTTBots.Behaviors.GetState(bot, "CopyRole")
     local chatter = bot:BotChatter()
-    chatter:On("CopyingRole", {player = CopyRole.Target:Nick()})
+    chatter:On("CopyingRole", {player = state.target:Nick()})
     return STATUS.RUNNING
 end
 
@@ -82,7 +82,7 @@ end
 --- Called when the behavior succeeds or fails. Useful for cleanup, as it is always called once the behavior is a) interrupted, or b) returns a success or failure state.
 ---@param bot Bot
 function CopyRole.OnEnd(bot)
-    CopyRole.Target = nil
+    TTTBots.Behaviors.ClearState(bot, "CopyRole")
     bot:BotLocomotor():SetGoal(nil)
 end
 
@@ -129,7 +129,8 @@ function CopyRole.GetTarget(bot)
             end
         end
     end
-    CopyRole.Target = nearestPlayer
+    local state = TTTBots.Behaviors.GetState(bot, "CopyRole")
+    state.target = nearestPlayer
     return nearestPlayer
 end
 

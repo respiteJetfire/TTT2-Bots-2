@@ -52,3 +52,24 @@ end
 ---@param bot Bot
 function BehaviorBase.OnEnd(bot)
 end
+
+--- Returns the per-bot state table for a given behavior name, creating it if it does not exist.
+--- Usage: local state = TTTBots.Behaviors.GetState(bot, "MyBehavior")
+---@param bot Bot
+---@param behaviorName string
+---@return table
+function TTTBots.Behaviors.GetState(bot, behaviorName)
+    bot.behaviorState = bot.behaviorState or {}
+    bot.behaviorState[behaviorName] = bot.behaviorState[behaviorName] or {}
+    return bot.behaviorState[behaviorName]
+end
+
+--- Clears the per-bot state table for a given behavior name.
+--- Should be called from OnEnd to avoid stale state between runs.
+---@param bot Bot
+---@param behaviorName string
+function TTTBots.Behaviors.ClearState(bot, behaviorName)
+    if bot.behaviorState then
+        bot.behaviorState[behaviorName] = nil
+    end
+end

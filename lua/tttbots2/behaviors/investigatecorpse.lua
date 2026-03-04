@@ -94,7 +94,7 @@ end
 
 --- Called when the behavior is started
 function InvestigateCorpse.OnStart(bot)
-    name = CORPSE.GetPlayerNick(bot.corpseTarget)
+    local name = CORPSE.GetPlayerNick(bot.corpseTarget)
     bot.components.chatter:On("InvestigateCorpse", { corpse = name })
     return STATUS.RUNNING
 end

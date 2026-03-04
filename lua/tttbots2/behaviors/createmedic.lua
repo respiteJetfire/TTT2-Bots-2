@@ -129,7 +129,7 @@ function CreateMedic.OnRunning(bot)
     loco:LookAt(targetEyes)
     loco:SetGoal()
     inv:PauseAutoSwitch()
-    medicgun = CreateMedic.GetMedicGun(bot)
+    local medicgun = CreateMedic.GetMedicGun(bot)
     local equipped = bot:SetActiveWeapon(medicgun)
     -- if not equipped then return STATUS.RUNNING end
     local bodyPos = TTTBots.Behaviors.AttackTarget.GetTargetBodyPos(target)

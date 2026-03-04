@@ -6,8 +6,6 @@ local ChatterHelp = TTTBots.Behaviors.ChatterHelp
 ChatterHelp.Name = "ChatterHelp"
 ChatterHelp.Description = "Bots use the Chatter system to ask for help under various circumstances."
 ChatterHelp.Interruptible = true
-ChatterHelp.AskStatus = nil
-ChatterHelp.target = nil
 
 local STATUS = TTTBots.STATUS
 
@@ -29,16 +27,17 @@ function ChatterHelp.Validate(bot)
     if not bot:Alive() then return false end
     local usesSuspicion = TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
     local Morality = bot:BotMorality()
-    
-    local playerSus = Morality:GetSuspicion(ChatterHelp.target) or 0
+    local state = TTTBots.Behaviors.GetState(bot, "ChatterHelp")
+
+    local playerSus = Morality:GetSuspicion(state.target) or 0
 
     -- b) Ask someone to follow if they think they are trustworthy or want to lure a player to their death
     if usesSuspicion and playerSus < -5 then
         local target = TTTBots.Lib.GetClosestPlayer(bot)
         if target and math.random(1, 100) > 95 then
             if not ChatterHelp.ValidateTarget(bot, target) then return false end
-            ChatterHelp.target = target
-            ChatterHelp.AskStatus = "AskFollow"
+            state.target = target
+            state.askStatus = "AskFollow"
             return true
         end
     end
@@ -48,8 +47,8 @@ function ChatterHelp.Validate(bot)
         local target = TTTBots.Lib.GetClosestPlayer(bot)
         if target and math.random(1, 100) > 96 then
             if not ChatterHelp.ValidateTarget(bot, target) then return false end
-            ChatterHelp.target = target
-            ChatterHelp.AskStatus = "AskComeHere"
+            state.target = target
+            state.askStatus = "AskComeHere"
             return true
         end
     end
@@ -59,8 +58,8 @@ function ChatterHelp.Validate(bot)
         local target = TTTBots.Lib.GetClosestPlayer(bot)
         if target and math.random(1, 100) > 95 then
             if not ChatterHelp.ValidateTarget(bot, target) then return false end
-            ChatterHelp.target = target
-            ChatterHelp.AskStatus = "AskHeal"
+            state.target = target
+            state.askStatus = "AskHeal"
             return true
         end
     end
@@ -70,8 +69,8 @@ function ChatterHelp.Validate(bot)
         local target = TTTBots.Lib.GetClosestPlayer(bot)
         if target and math.random(1, 100) > 95 then
             if not ChatterHelp.ValidateTarget(bot, target) then return false end
-            ChatterHelp.target = target
-            ChatterHelp.AskStatus = "AskAttack"
+            state.target = target
+            state.askStatus = "AskAttack"
             return true
         end
     end
@@ -94,20 +93,21 @@ function ChatterHelp.OnRunning(bot)
     local personality = bot:BotPersonality()
     local usesSuspicion = TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
     local playerSus = Morality:GetSuspicion(bot) or 0
-    local target = ChatterHelp.target
+    local state = TTTBots.Behaviors.GetState(bot, "ChatterHelp")
+    local target = state.target
     local teamOnly = bot:GetTeam() ~= TEAM_INNOCENT and target:GetTeam() == bot:GetTeam()
 
-    if ChatterHelp.AskStatus == "AskFollow" then
+    if state.askStatus == "AskFollow" then
         print("Asking " .. target:Nick() .. " to follow.")
         chatter:On("AskFollow", { player = target:Nick() }, teamOnly, 0)
         print("Asked " .. target:Nick() .. " to follow.")
-    elseif ChatterHelp.AskStatus == "AskComeHere" then
+    elseif state.askStatus == "AskComeHere" then
         print("Asking " .. target:Nick() .. " to come here.")
         chatter:On("AskComeHere", { player = target:Nick() }, teamOnly, 0)
-    elseif ChatterHelp.AskStatus == "AskHeal" then
+    elseif state.askStatus == "AskHeal" then
         print("Asking " .. target:Nick() .. " to heal.")
         chatter:On("AskHeal", { player = target:Nick() }, teamOnly, 0)
-    elseif ChatterHelp.AskStatus == "AskAttack" then
+    elseif state.askStatus == "AskAttack" then
         print("Asking " .. target:Nick() .. " to attack.")
         chatter:On("AskAttack", { player = target:Nick() }, teamOnly, 0)
     end
@@ -118,8 +118,7 @@ end
 --- Called when the behavior is interrupted. Useful for cleaning up any variables that were set during OnStart.
 ---@param bot Bot
 function ChatterHelp.OnEnd(bot)
-    ChatterHelp.AskStatus = nil
-    ChatterHelp.target = nil
+    TTTBots.Behaviors.ClearState(bot, "ChatterHelp")
 end
 
 --- Called when the behavior is successfully completed. Useful for any cleanup that needs to be done.

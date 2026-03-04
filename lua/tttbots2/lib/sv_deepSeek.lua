@@ -1,20 +1,37 @@
--- DeepSeek Implementation
+-- sv_deepSeek.lua
+-- DeepSeek provider adapter for TTTBots.
+
 TTTBots.DeepSeek = TTTBots.DeepSeek or {}
 
-function TTTBots.DeepSeek.SendRequest(text, bot, teamOnly, wasVoice, responseCallback)
-    local apiKey = TTTBots.Lib.GetConVarString("chatter_deepseek_api_key")
-    local temperature = TTTBots.Lib.GetConVarFloat("chatter_temperature")
-    local model = TTTBots.Lib.GetConVarString("chatter_deepseek_model")
-    wasVoice = wasVoice or false
+local lib = TTTBots.Lib
+
+-- ---------------------------------------------------------------------------
+-- SendText — envelope-based entry point (new)
+-- ---------------------------------------------------------------------------
+
+--- Sends a prompt to the DeepSeek API and returns the result via an envelope callback.
+--- opts = { teamOnly=bool, wasVoice=bool }
+--- callback(envelope) where envelope is MakeOk("DeepSeek", text) or MakeError("DeepSeek", ...).
+---@param prompt string
+---@param bot Player
+---@param opts table
+---@param callback function
+function TTTBots.DeepSeek.SendText(prompt, bot, opts, callback)
+    opts = opts or {}
+    local apiKey = lib.GetConVarString("chatter_deepseek_api_key")
+    local temperature = lib.GetConVarFloat("chatter_temperature")
+    local model = lib.GetConVarString("chatter_deepseek_model")
+
     if not apiKey or apiKey == "" then
-        print("No DeepSeek API key found.")
+        if callback then
+            callback(TTTBots.Providers.MakeError("DeepSeek", 0, "No API key configured", nil))
+        end
         return
     end
-    if not teamOnly then teamOnly = false end
 
-    -- Sanitize and escape the text for JSON
-    local sanitizedText = string.gsub(text, '[%c%z\128-\255]', '')
-    sanitizedText = string.gsub(sanitizedText, '["]', '\\"')
+    -- Sanitize and escape the prompt for JSON
+    local sanitizedText = string.gsub(prompt, '[%c%z\128-\255]', '')
+    sanitizedText = string.gsub(sanitizedText, '"', '\\"')
 
     HTTP({
         url = 'https://api.deepseek.com/v1/chat/completions',
@@ -31,23 +48,47 @@ function TTTBots.DeepSeek.SendRequest(text, bot, teamOnly, wasVoice, responseCal
             "temperature": ]] .. temperature .. [[
         }]],
         success = function(code, body, headers)
-            local apiResponse = TTTBots.DeepSeek.ProcessResponse(body)
-            if apiResponse and bot and IsValid(bot) and apiResponse ~= text and not string.find(apiResponse, text) and not string.find(text, apiResponse) then
-                if responseCallback then
-                    responseCallback(apiResponse)
+            local ok, response = pcall(util.JSONToTable, body)
+            if not ok or not response then
+                if callback then
+                    callback(TTTBots.Providers.MakeError("DeepSeek", code, "Invalid response structure", body))
+                end
+                return
+            end
+
+            if response.choices and response.choices[1] and response.choices[1].message and response.choices[1].message.content then
+                local text = TTTBots.Providers.SanitizeText(response.choices[1].message.content)
+                if callback then
+                    callback(TTTBots.Providers.MakeOk("DeepSeek", text))
+                end
+            else
+                local msg = "Invalid response structure"
+                if response.error and response.error.message then
+                    msg = response.error.message
+                end
+                if callback then
+                    callback(TTTBots.Providers.MakeError("DeepSeek", code, msg, body))
                 end
             end
         end,
         failed = function(err)
-            print('HTTP Error: ' .. err)
-            return nil
+            print('DeepSeek HTTP Error: ' .. tostring(err))
+            if callback then
+                callback(TTTBots.Providers.MakeError("DeepSeek", 0, tostring(err), nil))
+            end
         end
     })
 end
 
+-- ---------------------------------------------------------------------------
+-- ProcessResponse — backward compatibility helper
+-- ---------------------------------------------------------------------------
+
+--- Processes the raw JSON body from the DeepSeek API.
+---@param body string
+---@return string|nil
 function TTTBots.DeepSeek.ProcessResponse(body)
     local success, response = pcall(util.JSONToTable, body)
-    -- print(body)
     if not success then
         print(body)
         print("Failed to parse JSON response from DeepSeek API.")
@@ -61,4 +102,30 @@ function TTTBots.DeepSeek.ProcessResponse(body)
         print("Invalid response structure from DeepSeek API.")
         return nil
     end
+end
+
+-- ---------------------------------------------------------------------------
+-- SendRequest — backward compatibility shim (old signature)
+-- ---------------------------------------------------------------------------
+
+--- Backward-compatible shim. Calls SendText and unwraps the envelope for the old callback signature.
+---@param text string
+---@param bot Player
+---@param teamOnly boolean
+---@param wasVoice boolean
+---@param responseCallback function  -- receives string|nil
+function TTTBots.DeepSeek.SendRequest(text, bot, teamOnly, wasVoice, responseCallback)
+    TTTBots.DeepSeek.SendText(text, bot, { teamOnly = teamOnly, wasVoice = wasVoice }, function(envelope)
+        if not responseCallback then return end
+        if envelope.ok then
+            if bot and IsValid(bot) and TTTBots.Providers.IsDuplicateResponse(envelope.text, text) then
+                responseCallback(nil)
+            else
+                responseCallback(envelope.text)
+            end
+        else
+            print("DeepSeek error: " .. tostring(envelope.message))
+            responseCallback(nil)
+        end
+    end)
 end

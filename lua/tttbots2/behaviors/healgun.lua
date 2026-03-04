@@ -22,7 +22,7 @@ function Healgun.FindTarget(bot)
     --- if bot team == NONE then just FindCloseLowHPTarget
     if bot:GetTeam() == TEAM_NONE then
         -- print("Healgun.FindTarget: ", bot, "TEAM_NONE")
-        target = TTTBots.Lib.FindCloseLowHPTarget(bot, false, 1000, 500)
+        local target = TTTBots.Lib.FindCloseLowHPTarget(bot, false, 1000, 500)
         -- print("Healgun.FindTarget: ", bot, "TEAM_NONE", target)
         return target
     else

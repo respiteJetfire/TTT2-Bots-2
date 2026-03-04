@@ -133,8 +133,8 @@ function CreateDoctor.OnRunning(bot)
     loco:LookAt(targetEyes)
     loco:SetGoal()
     inv:PauseAutoSwitch()
-    doctorgun = CreateDoctor.GetDoctorGun(bot)
-    hasDoctorGun = CreateDoctor.HasDoctorGun(bot)
+    local doctorgun = CreateDoctor.GetDoctorGun(bot)
+    local hasDoctorGun = CreateDoctor.HasDoctorGun(bot)
     if not hasDoctorGun then return STATUS.FAILURE end
     local equipped = bot:SetActiveWeapon(doctorgun)
     -- if not equipped then return STATUS.RUNNING end

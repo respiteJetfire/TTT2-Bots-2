@@ -215,3 +215,42 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly, onVoiceComplete)
         }
     )
 end
+
+-- ---------------------------------------------------------------------------
+-- SendVoice — envelope-based entry point for the Providers adapter layer
+-- ---------------------------------------------------------------------------
+
+--- Dispatches voice synthesis via the appropriate TTS backend (binary mode).
+--- opts = { teamOnly=bool }
+--- callback(envelope) where envelope is MakeOk("TTS", duration) or MakeError("TTS", ...).
+---@param bot Player
+---@param text string
+---@param opts table
+---@param callback function
+function TTTBots.TTS.SendVoice(bot, text, opts, callback)
+    opts = opts or {}
+    local teamOnly = opts.teamOnly or false
+
+    local personality = bot:BotPersonality()
+    local voiceType = personality and personality.voice and personality.voice.type or "free"
+
+    local function wrappedComplete(duration)
+        if callback then
+            callback(TTTBots.Providers.MakeOk("TTS", duration or 1))
+        end
+    end
+
+    local function wrappedError(err)
+        if callback then
+            callback(TTTBots.Providers.MakeError("TTS", 0, tostring(err), nil))
+        end
+    end
+
+    if voiceType == "elevenlabs" then
+        TTTBots.TTS.ElevenLabsSendRequest(bot, text, teamOnly, wrappedComplete)
+    elseif voiceType == "Azure" then
+        TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly, wrappedComplete)
+    else
+        TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly, wrappedComplete)
+    end
+end

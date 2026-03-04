@@ -8,6 +8,7 @@ if not (TTT2 and ROLE_CURSED) then return end
 TTTBots.Behaviors.SwapRole = {}
 
 local lib = TTTBots.Lib
+-- Intentionally shared: global registry of recently-cursed players, not per-bot state.
 local cursedPlayers = {}
 
 ---@class BSwapRole
@@ -15,7 +16,6 @@ local SwapRole = TTTBots.Behaviors.SwapRole
 SwapRole.Name = "SwapRole"
 SwapRole.Description = "Swaps a role with the nearest non-allied player."
 SwapRole.Interruptible = true
-SwapRole.Target = nil
 
 local STATUS = TTTBots.STATUS
 
@@ -28,8 +28,9 @@ function SwapRole.Validate(bot)
     if role ~= ROLE_CURSED then
         return false
     end
+    local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
     local target = SwapRole.GetTarget(bot)
-    return (target ~= nil or SwapRole.Target ~= nil) and SwapRole.ShouldStartSwapping(bot)
+    return (target ~= nil or state.target ~= nil) and SwapRole.ShouldStartSwapping(bot)
 end
 
 --- Use random chance to determine if we should run this behavior, to add variation.
@@ -46,8 +47,9 @@ end
 ---@param bot Bot
 ---@return BStatus
 function SwapRole.OnStart(bot)
+    local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
     local chatter = bot:BotChatter()
-    chatter:On("SwappingRole", {player = SwapRole.Target:Nick()})
+    chatter:On("SwappingRole", {player = state.target:Nick()})
     timer.Simple(1, function()
         return STATUS.RUNNING
     end)
@@ -102,7 +104,7 @@ end
 --- Called when the behavior succeeds or fails. Useful for cleanup, as it is always called once the behavior is a) interrupted, or b) returns a success or failure state.
 ---@param bot Bot
 function SwapRole.OnEnd(bot)
-    SwapRole.Target = nil
+    TTTBots.Behaviors.ClearState(bot, "SwapRole")
     bot:BotLocomotor():SetGoal(nil)
 end
 
@@ -126,8 +128,8 @@ function SwapRole.GetTarget(bot)
         end
     end
 
-    SwapRole.Target = nearestPlayer
-
+    local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
+    state.target = nearestPlayer
     return nearestPlayer
 end
 

@@ -17,14 +17,13 @@ BehaviorDropContract.Interruptible = true
 
 local STATUS = TTTBots.STATUS
 
-BehaviorDropContract.target = nil
-
 --- Validate the behavior before we can start it (or continue running)
 --- Returning false when the behavior was just running will still call OnEnd.
 ---@param bot Bot
 ---@return boolean
 function BehaviorDropContract.Validate(bot)
-    local target = BehaviorDropContract.target or BehaviorDropContract.GetTarget(bot)
+    local state = TTTBots.Behaviors.GetState(bot, "DropContract")
+    local target = state.target or BehaviorDropContract.GetTarget(bot)
     if not target then
         return false
     end
@@ -50,7 +49,8 @@ end
 ---@param bot Bot
 ---@return BStatus
 function BehaviorDropContract.OnStart(bot)
-    local target = BehaviorDropContract.target or BehaviorDropContract.GetTarget(bot)
+    local state = TTTBots.Behaviors.GetState(bot, "DropContract")
+    local target = state.target or BehaviorDropContract.GetTarget(bot)
     local chatter = bot:BotChatter()
     chatter:On("DroppingContract", {player = target:Nick()})
     return STATUS.RUNNING
@@ -154,8 +154,9 @@ end
 ---@param bot Bot
 ---@return Player
 function BehaviorDropContract.GetTarget(bot)
-    if BehaviorDropContract.target then
-        return BehaviorDropContract.target
+    local state = TTTBots.Behaviors.GetState(bot, "DropContract")
+    if state.target then
+        return state.target
     end
     local players = TTTBots.Lib.GetAlivePlayers()
     local botPos = bot:GetPos()
@@ -195,11 +196,12 @@ function BehaviorDropContract.GetTarget(bot)
     if not IsValid(nearestPlayer) then
         nearestPlayer = nil
     end
+    state.target = nearestPlayer
     -- print("BehaviorDropContract target: ", nearestPlayer)
     return nearestPlayer
 end
 
 function BehaviorDropContract.ClearTarget(bot)
-    BehaviorDropContract.target = nil
+    TTTBots.Behaviors.ClearState(bot, "DropContract")
 end
 

@@ -1,31 +1,42 @@
+-- sv_chatGPT.lua
+-- ChatGPT provider adapter for TTTBots.
+
 TTTBots.ChatGPT = TTTBots.ChatGPT or {}
 
 local lib = TTTBots.Lib
 
---- Sends a request to the ChatGPT API.
----@param text string
-function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice, responseCallback)
-    local apiKey = TTTBots.Lib.GetConVarString("chatter_chatgpt_api_key")
-    local temperature = TTTBots.Lib.GetConVarFloat("chatter_temperature")
-    local provider = TTTBots.Lib.GetConVarString("chatter_api_provider")
-    local model = TTTBots.Lib.GetConVarString("chatter_gpt_model")
-    wasVoice = wasVoice or false
+-- ---------------------------------------------------------------------------
+-- SendText — envelope-based entry point (new)
+-- ---------------------------------------------------------------------------
+
+--- Sends a prompt to the ChatGPT API and returns the result via an envelope callback.
+--- opts = { teamOnly=bool, wasVoice=bool }
+--- callback(envelope) where envelope is MakeOk("ChatGPT", text) or MakeError("ChatGPT", ...).
+---@param prompt string
+---@param bot Player
+---@param opts table
+---@param callback function
+function TTTBots.ChatGPT.SendText(prompt, bot, opts, callback)
+    opts = opts or {}
+    local apiKey = lib.GetConVarString("chatter_chatgpt_api_key")
+    local temperature = lib.GetConVarFloat("chatter_temperature")
+    local model = lib.GetConVarString("chatter_gpt_model")
+
     if not apiKey or apiKey == "" then
-        print("No ChatGPT API key found.")
+        if callback then
+            callback(TTTBots.Providers.MakeError("ChatGPT", 0, "No API key configured", nil))
+        end
         return
     end
-    if not teamOnly then teamOnly = false end
 
-    -- Manually construct the JSON string with proper escaping
-    local escapedText = string.gsub(text, '[%c"%\\]', function(c)
+    -- Char-by-char JSON escaping of the prompt
+    local escapedText = string.gsub(prompt, '[%c"%\\]', function(c)
         return string.format('\\u%04x', string.byte(c))
     end)
     local requestBody = string.format(
         '{"model":"%s","messages":[{"role":"user","content":"%s"}],"max_tokens":500,"temperature":%.1f}',
         model, escapedText, temperature
     )
-
-    -- print(requestBody) -- Debug print to check the JSON string
 
     HTTP({
         url = 'https://api.openai.com/v1/chat/completions',
@@ -37,26 +48,47 @@ function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice, responseCall
         },
         body = requestBody,
         success = function(code, body, headers)
-            local apiResponse = TTTBots.ChatGPT.ProcessResponse(body)
-            if apiResponse and bot and IsValid(bot) and apiResponse ~= text and not string.find(apiResponse, text) and not string.find(text, apiResponse) then
-                if responseCallback then
-                    responseCallback(apiResponse)
+            local ok, response = pcall(util.JSONToTable, body)
+            if not ok or not response then
+                if callback then
+                    callback(TTTBots.Providers.MakeError("ChatGPT", code, "Invalid response structure", body))
                 end
-            elseif apiResponse and apiResponse.error and apiResponse.error.message then
-                print("Error message from API: " .. apiResponse.error.message)
-                if responseCallback then
-                    responseCallback(nil)
+                return
+            end
+
+            if response.error and response.error.message then
+                if callback then
+                    callback(TTTBots.Providers.MakeError("ChatGPT", code, response.error.message, body))
+                end
+                return
+            end
+
+            if response.choices and response.choices[1] and response.choices[1].message and response.choices[1].message.content then
+                local text = response.choices[1].message.content
+                text = TTTBots.Providers.SanitizeText(text)
+                if callback then
+                    callback(TTTBots.Providers.MakeOk("ChatGPT", text))
+                end
+            else
+                if callback then
+                    callback(TTTBots.Providers.MakeError("ChatGPT", code, "Invalid response structure", body))
                 end
             end
         end,
         failed = function(err)
-            print('HTTP Error: ' .. err)
-            return nil
+            print('ChatGPT HTTP Error: ' .. tostring(err))
+            if callback then
+                callback(TTTBots.Providers.MakeError("ChatGPT", 0, tostring(err), nil))
+            end
         end
     })
 end
 
---- Processes the response from the ChatGPT API.
+-- ---------------------------------------------------------------------------
+-- ProcessResponse — backward compatibility helper
+-- ---------------------------------------------------------------------------
+
+--- Processes the raw JSON body from the ChatGPT API.
 ---@param body string
 ---@return string|nil
 function TTTBots.ChatGPT.ProcessResponse(body)
@@ -68,7 +100,7 @@ function TTTBots.ChatGPT.ProcessResponse(body)
 
     if response and response.choices and response.choices[1] and response.choices[1].message and response.choices[1].message.content then
         local gptResponse = response.choices[1].message.content
-        --- replace %20 with spaces
+        -- Replace %20 with spaces
         gptResponse = string.gsub(gptResponse, "%%20", " ")
         return gptResponse
     else
@@ -78,4 +110,31 @@ function TTTBots.ChatGPT.ProcessResponse(body)
         end
         return nil
     end
+end
+
+-- ---------------------------------------------------------------------------
+-- SendRequest — backward compatibility shim (old signature)
+-- ---------------------------------------------------------------------------
+
+--- Backward-compatible shim. Calls SendText and unwraps the envelope for the old callback signature.
+---@param text string
+---@param bot Player
+---@param teamOnly boolean
+---@param wasVoice boolean
+---@param responseCallback function  -- receives string|nil
+function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice, responseCallback)
+    TTTBots.ChatGPT.SendText(text, bot, { teamOnly = teamOnly, wasVoice = wasVoice }, function(envelope)
+        if not responseCallback then return end
+        if envelope.ok then
+            -- Apply duplicate-response guard that the old code had
+            if bot and IsValid(bot) and TTTBots.Providers.IsDuplicateResponse(envelope.text, text) then
+                responseCallback(nil)
+            else
+                responseCallback(envelope.text)
+            end
+        else
+            print("ChatGPT error: " .. tostring(envelope.message))
+            responseCallback(nil)
+        end
+    end)
 end

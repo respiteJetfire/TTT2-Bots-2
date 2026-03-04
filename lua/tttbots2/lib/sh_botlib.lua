@@ -12,7 +12,7 @@ if SERVER then
     include("tttbots2/components/sv_personality.lua")
     include("tttbots2/components/sv_memory.lua")
     include("tttbots2/components/sv_morality.lua")
-    include("tttbots2/components/sv_chatter.lua")
+    include("tttbots2/components/chatter/sv_chatter_core.lua")
 end
 
 TTTBots.Lib.BASIC_VIS_RANGE = 4000 --- Threshold to be considred for the :VisibleVec function in a basic visibility check.
