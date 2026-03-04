@@ -95,7 +95,7 @@ function CreateSidekick.Validate(bot)
     if bot.attackTarget ~= nil then return false end          -- Do not Sidekick if we're killing someone already.
     local inv = bot:BotInventory()
     if not (inv and inv:GetJackalGun()) then return false end -- Do not Sidekick if we don't have a jackal gun.
-    return CreateSidekick.ValidateTarget(bot) or CreateSidekick.ShouldStartSidekicking(bot)
+    return CreateSidekick.ValidateTarget(bot) and CreateSidekick.ShouldStartSidekicking(bot)
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

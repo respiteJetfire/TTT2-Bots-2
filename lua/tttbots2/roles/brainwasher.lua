@@ -29,6 +29,8 @@ local bTree = {
     _prior.Patrol
 }
 
+local roleDescription = "The Brainwasher is a special Traitor role which allows the user to convert any non Traitor player over to a 'Slave', an additional Traitor player whom must do your team's bidding! Kill the remaining non-traitors to win the round."
+
 local brainwasher = TTTBots.RoleData.New("brainwasher", TEAM_TRAITOR)
 brainwasher:SetDefusesC4(false)
 brainwasher:SetCanCoordinate(true)
@@ -39,9 +41,9 @@ brainwasher:SetTeam(TEAM_TRAITOR)
 brainwasher:SetBTree(bTree)
 brainwasher:SetAlliedTeams(allyTeams)
 brainwasher:SetAlliedRoles(allyRoles)
-brainwasher:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 brainwasher:SetEnemyRoles({"unknown"})
 brainwasher:SetLovesTeammates(true)
+brainwasher:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(brainwasher)
 
 return true

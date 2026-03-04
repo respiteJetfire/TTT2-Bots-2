@@ -2275,6 +2275,59 @@ local LoadLang = function()
     Line("{{player}}, stop attacking me.", A.Default)
 
 
+    RegisterCategory("RoleGuess", P.IMPORTANT, "When a bot is guessing {{player}}'s role is {{role}}")
+    Line("I think {{player}} is a {{role}}.", A.Default)
+    Line("{{player}} looks like a {{role}}.", A.Default)
+    Line("{{player}} seems to be a {{role}}.", A.Default)
+    Line("{{player}} might be a {{role}}.", A.Default)
+    Line("{{player}} is probably a {{role}}.", A.Default)
+
+    Line("yo {{player}} is def a {{role}}", A.Casual)
+    Line("{{player}} gotta be a {{role}}", A.Casual)
+    Line("i think {{player}} is a {{role}}", A.Casual)
+    Line("{{player}} acting like a {{role}}", A.Casual)
+
+    Line("Hmph, {{player}} is a {{role}}.", A.Bad)
+    Line("Of course {{player}} is a {{role}}.", A.Bad)
+    Line("Obviously {{player}} is a {{role}}.", A.Bad)
+    Line("{{player}} has to be a {{role}}.", A.Bad)
+
+    Line("uhh {{player}} might be a {{role}}?", A.Dumb)
+    Line("is {{player}} a {{role}}?", A.Dumb)
+    Line("{{player}} looks like... um... a {{role}}?", A.Dumb)
+    Line("{{role}}? Is that what {{player}} is?", A.Dumb)
+
+    Line("Listen up! {{player}} is definitely a {{role}}!", A.Hothead)
+    Line("{{player}} is a {{role}}, you idiots!", A.Hothead)
+    Line("Hey morons, {{player}} is a {{role}}!", A.Hothead)
+    Line("It's obvious {{player}} is a {{role}}!", A.Hothead)
+
+    Line("I believe {{player}} might be a {{role}}.", A.Nice)
+    Line("{{player}} could be a {{role}}, just saying.", A.Nice)
+    Line("Not to cause trouble, but {{player}} seems like a {{role}}.", A.Nice)
+    Line("{{player}} might be a {{role}}, be careful!", A.Nice)
+
+    Line("{{player}} is a {{role}}.", A.Stoic)
+    Line("Target {{player}} identified as {{role}}.", A.Stoic)
+    Line("Analysis suggests {{player}} is {{role}}.", A.Stoic)
+    Line("{{player}}: {{role}}.", A.Stoic)
+
+    Line("Team, I think {{player}} is a {{role}}.", A.Teamer)
+    Line("Heads up team, {{player}} might be a {{role}}.", A.Teamer)
+    Line("Watch out team, {{player}} could be a {{role}}.", A.Teamer)
+    Line("Team, be careful - {{player}} is probably a {{role}}.", A.Teamer)
+
+    Line("Something tells me {{player}} is a {{role}}...", A.Sus)
+    Line("{{player}} is acting like a {{role}}, just saying...", A.Sus)
+    Line("Not sure but {{player}} gives off {{role}} vibes", A.Sus)
+    Line("{{player}} seems kinda {{role}}-ish", A.Sus)
+
+    Line("Based on my analysis, {{player}} is a {{role}}.", A.Tryhard)
+    Line("100% sure {{player}} is a {{role}}.", A.Tryhard)
+    Line("No doubt about it, {{player}} is a {{role}}.", A.Tryhard)
+    Line("{{player}} has to be a {{role}}, trust me.", A.Tryhard)
+
+
     -----------------------------------------------------------
     -- SILLY CHATS
     -----------------------------------------------------------

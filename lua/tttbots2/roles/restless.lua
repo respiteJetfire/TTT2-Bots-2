@@ -8,21 +8,6 @@ local allyTeams = {
     [TEAM_RESTLESS] = true,
 }
 
-local enemyTeams = {
-    [TEAM_CRIPS] = true,
-    [TEAM_BALLAS] = true,
-    [TEAM_FAMILIES] = true,
-    [TEAM_HOOVERS] = true,
-    [TEAM_INNOCENT] = true,
-    [TEAM_TRAITOR] = true,
-    [TEAM_JACKAL] = true,
-    [TEAM_SERIALKILLER] = true,
-    [TEAM_INFECTED] = true,
-    [TEAM_NONE] = true,
-    [TEAM_PIRATE] = true,
-    [TEAM_DOOMSLAYER] = true,
-}
-
 local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
@@ -43,7 +28,6 @@ restless:SetStartsFights(true)
 restless:SetCanHaveRadar(true)
 restless:SetKnowsLifeStates(true)
 restless:SetUsesSuspicion(false)
-restless:SetEnemyTeams(enemyTeams)
 restless:SetTeam(TEAM_RESTLESS)
 restless:SetBTree(bTree)
 restless:SetAlliedTeams(allyTeams)

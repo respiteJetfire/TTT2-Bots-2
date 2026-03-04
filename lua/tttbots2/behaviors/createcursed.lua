@@ -95,7 +95,7 @@ function CreateCursed.Validate(bot)
     if bot.attackTarget ~= nil then CreateCursed.SetTarget(bot.attackTarget) end          -- Do not Cursed if we're killing someone already.
     local inv = bot:BotInventory()
     if not (inv and inv:GetCursedGun()) then return false end -- Do not Cursed if we don't have a jackal gun.
-    return CreateCursed.ValidateTarget(bot) or CreateCursed.ShouldStartCurseding(bot)
+    return CreateCursed.ValidateTarget(bot) and CreateCursed.ShouldStartCurseding(bot)
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

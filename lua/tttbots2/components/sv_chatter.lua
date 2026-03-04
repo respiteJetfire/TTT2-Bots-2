@@ -155,8 +155,6 @@ function BotChatter:Say(text, teamOnly, ignoreDeath, callback)
     text = string.gsub(text, "%[BOT%] ", "")
     text = string.gsub(text, "%[bot%] ", "")
     --- remove any '' or "" from the text
-    text = string.gsub(text, "'", "")
-    text = string.gsub(text, '"', "")
     text = self:TypoText(text)
 
     -- Make the bot remain still before sending the message
@@ -221,6 +219,7 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     local difficulty = lib.GetConVarInt("difficulty")
     local ChanceMult = lib.GetConVarFloat("chatter_chance_multi") or 1
     local chatGPTChance = lib.GetConVarFloat("chatter_gpt_chance") or 0.25
+    local apiProvider = lib.GetConVarInt("chatter_api_provider")
 
     --- Base chances to react to the events via chat
     local chancesOf100 = {
@@ -310,14 +309,65 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
         return false
     end
 
-    if math.random() < chatGPTChance then
-        TTTBots.ChatGPT.SendRequest(TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
-    else
-        localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
-        if not localizedString then
-            TTTBots.ChatGPT.SendRequest(TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description), self.bot, teamOnly, false, setLocalizedString)
+    local prompt = TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description)
+
+    if apiProvider == 0 then
+        if math.random() < chatGPTChance then
+            TTTBots.ChatGPT.SendRequest(prompt, self.bot, teamOnly, false, setLocalizedString)
         else
-            setLocalizedString(localizedString)
+            localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+            if not localizedString then
+                TTTBots.ChatGPT.SendRequest(prompt, self.bot, teamOnly, false, setLocalizedString)
+            else
+                setLocalizedString(localizedString)
+                return true
+            end
+        end
+    elseif apiProvider == 1 then
+        if math.random() < chatGPTChance then
+            TTTBots.Gemini.SendRequest(prompt, self.bot, teamOnly, false, setLocalizedString)
+        else
+            localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+            if not localizedString then
+                TTTBots.Gemini.SendRequest(prompt, self.bot, teamOnly, false, setLocalizedString)
+            else
+                setLocalizedString(localizedString)
+                return true
+            end
+        end
+    elseif apiProvider == 2 then
+        if math.random() < chatGPTChance then
+            TTTBots.DeepSeek.SendRequest(prompt, self.bot, teamOnly, false, setLocalizedString)
+        else
+            localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+            if not localizedString then
+                TTTBots.DeepSeek.SendRequest(prompt, self.bot, teamOnly, false, setLocalizedString)
+            else
+                setLocalizedString(localizedString)
+                return true
+            end
+        end
+    else
+        local textAPI = self.bot.components.personality.textAPI
+        local apiFunc
+        if textAPI == "Gemini" then
+            apiFunc = TTTBots.Gemini.SendRequest
+        elseif textAPI == "DeepSeek" then
+            apiFunc = TTTBots.DeepSeek.SendRequest
+        else
+            apiFunc = TTTBots.ChatGPT.SendRequest
+        end
+
+        if math.random() < chatGPTChance then
+            apiFunc(prompt, self.bot, teamOnly, false, setLocalizedString)
+        else
+            localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+            if not localizedString then
+                apiFunc(prompt, self.bot, teamOnly, false, setLocalizedString)
+            else
+                setLocalizedString(localizedString)
+                return true
+            end
         end
     end
     
@@ -359,9 +409,9 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
         -- print("URL Mode: ", urlMode)
 
         if math.random() <= voiceChatChance then
-            -- print("SpeakingBot: ", TTTBots.Match.speakingBot)
+            print("SpeakingBot: ", TTTBots.Match.speakingBot)
             if TTTBots.Match.speakingBot and TTTBots.Match.speakingBot ~= bot then
-                -- print("Sending Text chat: " .. text)
+                print("Sending Text chat: " .. text)
                 self:Say(text, teamOnly, false, function()
                     if event_name == "CallKOS" and args then
                         self:QuickRadio("quick_traitor", args.playerEnt)
@@ -387,6 +437,7 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
             bot.lastReplyTime = CurTime()
 
             local function onVoiceComplete(duration)
+                duration = math.min(duration or 5, 10)
                 TTTBots.Match.speakingBot = nil
                 -- VOICE.SetSpeaking(false)
                 timer.Simple(duration + 1, function()
@@ -395,19 +446,6 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
                 end)
             end
 
-            -- text sanitazation, for example im should be I'm, full stops and commas allowed but no other punctuation
-            text = string.gsub(text, "im", "I'm")
-            text = string.gsub(text, "Im", "I'm")
-            text = string.gsub(text, "Ill", "I'll")
-            text = string.gsub(text, "ill", "I'll")
-            text = string.gsub(text, "dont", "don't")
-            text = string.gsub(text, "Dont", "Don't")
-            text = string.gsub(text, "cant", "can't")
-            text = string.gsub(text, "Cant", "Can't")
-            text = string.gsub(text, "wont", "won't")
-            -- remove any '' or "" or \ or / from the text
-            text = string.gsub(text, "'", "")
-            text = string.gsub(text, '"', "")
             text = string.gsub(text, "\\", "")
             text = string.gsub(text, "/", "")
             
@@ -989,8 +1027,25 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         for keyword, event in pairs(keywordEvents) do
             if string.find(fulltxt, keyword) then
                 -- print("Handling attack for keyword: ", keyword)
+                if teamOnly then
+                    -- print("Handling team only attack")
+                    --- select a random teammate that is not the player (if one exists)
+                    --- then select a random non-team and not the player target
+                    local bot = table.Random(bots)
+                    -- print("Bot: ", bot)
+                    local target = nil
+                    for _, player in ipairs(TTTBots.Lib.GetAlivePlayers()) do
+                        if player ~= ply and player:GetTeam() ~= ply:GetTeam() then
+                            target = player
+                            -- print("Target: ", target)
+                            break
+                        end
+                    end
+                    if not (target and bot) then return end
+                    handlerFunction(bot, ply, target, teamOnly)
+                    return true
                 
-                if string.find(fulltxt, "me") then
+                elseif string.find(fulltxt, "me") then
                     -- print("Handling me attack")
                     local target = ply
                     handlerFunction(bot, ply, target, teamOnly)
@@ -1017,23 +1072,6 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                         end
                     end
                     return true
-                elseif teamOnly then
-                    -- print("Handling team only attack")
-                    --- select a random teammate that is not the player (if one exists)
-                    --- then select a random non-team and not the player target
-                    local bot = table.Random(bots)
-                    -- print("Bot: ", bot)
-                    local target = nil
-                    for _, player in ipairs(TTTBots.Lib.GetAlivePlayers()) do
-                        if player ~= ply and player:GetTeam() ~= ply:GetTeam() then
-                            target = player
-                            -- print("Target: ", target)
-                            break
-                        end
-                    end
-                    if not (target and bot) then return end
-                    handlerFunction(bot, ply, target, teamOnly)
-                    return true
                 elseif not string.find(fulltxt, "everyone") then
                     -- print("Handling single attack")
                     local botTargets = findPlayersInText(fulltxt)
@@ -1057,21 +1095,34 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
 
         local chatter = bot:BotChatter()
         local fulltxt = TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
-        local maxLength = 1000
-        local startIndex = 1
-        -- while startIndex <= #fulltxt do
-        --     local endIndex = math.min(startIndex + maxLength - 1, #fulltxt)
-        --     print("Sending request to ChatGPT API...", fulltxt:sub(startIndex, endIndex))
-        --     startIndex = endIndex + 1
-        -- end
-        TTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice, function(response)
+        local apiProvider = lib.GetConVarInt("chatter_api_provider")
+        local callback = function(response)
             if response then
-                response = response:gsub('"', '\\"')
+                if response:sub(1,1):match('["\'"]') and response:sub(-1):match('["\'"]') then
+                    response = response:sub(2, -2)
+                end
                 chatter:textorTTS(bot, response, teamOnly, false, wasVoice)
             else
                 print("ChatGPT request returned nil")
             end
-        end)
+        end
+        if apiProvider == 1 then
+            TTTBots.Gemini.SendRequest(fulltxt, bot, teamOnly, wasVoice, callback)
+        elseif apiProvider == 2 then
+            TTTBots.DeepSeek.SendRequest(fulltxt, bot, teamOnly, wasVoice, callback)
+        elseif apiProvider == 0 then
+            TTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice, callback)
+        else
+            --- Decide on provider based on bot personality textAPI
+            local textAPI = bot:BotPersonality().textAPI
+            if textAPI == "Gemini" then
+                TTTBots.Gemini.SendRequest(fulltxt, bot, teamOnly, wasVoice, callback)
+            elseif textAPI == "DeepSeek" then
+                TTTBots.DeepSeek.SendRequest(fulltxt, bot, teamOnly, wasVoice, callback)
+            else
+                TTTBots.ChatGPT.SendRequest(fulltxt, bot, teamOnly, wasVoice, callback)
+            end
+        end
     end
 end
 

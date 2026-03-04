@@ -27,6 +27,8 @@ local bTree = {
     _prior.Patrol
 }
 
+local roleDescription = "The Anonymous role's objective is to kill all the remaining players except their teammates, but the catch is; they don't know who they are! Be careful you and your teammates do not target each other whilst considering other roles in the game!"
+
 local anonymous = TTTBots.RoleData.New("anonymous", TEAM_ANONYMOUS)
 anonymous:SetDefusesC4(false)
 anonymous:SetCanCoordinate(false)
@@ -36,8 +38,8 @@ anonymous:SetUsesSuspicion(false)
 anonymous:SetTeam(TEAM_ANONYMOUS)
 anonymous:SetBTree(bTree)
 anonymous:SetAlliedTeams(allyTeams)
-anonymous:SetEnemyRoles({"unknown"})
 anonymous:SetLovesTeammates(false)
+anonymous:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(anonymous)
 
 return true

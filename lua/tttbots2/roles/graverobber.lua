@@ -23,6 +23,13 @@ local bTree = {
     _prior.Patrol
 }
 
+local allyTeams = {
+    [TEAM_JESTER] = true,
+    [TEAM_TRAITOR] = true
+}
+
+local roleDescription = "The Graverobber is a special Traitor role. When a Pharoah places their Ankh, a random Traitor is assigned as their opposing counterpart, the Graverobber. The Graverobber maintains the same objective and allegiances as the Traitor, but with a twist. If you find the Ankh, you can capture it and gain it's extra life and healing properties for yourself!"
+
 local graverobber = TTTBots.RoleData.New("graverobber")
 graverobber:SetDefusesC4(false)
 graverobber:SetPlantsC4(false)
@@ -34,6 +41,7 @@ graverobber:SetUsesSuspicion(false)
 graverobber:SetBTree(bTree)
 graverobber:SetAlliedTeams(allyTeams)
 graverobber:SetLovesTeammates(true)
+graverobber:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(graverobber)
 
 return true

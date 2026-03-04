@@ -455,38 +455,70 @@ function TTTBots.Lib.IsHoldingTraitorWep(ply)
     local wep = ply:GetActiveWeapon()
     if not IsValid(wep) then return false end
 
-    local traitorRoles = {
-        [ROLE_TRAITOR] = true,
-        [ROLE_BALLAS] = true,
-        [ROLE_CRIPS] = true,
-        [ROLE_FAMILIES] = true,
-        [ROLE_HOOVERS] = true,
-        [ROLE_HITMAN] = true,
-        [ROLE_INFECTED] = true,
-        [ROLE_JACKAL] = true,
-        [ROLE_RESTLESS] = true,
-        [ROLE_SERIALKILLER] = true,
-        [ROLE_DEFECTIVE] = true,
-        [ROLE_SIDEKICK] = true
-    }
+    local traitorRoles = {}
+    local innocentroles = {}
 
-    local innocentroles = {
-        [ROLE_INNOCENT] = true,
-        [ROLE_SURVIVALIST] = true,
-        [ROLE_BODYGUARD] = true,
-        [ROLE_PIRATE_CAPTAIN] = true,
-        [ROLE_PIRATE] = true,
-        [ROLE_SPY] = true,
-        [ROLE_DETECTIVE] = true,
-        [ROLE_DEPUTY] = true,
-        [ROLE_SHERIFF] = true,
-    }
+    local AllRolesSupported = roles.GetList()
+
+    local function GetAllRoles()
+        local allRoles = {}
+        for _, role in pairs(AllRolesSupported) do
+            table.insert(allRoles, roles.Get(role.name))
+        end
+        return allRoles
+    end
+
+    local AllRoles = GetAllRoles()
+
+    local function GetRolesByTeam(team)
+        local rolesByTeam = {}
+        for _, role in pairs(AllRoles) do
+            if role.defaultTeam == team then
+                table.insert(rolesByTeam, role.name)
+            end
+        end
+        return rolesByTeam
+    end
+
+    local function GetKillerRoles()
+        local killerRoles = {}
+        for _, role in pairs(AllRoles) do
+            -- print(role.name, role.team)
+            if role.defaultTeam ~= TEAM_INNOCENT then
+                table.insert(killerRoles, role.name)
+            end
+        end
+        return killerRoles
+    end
+
+    local function GetRoles()
+        local innocentRoles = {}
+        local killerRoles = {}
+        for _, role in pairs(AllRoles) do
+            if role.defaultTeam == TEAM_INNOCENT then
+                table.insert(innocentRoles, role.name)
+            elseif role.defaultTeam == TEAM_NONE then
+                table.insert(innocentRoles, role.name)
+            else
+                table.insert(killerRoles, role.name)
+            end
+        end
+        return innocentRoles, killerRoles
+    end
+
+    local innocentroles, traitorRoles = GetRoles()
 
     local traitorsCanBuy = false
     local innocentCanBuy = false
 
     if wep.CanBuy then
-        traitorsCanBuy = traitorRoles[wep.CanBuy[ROLE_TRAITOR]] and true or false
+        traitorsCanBuy = false
+        for role, _ in pairs(traitorRoles) do
+            if wep.CanBuy[role] then
+            traitorsCanBuy = true
+            break
+            end
+        end
         innocentCanBuy = false
         for role, _ in pairs(innocentroles) do
             if wep.CanBuy[role] then
@@ -1512,6 +1544,11 @@ function TTTBots.Lib.GetNearestNavArea(pos)
 
     -- First, check if we are within the boundes of closestCNavArea.
     if closestCNavArea and closestCNavArea:IsOverlapping(pos, 64) then
+        return closestCNavArea
+    end
+
+    --- another check if we are within expanded bounds of closestCNavArea
+    if closestCNavArea and closestCNavArea:IsOverlapping(pos, 256) then
         return closestCNavArea
     end
 

@@ -23,7 +23,6 @@ local bTree = {
 local necromancer = TTTBots.RoleData.New("necromancer", TEAM_NECROMANCER)
 necromancer:SetDefusesC4(false)
 necromancer:SetStartsFights(true)
-necromancer:SetEnemyTeams(enemyTeams)
 necromancer:SetCanHaveRadar(true)
 necromancer:SetCanCoordinate(true)
 necromancer:SetUsesSuspicion(false)

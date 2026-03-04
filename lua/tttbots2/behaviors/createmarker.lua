@@ -177,6 +177,21 @@ end
 --- Called when the behavior succeeds or fails. Useful for cleanup, as it is always called once the behavior is a) interrupted, or b) returns a success or failure state.
 ---@param bot Bot
 function CreateMarker.OnEnd(bot)
+    --- if MARKER_DATA.marked_players is more than 50% of alive players, then if the target is a bot the bot has a 50% chance to kos the target
+    local markedPlayers = MARKER_DATA.marked_players
+    local alivePlayers = lib.GetAlivePlayers()
+    local alivePlayersCount = #alivePlayers
+    local markedPlayersCount = #markedPlayers
+    local kosChance = markedPlayersCount / alivePlayersCount >= 0.5 and math.random(1, 2) == 1
+    local target = CreateMarker.GetTarget(bot)
+    if not IsValid(target) then return end
+    if target:IsBot() and kosChance then
+        target:SetAttackTarget(bot)
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("KOS", {player = target:Nick()})
+        end
+    end
     CreateMarker.ClearTarget(bot)
     local loco = bot:BotLocomotor()
     if not loco then return end

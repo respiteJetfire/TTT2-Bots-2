@@ -25,18 +25,20 @@ local bTree = {
     _prior.Restore,
     _bh.Interact,
 }
+
+local roleDescription = "The Crips role's objective is to eliminate the other gangs and win the game. You are a member of the Crips and can use their weapons. Be careful not to attack your own teammates!"
 local crips = TTTBots.RoleData.New("crips", TEAM_CRIPS)
 crips:SetDefusesC4(false)
 crips:SetCanCoordinate(true)
 crips:SetCanHaveRadar(true)
 crips:SetStartsFights(true)
-crips:SetBuyableWeapons({"arccw_mw2_ak47", "arccw_mw2_m4"})
 crips:SetUsesSuspicion(false)
 crips:SetTeam(TEAM_CRIPS)
 crips:SetBTree(bTree)
 crips:SetAlliedTeams(allyTeams)
 crips:SetLovesTeammates(true)
 crips:SetEnemyTeams(enemyTeams)
+crips:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(crips)
 
 return true

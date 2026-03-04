@@ -35,7 +35,6 @@ revenant:SetUsesSuspicion(false)
 revenant:SetTeam(TEAM_REVENANT)
 revenant:SetBTree(bTree)
 revenant:SetAlliedTeams(allyTeams)
-revenant:SetEnemyRoles({"unknown"})
 revenant:SetLovesTeammates(false)
 TTTBots.Roles.RegisterRole(revenant)
 

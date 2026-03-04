@@ -5,9 +5,6 @@ if not ROLE_JESTER then return false end
 
 local allyTeams = {
     [TEAM_JESTER] = true,
-    [TEAM_TRAITOR] = true,
-    [TEAM_JACKAL] = true,
-    [TEAM_RESTLESS] = true,
 }
 
 local _bh = TTTBots.Behaviors

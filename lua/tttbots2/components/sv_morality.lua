@@ -70,6 +70,7 @@ BotMorality.SuspicionDescriptions = {
 
 BotMorality.Thresholds = {
     KOS = 7,
+    RoleGuess = 6,
     Sus = 3,
     Trust = -3,
     Innocent = -7,
@@ -100,6 +101,7 @@ function BotMorality:Initialize(bot)
     self.tick = 0                                                       -- Tick counter
     self.bot = bot ---@type Bot
     self.suspicions = {}                                                -- A table of suspicions for each player
+    self.roleGuesses = {}                                               -- A table of role guesses for each player
 end
 
 --- Increase/decrease the suspicion on the player for the given reason.
@@ -125,6 +127,7 @@ function BotMorality:ChangeSuspicion(target, reason, mult)
 
     self:AnnounceIfThreshold(target)
     self:SetAttackIfTargetSus(target)
+    self:GuessRole(target)
 
     -- print(string.format("%s's suspicion on %s has changed by %d", self.bot:Nick(), target:Nick(), increase))
 end
@@ -136,6 +139,11 @@ end
 --- Announce the suspicion level of the given player if it is above a certain threshold.
 ---@param target Player
 function BotMorality:AnnounceIfThreshold(target)
+    -- Only announce if target is visible and close enough
+    if not (IsValid(target) and target:IsPlayer() and target:Visible(self.bot) and target:GetPos():Distance(self.bot:GetPos()) <= 600) then
+        return
+    end
+
     local sus = self:GetSuspicion(target)
     local chatter = self.bot:BotChatter()
     if not chatter then return end
@@ -145,16 +153,16 @@ function BotMorality:AnnounceIfThreshold(target)
     local InnocentThresh = self.Thresholds.Innocent
 
     if sus >= KOSThresh then
-        chatter:On("CallKOS", { player = target:Nick(), playerEnt = target })
+        chatter:On("CallKOS", { player = target:Nick() })
         -- self.bot:Say("I think " .. target:Nick() .. " is evil!")
     elseif sus >= SusThresh then
-        chatter:On("DeclareSuspicious", { player = target:Nick(), playerEnt = target })
+        chatter:On("DeclareSuspicious", { player = target:Nick() })
         -- self.bot:Say("I think " .. target:Nick() .. " is suspicious!")
     elseif sus <= InnocentThresh then
-        chatter:On("DeclareInnocent", { player = target:Nick(), playerEnt = target })
+        chatter:On("DeclareInnocent", { player = target:Nick() })
         -- self.bot:Say("I think " .. target:Nick() .. " is innocent!")
     elseif sus <= TrustThresh then
-        chatter:On("DeclareTrustworthy", { player = target:Nick(), playerEnt = target })
+        chatter:On("DeclareTrustworthy", { player = target:Nick() })
         -- self.bot:Say("I think " .. target:Nick() .. " is trustworthy!")
     end
 end
@@ -168,6 +176,47 @@ function BotMorality:SetAttackIfTargetSus(target)
         return true
     end
     return false
+end
+
+--- Allow the bot to have a chance of correctly guessing the role of the player if they are suspicious enough
+function BotMorality:GuessRole(target)
+    local sus = self:GetSuspicion(target)
+    local archetype = self.bot:BotPersonality().archetype
+    if sus < self.Thresholds.RoleGuess then return end
+    if not (IsValid(target) and target:IsPlayer() and target:Visible(self.bot) and target:GetPos():Distance(self.bot:GetPos()) <= 600) then
+        return
+    end
+    --- very low chance to accurately guess the role of the target (15%), low chance to incorrectly guess (30%), high chance to not guess at all (55%)
+    local chance = math.random(1, 100)
+    
+    -- Modify chance based on archetype
+    if archetype == "Tryhard/Nerd" then
+        chance = math.max(chance - 40, 1) -- Much higher chance to guess correctly
+    elseif archetype == "Bad" or archetype == "Dumb" then
+        chance = math.min(chance + 40, 100) -- Much lower chance to guess correctly
+    end
+
+    if chance <= 15 then
+        self.roleGuesses[target] = TTTBots.Roles.GetRoleFor(target)
+        print(self.bot:Nick() .. " has guessed " .. target:Nick() .. "'s role as " .. self.roleGuesses[target]:GetName())
+    elseif chance <= 45 then
+        self.roleGuesses[target] = TTTBots.Roles.GetRandomRole()
+        print(self.bot:Nick() .. " has INCORRECTLY guessed " .. target:Nick() .. "'s role as " .. self.roleGuesses[target]:GetName())
+    end
+    --- if the role is not an innocent or none team role, then set the attack target to the target
+    if self.roleGuesses[target] and self.roleGuesses[target]:GetTeam() ~= TEAM_INNOCENT then
+        --- 25% chance to announce this in chat
+        if math.random(1, 100) > 25 then
+            local chatter = self.bot:BotChatter()
+            if chatter then
+                chatter:On("RoleGuess", { player = target:Nick(), playerEnt = target, role = self.roleGuesses[target]:GetName() })
+            end
+        end
+        --- 25% chance to set the attack target to the target
+        if math.random(1, 100) > 25 then
+            self.bot:SetAttackTarget(target)
+        end
+    end
 end
 
 function BotMorality:TickSuspicions()

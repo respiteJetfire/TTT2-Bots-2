@@ -25,6 +25,8 @@ local bTree = {
     
 }
 
+local roleDescription = "The Deputy is a special detective role. When shot by a Sheriff, you become a deputy. The deputy is shown as a detective to all players, and is the ally of the Sheriff. If the Sheriff dies, the Deputy dies; so Co-operate and protect your Sheriff with your life! You have access to the Detective shop and as such can assist in finding the Traitors."
+
 deputy:SetDefusesC4(true)
 deputy:SetCanHaveRadar(true)
 deputy:SetTeam(TEAM_INNOCENT)
@@ -33,6 +35,7 @@ deputy:SetAlliedRoles('detective','sheriff','sniffer','priest','survivalist','in
 deputy:SetBTree(bTree)
 deputy:SetUsesSuspicion(true)
 deputy:SetAppearsPolice(true)
+deputy:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(deputy)
 
 -- Sidekick help master when shooting a victim

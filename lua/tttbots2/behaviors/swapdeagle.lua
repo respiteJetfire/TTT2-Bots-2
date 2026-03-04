@@ -90,7 +90,7 @@ function SwapDeagle.Validate(bot)
     if bot.attackTarget ~= nil then return false end          -- Do not SwapDeagle if we're killing someone already.
     local inv = bot:BotInventory()
     if not (inv and inv:GetSwapDeagleGun()) then return false end -- Do not SwapDeagle if we don't have a jackal gun.
-    return SwapDeagle.ValidateTarget(bot) or SwapDeagle.ShouldStartSwapDeagleing(bot)
+    return SwapDeagle.ValidateTarget(bot) and SwapDeagle.ShouldStartSwapDeagleing(bot)
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

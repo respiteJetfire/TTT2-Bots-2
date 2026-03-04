@@ -10,7 +10,6 @@ occultist:SetCanSnipe(true)
 occultist:SetUsesSuspicion(true)
 occultist:SetAlliedRoles({})
 occultist:SetAlliedTeams({})
-occultist:SetEnemyTeams({[TEAM_DOOMSLAYER] = true,})
 TTTBots.Roles.RegisterRole(occultist)
 
 return true

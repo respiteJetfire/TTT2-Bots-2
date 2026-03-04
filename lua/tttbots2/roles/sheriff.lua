@@ -8,7 +8,6 @@ sheriff:SetTeam(TEAM_INNOCENT)
 sheriff:SetBTree(TTTBots.Behaviors.DefaultTrees.detective)
 sheriff:SetUsesSuspicion(true)
 sheriff:SetAppearsPolice(true)
-sheriff:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 TTTBots.Roles.RegisterRole(sheriff)
 
 return true

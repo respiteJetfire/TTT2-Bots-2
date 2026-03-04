@@ -10,13 +10,7 @@ local function handleTTSResponse(code, body, chatter, teamOnly, ply, text, ssmlB
         local FileID = os.time()
         local FileMaxSize = 63000
 
-        local duration = 0
-        if ssmlBody then
-            local audioFile = io.popen("ffprobe -i " .. FileContent .. " -show_entries format=duration -v quiet -of csv=\"p=0\"")
-            duration = tonumber(audioFile:read("*a"))
-            audioFile:close()
-        end
-
+        local duration = 5
         if FileSize > FileMaxSize then
             local FileParts = math.ceil(FileSize / FileMaxSize)
             local FileTable = {}
@@ -47,12 +41,17 @@ local function handleTTSResponse(code, body, chatter, teamOnly, ply, text, ssmlB
         if onVoiceComplete then
             onVoiceComplete(duration)
         end
+        TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
     else
         print("The HTTP request to TTS API failed. HTTP Code: " .. code .. ". Response body: " .. body)
         if ssmlBody then
             print("SSML Body: " .. ssmlBody) -- Print the SSML body for debugging
         end
         chatter:Say(text, teamOnly)
+        if onVoiceComplete then
+            onVoiceComplete(1)
+        end
+        TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
     end
 end
 
@@ -66,6 +65,10 @@ local function sendTTSRequest(url, headers, body, chatter, teamOnly, ply, text, 
         failed = function(err)
             print("HTTP request to TTS API failed: " .. err)
             chatter:Say(text, teamOnly)
+            if onVoiceComplete then
+                onVoiceComplete(1)
+            end
+            TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
         end
     })
 end
@@ -90,6 +93,10 @@ function TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
         failed = function(err)
             print("HTTP request to fetch TTS audio failed: " .. err)
             chatter:Say(fulltxt, teamOnly)
+            if onVoiceComplete then
+                onVoiceComplete(1)
+            end
+            TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
         end
     })
 end
@@ -129,7 +136,12 @@ function TTTBots.TTS.ElevenLabsSendRequest(ply, text, teamOnly, onVoiceComplete)
         ['xi-api-key'] = TTTBots.Lib.GetConVarString("chatter_voice_elevenlabs_api_key")
     }
 
-    sendTTSRequest(url, headers, jsonBody, chatter, teamOnly, ply, text, nil, onVoiceComplete)
+    sendTTSRequest(url, headers, jsonBody, chatter, teamOnly, ply, text, nil, function(duration)
+        if onVoiceComplete then
+            onVoiceComplete(duration)
+        end
+        TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
+    end)
 end
 
 local function handleTokenResponse(body, len, headers, code, azureTTSEndpoint, azureResourceGroupName, azureVoiceName, text, chatter, teamOnly, ply, onVoiceComplete)
@@ -183,10 +195,19 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly, onVoiceComplete)
 
     http.Post(azureTokenEndpoint, "",
         function(body, len, headers, code)
-            handleTokenResponse(body, len, headers, code, azureTTSEndpoint, azureResourceGroupName, azureVoiceName, text, chatter, teamOnly, ply, onVoiceComplete)
+            handleTokenResponse(body, len, headers, code, azureTTSEndpoint, azureResourceGroupName, azureVoiceName, text, chatter, teamOnly, ply, function(duration)
+                if onVoiceComplete then
+                    onVoiceComplete(duration)
+                end
+                TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
+            end)
         end,
         function(err)
             print("HTTP Error: " .. err)
+            if onVoiceComplete then
+                onVoiceComplete(1)
+            end
+            TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
         end,
         {
             ["Ocp-Apim-Subscription-Key"] = azureResourceSpeechAPIKey,

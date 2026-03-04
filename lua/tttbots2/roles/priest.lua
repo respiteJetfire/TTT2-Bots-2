@@ -24,7 +24,6 @@ priest:SetTeam(TEAM_INNOCENT)
 priest:SetBTree(bTree)
 priest:SetUsesSuspicion(true)
 priest:SetAppearsPolice(true)
-priest:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 TTTBots.Roles.RegisterRole(priest)
 
 return true

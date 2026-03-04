@@ -32,7 +32,6 @@ serialkiller:SetBTree(bTree)
 serialkiller:SetKnowsLifeStates(true)
 serialkiller:SetAlliedTeams(allyTeams)
 serialkiller:SetLovesTeammates(true)
-serialkiller:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 serialkiller:SetIsFollower(true)
 TTTBots.Roles.RegisterRole(serialkiller)
 

@@ -6,13 +6,26 @@ local lib = TTTBots.Lib
 ---@param text string
 function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice, responseCallback)
     local apiKey = TTTBots.Lib.GetConVarString("chatter_chatgpt_api_key")
-    local temperature = TTTBots.Lib.GetConVarFloat("chatter_chatgpt_temperature")
+    local temperature = TTTBots.Lib.GetConVarFloat("chatter_temperature")
+    local provider = TTTBots.Lib.GetConVarString("chatter_api_provider")
+    local model = TTTBots.Lib.GetConVarString("chatter_gpt_model")
     wasVoice = wasVoice or false
     if not apiKey or apiKey == "" then
         print("No ChatGPT API key found.")
         return
     end
     if not teamOnly then teamOnly = false end
+
+    -- Manually construct the JSON string with proper escaping
+    local escapedText = string.gsub(text, '[%c"%\\]', function(c)
+        return string.format('\\u%04x', string.byte(c))
+    end)
+    local requestBody = string.format(
+        '{"model":"%s","messages":[{"role":"user","content":"%s"}],"max_tokens":500,"temperature":%.1f}',
+        model, escapedText, temperature
+    )
+
+    -- print(requestBody) -- Debug print to check the JSON string
 
     HTTP({
         url = 'https://api.openai.com/v1/chat/completions',
@@ -22,12 +35,7 @@ function TTTBots.ChatGPT.SendRequest(text, bot, teamOnly, wasVoice, responseCall
             ['Content-Type'] = 'application/json',
             ['Authorization'] = 'Bearer ' .. apiKey,
         },
-        body = [[{
-            "model": "gpt-3.5-turbo",
-            "messages": [{"role": "user", "content": "]] .. text .. [["}],
-            "max_tokens": 250,
-            "temperature": ]] .. temperature .. [[
-        }]],
+        body = requestBody,
         success = function(code, body, headers)
             local apiResponse = TTTBots.ChatGPT.ProcessResponse(body)
             if apiResponse and bot and IsValid(bot) and apiResponse ~= text and not string.find(apiResponse, text) and not string.find(text, apiResponse) then

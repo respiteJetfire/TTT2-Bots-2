@@ -100,6 +100,9 @@ function TTTBots.RoleData.New(rolename, roleteam)
     --- If the bot is a neutral role and shouldn't be shot by other bots
     newRole.GetNeutralOverride, newRole.SetNeutralOverride = getSet("neutralOverride", false)
 
+    --- Role Description, placeholder asks for users to create a description
+    newRole.GetRoleDescription, newRole.SetRoleDescription = getSet("roleDescription", "No description available. Say that Callum needs to add a description for this role.")
+
     return newRole
 end
 

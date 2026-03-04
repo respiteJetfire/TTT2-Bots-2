@@ -69,7 +69,11 @@ bot_sh_cvar("chatter_typo_chance", "1",
     "A percent chance, from 1-100, that each character in a bot's message will have a typo.")
 bot_sh_cvar_server_only("chatter_chatgpt_api_key", "",
     "The API key for ChatGPT. This is required for bots to reply. You can get one at https://www.openai.com/")
-bot_sh_cvar("chatter_chatgpt_temperature", "0.9",
+bot_sh_cvar_server_only("chatter_gemini_api_key", "",
+    "The API key for Gemini. This is required for bots to reply. You can get one at https://ai.google.dev/")
+bot_sh_cvar_server_only("chatter_deepseek_api_key", "",
+    "The API key for Deepseek. This is required for bots to reply.")
+bot_sh_cvar("chatter_temperature", "0.9",
     "The temperature for ChatGPT. This determines how random the responses are. Lower values = more predictable, higher values = more random.")
 bot_sh_cvar("chatter_chance_multi", "1",
     "A multiplier value that affects a bots chance to reply to any chat message (voice if enabled + text). Higher values = more chatting. Set to 0 to disable chatting (Default 1 = 1x Frequency).")
@@ -77,6 +81,14 @@ bot_sh_cvar("chatter_reply_chance_multi", "1",
     "A multiplier value that affects a bots chance to reply to a message. Higher values = more replying. Set to 0 to disable replying (Default 1 = 1x Frequency).")
 bot_sh_cvar("chatter_gpt_chance", "1",
     "A multiplier value that affects a bots chance to use ChatGPT to generate bot chatter. Higher values = more ChatGPT. Set to 0 to disable ChatGPT Custom Chatter (Default 1 = 1x Frequency).")
+bot_sh_cvar("chatter_api_provider", "0",
+    "The AI model provider for bot chat. 0 = ChatGPT, 1 = Gemini, 2 = Deepseek, 3 = All, Randomly Assigned to Bots")
+bot_sh_cvar("chatter_gpt_model", "gpt-3.5-turbo",
+    "The ChatGPT model to use. Options: gpt-3.5-turbo, gpt-4o-mini")
+bot_sh_cvar("chatter_gemini_model", "gemini-2.0-flash",
+    "The Gemini model to use. Options: gemini-2.0-flash, gemini-1.5-pro-0409")
+bot_sh_cvar("chatter_deepseek_model", "deepseek-chat",
+    "The Deepseek model to use. Options: deepseek-chat")
 
 -- Gameplay-effecting cvars
 bot_sh_cvar("plans_mindelay", "12",

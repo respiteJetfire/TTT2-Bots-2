@@ -17,6 +17,7 @@ local bTree = {
     _bh.Bodyguard
 }
 
+local roleDescription = "The bodyguard is a special role, assigned a single target to protect. If this target loses their life, you will lose 50hp and will be assigned a new target to protect. You are on the same team as this individual but cannot see their teammates, protect them at all costs! You will win if the target's team does."
 local bodyguard = TTTBots.RoleData.New("bodyguard", TEAM_NONE)
 bodyguard:SetDefusesC4(false)
 bodyguard:SetPlantsC4(false)
@@ -28,6 +29,7 @@ bodyguard:SetBTree(bTree)
 bodyguard:SetAlliedTeams({})
 bodyguard:SetCanSnipe(false)
 bodyguard:SetLovesTeammates(true)
+bodyguard:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(bodyguard)
 
 return true

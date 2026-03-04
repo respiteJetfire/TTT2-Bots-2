@@ -12,6 +12,7 @@ local function playTTSUrl(ply, url, teamOnly, duration)
     net.WriteBool(teamOnly)
     net.WriteFloat(duration)
     net.Broadcast()
+    TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
 end
 
 local function TableToQueryString(tbl)
@@ -26,7 +27,7 @@ function TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
     -- Sanitize the text to make it URL-friendly
     -- print("Sending to FreeTTS: " .. text)
     local fulltxt = text
-    text = string.gsub(text, "[^%w%s]", "") -- Remove non-alphanumeric characters except spaces
+    text = string.gsub(text, "[^%w%s']", "") -- Remove non-alphanumeric characters except spaces and single quotes
     text = string.sub(string.Replace(text, " ", "%20"), 1, 1000) -- Replace spaces with "%20" and limit the text length to 1000 characters
     --- get the bot's personality
     local personality = bot:BotPersonality()
@@ -40,6 +41,7 @@ function TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
     if onVoiceComplete then
         onVoiceComplete(0)
     end
+    TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
 end
 
 function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly, onVoiceComplete)
@@ -62,7 +64,7 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly, onVoiceComple
         model_id = "eleven_turbo_v2_5" -- Default to eleven_turbo_v2_5 if the cvar is out of range
     end
 
-    text = string.gsub(text, "[^%w%s]", "") -- Remove non-alphanumeric characters except spaces
+    text = string.gsub(text, "[^%w%s']", "") -- Remove non-alphanumeric characters except spaces and single quotes
 
     local params = util.TableToJSON({
         text = text,
@@ -96,6 +98,7 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly, onVoiceComple
                         if onVoiceComplete then
                             onVoiceComplete(response.duration)
                         end
+                        TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
                     else
                         print("Failed to get download URL or duration from ElevenLabs response.")
                     end
@@ -105,10 +108,18 @@ function TTTBots.TTSURL.ElevenLabsSendRequest(ply, text, teamOnly, onVoiceComple
             else
                 print("The HTTP request to ElevenLabs API failed. HTTP Code: " .. code)
                 print("Body: " .. body)
+                if onVoiceComplete then
+                    onVoiceComplete(1)
+                end
+                TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
             end
         end,
         failed = function(err)
             print("HTTP request to ElevenLabs API failed: " .. err)
+            if onVoiceComplete then
+                onVoiceComplete(1)
+            end
+            TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
         end
     })
 end
@@ -145,16 +156,25 @@ function TTTBots.TTSURL.AzureSendRequest(ply, text, teamOnly, onVoiceComplete)
                     if onVoiceComplete then
                         onVoiceComplete(response.duration)
                     end
+                    TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
                 else
                     print("Failed to get download URL or duration from Azure response.")
                 end
             else
                 print("The HTTP request to Azure API failed. HTTP Code: " .. code)
                 print("Body: " .. body)
+                if onVoiceComplete then
+                    onVoiceComplete(1)
+                end
+                TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
             end
         end,
         failed = function(err)
             print("HTTP request to Azure API failed: " .. err)
+            if onVoiceComplete then
+                onVoiceComplete(1)
+            end
+            TTTBots.Match.speakingBot = nil -- Clear speakingBot after failure
         end
     })
 end

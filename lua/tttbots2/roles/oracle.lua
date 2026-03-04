@@ -28,7 +28,6 @@ oracle:SetUsesSuspicion(true)
 oracle:SetBTree(bTree)
 oracle:SetAlliedRoles({})
 oracle:SetAlliedTeams({})
-oracle:SetEnemyTeams({[TEAM_DOOMSLAYER] = true,})
 TTTBots.Roles.RegisterRole(oracle)
 
 return true

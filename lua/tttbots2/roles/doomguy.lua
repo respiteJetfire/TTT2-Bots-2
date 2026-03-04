@@ -11,7 +11,6 @@ local allyTeams = {
     [TEAM_JESTER] = true,
 }
 
-
 local bTree = {
     _prior.FightBack,
     _prior.Requests,
@@ -25,7 +24,6 @@ doomguy:SetDefusesC4(false)
 doomguy:SetCanCoordinate(false)
 doomguy:SetCanHaveRadar(true)
 doomguy:SetStartsFights(true)
-doomguy:SetBuyableWeapons({"arccw_mw2_ranger"})
 doomguy:SetUsesSuspicion(false)
 doomguy:SetTeam(TEAM_DOOMSLAYER)
 doomguy:SetBTree(bTree)
@@ -35,7 +33,6 @@ doomguy:SetAutoSwitch(false)
 doomguy:SetKOSAll(true)
 doomguy:SetKOSedByAll(true)
 doomguy:SetLovesTeammates(true)
-doomguy:SetEnemyTeams(enemyTeams)
 TTTBots.Roles.RegisterRole(doomguy)
 
 return true

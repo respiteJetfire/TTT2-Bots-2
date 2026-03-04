@@ -29,7 +29,6 @@ pharaoh:SetUsesSuspicion(true)
 pharaoh:SetBTree(bTree)
 pharaoh:SetAlliedRoles({})
 pharaoh:SetAlliedTeams({})
-pharaoh:SetEnemyTeams({[TEAM_DOOMSLAYER] = true,})
 TTTBots.Roles.RegisterRole(pharaoh)
 
 return true

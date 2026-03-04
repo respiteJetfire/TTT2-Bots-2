@@ -8,6 +8,8 @@ local allyTeams = {
     [TEAM_JESTER] = true,
 }
 
+local roleDescription = "The Hitman is a Traitor role, with designated targets to eliminate. You do not start with any credits, but get bonus credits every time you eliminate your Target."
+
 local hitman = TTTBots.RoleData.New("hitman", TEAM_TRAITOR)
 hitman:SetDefusesC4(false)
 hitman:SetPlantsC4(false)
@@ -19,6 +21,7 @@ hitman:SetUsesSuspicion(false)
 hitman:SetBTree(TTTBots.Behaviors.DefaultTrees.traitor) -- TODO: Btree for hitman
 hitman:SetAlliedTeams(allyTeams)
 hitman:SetLovesTeammates(true)
+hitman:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(hitman)
 
 return true

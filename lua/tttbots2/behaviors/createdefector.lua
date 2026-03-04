@@ -92,7 +92,7 @@ function CreateDefector.Validate(bot)
     if bot.attackTarget ~= nil then CreateDefector.SetTarget(bot, bot.attackTarget) end          -- Do not Defector if we're killing someone already.
     local inv = bot:BotInventory()
     if not (inv and CreateDefector.HasDefectorGun(bot)) then return false end -- Do not Defector if we don't have a jackal gun.
-    return CreateDefector.ValidateTarget(bot) or CreateDefector.ShouldStartDefectoring(bot)
+    return CreateDefector.ValidateTarget(bot) and CreateDefector.ShouldStartDefectoring(bot)
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

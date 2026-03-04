@@ -468,6 +468,29 @@ function BotPersonality:Initialize(bot)
     self.HIS = (self.gender == "male" and "his") or "hers"
     self.HE = (self.gender == "male" and "he") or "her"
 
+    self.textAPI = (function()
+        local apiProvider = lib.GetConVarInt("chatter_api_provider")
+        if apiProvider == 3 then
+            local rand = math.random(100)
+            if rand <= 60 then
+                return "ChatGPT" -- 60% chance
+            elseif rand <= 70 then
+                return "Gemini" -- 10% chance
+            else
+                return "DeepSeek" -- 30% chance
+            end
+        else
+            -- Directly map apiProvider values to API names
+            if apiProvider == 0 then
+                return "ChatGPT"
+            elseif apiProvider == 1 then
+                return "Gemini"  
+            else -- apiProvider == 2
+                return "DeepSeek"
+            end
+        end
+    end)()
+
 
     local gameDiff = lib.GetConVarInt("difficulty")
 

@@ -11,7 +11,6 @@ spy:SetBTree(TTTBots.Behaviors.DefaultTrees.innocent)
 spy:SetCanHide(true)
 spy:SetCanSnipe(true)
 spy:SetUsesSuspicion(true)
-spy:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 spy:SetIsFollower(true)
 TTTBots.Roles.RegisterRole(spy)
 

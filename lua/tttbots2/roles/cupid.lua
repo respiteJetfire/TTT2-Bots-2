@@ -29,6 +29,8 @@ local bTree = {
     _prior.Patrol
 }
 
+local roleDescription = "The Cupid is a special role with a unique twist. Select up to two people to hit with your Cupid Gun (or yourself as the partner of this target). You will then be moved to a seperate 'Lovers' Team with the objective to kill all other remaining players. You share life between each player so if one dies the other dies too!"
+
 local cupid = TTTBots.RoleData.New("cupid", TEAM_LOVER)
 cupid:SetDefusesC4(false)
 cupid:SetCanCoordinate(true)
@@ -39,8 +41,8 @@ cupid:SetTeam(TEAM_LOVER)
 cupid:SetBTree(bTree)
 cupid:SetAlliedTeams(allyTeams)
 cupid:SetAlliedRoles(allyRoles)
-cupid:SetEnemyRoles({"unknown"})
 cupid:SetLovesTeammates(true)
+cupid:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(cupid)
 
 return true

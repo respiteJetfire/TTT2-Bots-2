@@ -92,7 +92,7 @@ function CreateDoctor.Validate(bot)
     if bot.attackTarget ~= nil then CreateDoctor.SetTarget(bot, bot.attackTarget) end          -- Do not Doctor if we're killing someone already.
     local inv = bot:BotInventory()
     if not (inv and CreateDoctor.HasDoctorGun(bot)) then return false end -- Do not Doctor if we don't have a jackal gun.
-    return CreateDoctor.ValidateTarget(bot) or CreateDoctor.ShouldStartDoctoring(bot)
+    return CreateDoctor.ValidateTarget(bot) and CreateDoctor.ShouldStartDoctoring(bot)
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

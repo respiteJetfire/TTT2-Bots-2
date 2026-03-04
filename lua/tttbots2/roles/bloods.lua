@@ -25,18 +25,20 @@ local bTree = {
     _prior.Restore,
     _bh.Interact,
 }
+
+local roleDescription = "The Bloods role's objective is to eliminate the other gangs and win the game. You are a member of the Bloods and can use their weapons. Be careful not to attack your own teammates!"
 local bloods = TTTBots.RoleData.New("bloods", TEAM_BLOODS)
 bloods:SetDefusesC4(false)
 bloods:SetCanCoordinate(true)
 bloods:SetCanHaveRadar(true)
 bloods:SetStartsFights(true)
-bloods:SetBuyableWeapons({"arccw_mw2_ak47", "arccw_mw2_m4"})
 bloods:SetUsesSuspicion(false)
 bloods:SetTeam(TEAM_BLOODS)
 bloods:SetBTree(bTree)
 bloods:SetAlliedTeams(allyTeams)
 bloods:SetLovesTeammates(true)
 bloods:SetEnemyTeams(enemyTeams)
+bloods:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(bloods)
 
 return true

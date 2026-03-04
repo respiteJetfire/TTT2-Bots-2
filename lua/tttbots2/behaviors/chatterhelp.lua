@@ -11,6 +11,16 @@ ChatterHelp.target = nil
 
 local STATUS = TTTBots.STATUS
 
+function ChatterHelp.ValidateTarget(bot, target)
+    if target == nil or not IsValid(target) then return false end
+    local aliveBots = TTTBots.Lib.GetAliveBots()
+    local humanPlayers = TTTBots.Lib.GetHumanPlayers()
+    if not table.HasValue(aliveBots, target) and not table.HasValue(humanPlayers, target) then
+        return false
+    end
+    return true
+end
+
 --- Validate the behavior before we can start it (or continue running)
 --- Returning false when the behavior was just running will still call OnEnd.
 ---@param bot Bot
@@ -19,25 +29,15 @@ function ChatterHelp.Validate(bot)
     if not bot:Alive() then return false end
     local usesSuspicion = TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
     local Morality = bot:BotMorality()
-    if ChatterHelp.target == nil or not IsValid(ChatterHelp.target) then return false end
-    local aliveBots = TTTBots.Lib.GetAliveBots()
-    local humanPlayers = TTTBots.Lib.GetHumanPlayers()
-    if not table.HasValue(aliveBots, ChatterHelp.target) and not table.HasValue(humanPlayers, ChatterHelp.target) then
-        return false
-    end
+    
     local playerSus = Morality:GetSuspicion(ChatterHelp.target) or 0
-    -- a) Ask an attacker to stop shooting if they have taken damage
-    if ChatterHelp.AskStatus == "AskCeaseFire" then
-        local target = ChatterHelp.target
-        if target and math.random(1, 50) > 47 then
-            return true
-        end
-    end
 
     -- b) Ask someone to follow if they think they are trustworthy or want to lure a player to their death
     if usesSuspicion and playerSus < -5 then
         local target = TTTBots.Lib.GetClosestPlayer(bot)
         if target and math.random(1, 100) > 95 then
+            if not ChatterHelp.ValidateTarget(bot, target) then return false end
+            ChatterHelp.target = target
             ChatterHelp.AskStatus = "AskFollow"
             return true
         end
@@ -46,7 +46,9 @@ function ChatterHelp.Validate(bot)
     -- c) Ask a trusted teammate or a target to come here
     if usesSuspicion and playerSus < -5 then
         local target = TTTBots.Lib.GetClosestPlayer(bot)
-        if target and math.random(1, 100) > 95 then
+        if target and math.random(1, 100) > 96 then
+            if not ChatterHelp.ValidateTarget(bot, target) then return false end
+            ChatterHelp.target = target
             ChatterHelp.AskStatus = "AskComeHere"
             return true
         end
@@ -56,6 +58,8 @@ function ChatterHelp.Validate(bot)
     if bot:Health() < bot:GetMaxHealth() / 2 then
         local target = TTTBots.Lib.GetClosestPlayer(bot)
         if target and math.random(1, 100) > 95 then
+            if not ChatterHelp.ValidateTarget(bot, target) then return false end
+            ChatterHelp.target = target
             ChatterHelp.AskStatus = "AskHeal"
             return true
         end
@@ -65,6 +69,8 @@ function ChatterHelp.Validate(bot)
     if usesSuspicion and playerSus > 5 then
         local target = TTTBots.Lib.GetClosestPlayer(bot)
         if target and math.random(1, 100) > 95 then
+            if not ChatterHelp.ValidateTarget(bot, target) then return false end
+            ChatterHelp.target = target
             ChatterHelp.AskStatus = "AskAttack"
             return true
         end
@@ -91,15 +97,18 @@ function ChatterHelp.OnRunning(bot)
     local target = ChatterHelp.target
     local teamOnly = bot:GetTeam() ~= TEAM_INNOCENT and target:GetTeam() == bot:GetTeam()
 
-    if ChatterHelp.AskStatus == "AskCeaseFire" then
-        chatter:On("AskCeaseFire", { player = target:Nick() }, teamOnly, 0)
-    elseif ChatterHelp.AskStatus == "AskFollow" then
+    if ChatterHelp.AskStatus == "AskFollow" then
+        print("Asking " .. target:Nick() .. " to follow.")
         chatter:On("AskFollow", { player = target:Nick() }, teamOnly, 0)
+        print("Asked " .. target:Nick() .. " to follow.")
     elseif ChatterHelp.AskStatus == "AskComeHere" then
+        print("Asking " .. target:Nick() .. " to come here.")
         chatter:On("AskComeHere", { player = target:Nick() }, teamOnly, 0)
     elseif ChatterHelp.AskStatus == "AskHeal" then
+        print("Asking " .. target:Nick() .. " to heal.")
         chatter:On("AskHeal", { player = target:Nick() }, teamOnly, 0)
     elseif ChatterHelp.AskStatus == "AskAttack" then
+        print("Asking " .. target:Nick() .. " to attack.")
         chatter:On("AskAttack", { player = target:Nick() }, teamOnly, 0)
     end
 
@@ -130,7 +139,13 @@ hook.Add("PlayerHurt", "TTTBots_PlayerHurt", function(victim, attacker, healthRe
     local bot = victim
     local target = attacker
 
+    if not target:Nick() then return end
+
     if not IsValid(target) or not IsValid(bot) then return end
-    ChatterHelp.AskStatus = "AskCeaseFire"
-    ChatterHelp.target = target
+
+    if healthRemaining <= 75 and IsValid(target) and target:IsPlayer() and math.random(1, 100) > 60 then
+        local chatter = bot:BotChatter()
+        print("Asking " .. target:Nick() .. " to cease fire.")
+        chatter:On("AskCeaseFire", { player = target:Nick() }, false, 0)
+    end
 end)

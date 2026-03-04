@@ -48,24 +48,6 @@ function CaptureAnkh.UseAnkh(bot, ankh)
     timer.Simple(1, function()
         PHARAOH_HANDLER:TransferAnkhOwnership(ankh, bot)
     end)
-    local witnesses = TTTBots.Lib.GetAllWitnesses(bot:GetPos(), true)
-    --- so if the bot is ROLE_PHAROAH and the witneess is ROLE_GRAVEROBBER, the witness will attack the bot
-    for i, v in pairs(witnesses) do
-        if v:GetSubRole() == ROLE_GRAVEROBBER and bot:GetSubRole() == ROLE_PHARAOH then
-            print("Witness is a graverobber")
-            v.attackTarget = bot
-            --- set the attack target of the witness to the bot
-            v.SetAttackTarget(bot)
-            bot.SetAttackTarget(v)
-            -- print(v.attackTarget)
-        elseif v:GetSubRole() == ROLE_PHARAOH and bot:GetSubRole() == ROLE_GRAVEROBBER then
-            print("Witness is a pharaoh")
-            v.attackTarget = bot
-            -- print(v.attackTarget)
-            v.SetAttackTarget(bot)
-            bot.SetAttackTarget(v)
-        end
-    end
     return STATUS.SUCCESS
 end
 
@@ -144,12 +126,13 @@ end
 
 --- Called when the behavior ends
 function CaptureAnkh.OnEnd(bot)
+    --- clear the target ankh
     bot.targetAnkh = nil
     local locomotor = bot:BotLocomotor()
     locomotor:ResumeRepel()
 end
 
-timer.Create("TTTBots.Behaviors.CaptureAnkh.UseNearbyAnkhs", 0.5, 0, function()
+timer.Create("TTTBots.Behaviors.CaptureAnkh.UseNearbyAnkhs", 5, 0, function()
     for i, bot in pairs(TTTBots.Bots) do
         if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
         local ankh = bot.targetAnkh
@@ -157,6 +140,19 @@ timer.Create("TTTBots.Behaviors.CaptureAnkh.UseNearbyAnkhs", 0.5, 0, function()
         local distToAnkh = bot:GetPos():Distance(ankh:GetPos())
         if distToAnkh < CaptureAnkh.UseRange then
             CaptureAnkh.UseAnkh(bot, ankh)
+            local witnesses = TTTBots.Lib.GetAllWitnesses(bot:GetPos(), true)
+            --- so if the bot is ROLE_PHAROAH and the witneess is ROLE_GRAVEROBBER, the witness will attack the bot
+            for i, v in pairs(witnesses) do
+                if v:GetSubRole() == ROLE_GRAVEROBBER and bot:GetSubRole() == ROLE_PHARAOH then
+                    print("Witness is a graverobber")
+                    --- set the attack target of the witness to the bot
+                    v:SetAttackTarget(bot)
+                    -- print(v.attackTarget)
+                elseif bot:GetSubRole() == ROLE_GRAVEROBBER and v:GetTeam() == TEAM_INNOCENT then
+                    v:SetAttackTarget(bot)
+                end
+
+            end
         end
     end
 end)

@@ -19,6 +19,8 @@ local bTree = {
     _prior.Patrol
 }
 
+local roleDescription = "The Clown is a Jester-like role, to other Traitors and hostile roles you will be shown as a Jester, use this to your advantage by surviving to the end of the round. If you do, you will be transformed into a Killer Clown and then you must kill all remaining players. Remember to act like a Jester to deter people from killing you, as you have no defence and cannot do damage until your transformation!"
+
 local clown = TTTBots.RoleData.New("clown", TEAM_CLOWN)
 clown:SetDefusesC4(false)
 clown:SetStartsFights(false)
@@ -31,6 +33,7 @@ clown:SetKnowsLifeStates(true)
 clown:SetNeutralOverride(true)
 clown:SetAlliedTeams(allyTeams)
 clown:SetLovesTeammates(false)
+clown:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(clown)
 
 return true

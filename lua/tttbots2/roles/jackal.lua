@@ -22,13 +22,15 @@ local bTree = {
     _prior.Requests,
     _prior.Support,
     _prior.Convert,
-    -- _bh.Roledefib,
+    _bh.Roledefib,
     _prior.Restore,
     _prior.Minge,
     _bh.Stalk,
     _prior.Investigate,
     _prior.Patrol
 }
+
+local roleDescription = "The Jackal is a hostile role which starts alone, but has a sidekick deagle which allows the Jackal to shoot any player and make them into their Sidekick. You only get 1 sidekick but yourself and them get access to the Traitor shop and can use this to win the game for your own Team!"
 
 local jackal = TTTBots.RoleData.New("jackal", TEAM_JACKAL)
 jackal:SetDefusesC4(false)
@@ -40,8 +42,8 @@ jackal:SetTeam(TEAM_JACKAL)
 jackal:SetBTree(bTree)
 jackal:SetAlliedTeams(allyTeams)
 jackal:SetAlliedRoles(allyRoles)
-jackal:SetEnemyRoles({"unknown"})
 jackal:SetLovesTeammates(true)
+jackal:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(jackal)
 
 return true

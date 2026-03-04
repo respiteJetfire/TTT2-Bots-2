@@ -39,8 +39,6 @@ mesmerist:SetTeam(TEAM_TRAITOR)
 mesmerist:SetBTree(bTree)
 mesmerist:SetAlliedTeams(allyTeams)
 mesmerist:SetAlliedRoles(allyRoles)
-mesmerist:SetEnemyRoles({"unknown"})
-mesmerist:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 mesmerist:SetLovesTeammates(true)
 TTTBots.Roles.RegisterRole(mesmerist)
 

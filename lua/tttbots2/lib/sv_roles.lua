@@ -40,6 +40,15 @@ end
 ---@return table<RoleData>
 function TTTBots.Roles.GetRoles() return TTTBots.Roles.m_roles end
 
+--- Return a random role from the defined roles.
+---@return RoleData
+function TTTBots.Roles.GetRandomRole()
+    local roles = TTTBots.Roles.GetRoles()
+    local keys = table.GetKeys(roles)
+    local randomKey = table.Random(keys)
+    return roles[randomKey]
+end
+
 function TTTBots.Roles.GetLivingAllies(player)
     local alive = TTTBots.Match.AlivePlayers
     return TTTBots.Lib.FilterTable(alive, function(other)

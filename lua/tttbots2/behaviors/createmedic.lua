@@ -92,7 +92,7 @@ function CreateMedic.Validate(bot)
     if bot.attackTarget ~= nil then CreateMedic.SetTarget(bot, bot.attackTarget) end          -- Do not Medic if we're killing someone already.
     local inv = bot:BotInventory()
     if not (inv and CreateMedic.HasMedicGun(bot)) then return false end -- Do not Medic if we don't have a jackal gun.
-    return CreateMedic.ValidateTarget(bot) or CreateMedic.ShouldStartMedicing(bot)
+    return CreateMedic.ValidateTarget(bot) and CreateMedic.ShouldStartMedicing(bot)
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

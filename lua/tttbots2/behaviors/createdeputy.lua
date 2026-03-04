@@ -90,7 +90,7 @@ function CreateDeputy.Validate(bot)
     if bot.attackTarget ~= nil then CreateDeputy.SetTarget(bot, bot.attackTarget) end          -- Do not Deputy if we're killing someone already.
     local inv = bot:BotInventory()
     if not (inv and inv:GetDeputyGun()) then return false end -- Do not Deputy if we don't have a jackal gun.
-    return CreateDeputy.ValidateTarget(bot) or CreateDeputy.ShouldStartDeputying(bot)
+    return CreateDeputy.ValidateTarget(bot) and CreateDeputy.ShouldStartDeputying(bot)
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

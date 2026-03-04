@@ -29,7 +29,17 @@ function SwapRole.Validate(bot)
         return false
     end
     local target = SwapRole.GetTarget(bot)
-    return target ~= nil or SwapRole.Target ~= nil
+    return (target ~= nil or SwapRole.Target ~= nil) and SwapRole.ShouldStartSwapping(bot)
+end
+
+--- Use random chance to determine if we should run this behavior, to add variation.
+---@param bot Bot
+---@return boolean
+function SwapRole.ShouldStartSwapping(bot)
+    local chance = math.random(1, 100)
+    local shouldStart = chance <= 5
+    if shouldStart then return true end
+    return false
 end
 
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.

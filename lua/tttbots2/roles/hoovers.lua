@@ -23,6 +23,9 @@ local bTree = {
     _prior.Restore,
     _bh.Interact,
 }
+
+local roleDescription = "The Hoovers role's objective is to eliminate the other gangs and win the game. You are a member of the Hoovers and can use their weapons. Be careful not to attack your own teammates!"
+
 local hoovers = TTTBots.RoleData.New("hoovers", TEAM_HOOVERS)
 hoovers:SetDefusesC4(false)
 hoovers:SetCanCoordinate(true)
@@ -35,6 +38,7 @@ hoovers:SetBTree(bTree)
 hoovers:SetAlliedTeams(allyTeams)
 hoovers:SetLovesTeammates(true)
 hoovers:SetEnemyTeams(enemyTeams)
+hoovers:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(hoovers)
 
 return true

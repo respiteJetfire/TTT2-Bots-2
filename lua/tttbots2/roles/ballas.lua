@@ -26,18 +26,19 @@ local bTree = {
     _prior.Restore,
     _bh.Interact,
 }
+local roleDescription = "The Ballas role's objective is to eliminate the other gangs and win the game. You are a member of the Ballas and can use their weapons. Be careful not to attack your own teammates!"
 local ballas = TTTBots.RoleData.New("ballas", TEAM_BALLAS)
 ballas:SetDefusesC4(false)
 ballas:SetCanCoordinate(true)
 ballas:SetCanHaveRadar(true)
 ballas:SetStartsFights(true)
-ballas:SetBuyableWeapons({"arccw_mw2_ak47", "arccw_mw2_m4"})
 ballas:SetUsesSuspicion(false)
 ballas:SetTeam(TEAM_BALLAS)
 ballas:SetBTree(bTree)
 ballas:SetAlliedTeams(allyTeams)
 ballas:SetLovesTeammates(true)
 ballas:SetEnemyTeams(enemyTeams)
+ballas:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(ballas)
 
 return true

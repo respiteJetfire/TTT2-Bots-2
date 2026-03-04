@@ -20,14 +20,15 @@ local bTree = {
     _prior.Patrol
 }
 
+local roleDescription = "The Drunk is a role that starts off as a Neutral role, no allegiance to any side. You will only change role if someone dies, during which there is a chance that a timer will start notifying you of your impending role change. Once you change to this role, an announcement will sound to all players that the Drunk has remembered their role, and you will assume this role for the rest of the round."
+
 local drunk = TTTBots.RoleData.New("drunk", TEAM_DRUNK)
 drunk:SetDefusesC4(false)
 drunk:SetStartsFights(false)
 drunk:SetTeam(TEAM_DRUNK)
 drunk:SetKOSUnknown(false)
-drunk:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 drunk:SetBTree(bTree)
-drunk:SetAlliedTeams({})
+drunk:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(drunk)
 
 return true
