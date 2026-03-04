@@ -158,7 +158,7 @@ function Match.ResetStats(roundActive)
 
     if SERVER then
         for i, v in pairs(TTTBots.Bots) do
-            v:SetAttackTarget(nil)
+            v:SetAttackTarget(nil, "ROUND_RESET")
         end
     end
 end

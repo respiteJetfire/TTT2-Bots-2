@@ -186,7 +186,7 @@ function CreateMarker.OnEnd(bot)
     local target = CreateMarker.GetTarget(bot)
     if not IsValid(target) then return end
     if target:IsBot() and kosChance then
-        target:SetAttackTarget(bot)
+        target:SetAttackTarget(bot, "CREATE_MARKER", 4)
         local chatter = bot:BotChatter()
         if chatter then
             chatter:On("KOS", {player = target:Nick()})
@@ -196,7 +196,7 @@ function CreateMarker.OnEnd(bot)
     local loco = bot:BotLocomotor()
     if not loco then return end
     loco:StopAttack()
-    bot:SetAttackTarget(nil)
+    bot:SetAttackTarget(nil, "BEHAVIOR_END")
     timer.Simple(1, function()
         if not IsValid(bot) then return end
         local inv = bot:BotInventory()

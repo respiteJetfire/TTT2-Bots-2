@@ -27,7 +27,6 @@ jester:SetNeutralOverride(true)
 jester:SetTeam(TEAM_JESTER)
 jester:SetBTree(bTree)
 jester:SetAlliedTeams(allyTeams)
-jester:SetNeutralOverride(true)
 TTTBots.Roles.RegisterRole(jester)
 
 -- TTTBotsModifySuspicion hook

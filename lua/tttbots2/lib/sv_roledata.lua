@@ -78,11 +78,11 @@ function TTTBots.RoleData.New(rolename, roleteam)
     newRole.GetKOSedByAll, newRole.SetKOSedByAll = getSet("KOSedByAll", false)
 
     --- If the bot uses the suspicion system to determine who is good and bad.
-    newRole.GetUsesSuspicion, newRole.SetUsesSuspicion = getSet("appearsPolice", true)
+    newRole.GetUsesSuspicion, newRole.SetUsesSuspicion = getSet("usesSuspicion", true)
 
     --- Allies are people we know for sure are on our team. For traitors, you want to also set "traitor" as one of these, because
     --- they know who each other are. This is particularly used for defending one another in combat.
-    newRole.GetAlliedRoles, newRole.SetAlliedRoles = getSet("allies", { [rolename] = true, ["medic"] = true })
+    newRole.GetAlliedRoles, newRole.SetAlliedRoles = getSet("allies", { [rolename] = true })
 
     --- Allied teams are teams that are explicitly set as DO NOT ATTACK. This is helpful for allying jester towards traitors, for example. So they don't hurt each other.
     --- This should only be used for teams that know who each other are inherently. Such as omniscient roles.

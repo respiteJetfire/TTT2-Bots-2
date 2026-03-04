@@ -26,7 +26,7 @@ end
 function BehaviorCeaseFire.OnStart(bot)
     print(bot:Nick() .. " is now ceasing fire.")
     if bot.attackTarget then
-        bot:SetAttackTarget(nil)
+        bot:SetAttackTarget(nil, "CEASEFIRE")
         bot.attackTarget = nil
     end
     local chatter = bot:BotChatter()

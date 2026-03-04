@@ -1070,7 +1070,7 @@ timer.Create("TTTBots.Personality.RDM", 2.5, 0, function()
             local grudge = (IsValid(bot.grudge) and lib.IsPlayerAlive(bot.grudge) and bot.grudge)
             local randomTarget = grudge or table.Random(targets)
             if targets and #targets > 0 then
-                bot:SetAttackTarget(randomTarget)
+                bot:SetAttackTarget(randomTarget, "RDM_RAGE", 1)
             end
         end
     end

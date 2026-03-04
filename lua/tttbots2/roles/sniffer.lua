@@ -1,13 +1,7 @@
 if not TTTBots.Lib.IsTTT2() then return false end
 if not ROLE_SNIFFER then return false end
 
-local sniffer = TTTBots.RoleData.New("sniffer")
-sniffer:SetDefusesC4(true)
-sniffer:SetCanHaveRadar(true)
-sniffer:SetTeam(TEAM_INNOCENT)
-sniffer:SetBTree(TTTBots.Behaviors.DefaultTrees.detective)
-sniffer:SetUsesSuspicion(true)
-sniffer:SetAppearsPolice(true)
+local sniffer = TTTBots.RoleBuilder.DetectiveLike("sniffer")
 TTTBots.Roles.RegisterRole(sniffer)
 
 return true

@@ -184,7 +184,7 @@ function Healgun.OnSuccess(bot)
     local loco = bot:BotLocomotor()
     if not loco then return end
     loco:StopAttack()
-    bot:SetAttackTarget(nil)
+    bot:SetAttackTarget(nil, "BEHAVIOR_END")
     timer.Simple(1, function()
         if not IsValid(bot) then return end
         local inv = bot:BotInventory()
@@ -198,7 +198,7 @@ end
 function Healgun.OnFailure(bot)
     -- print("Healgun.OnFailure")
     Healgun.ClearTarget(bot)
-    bot:SetAttackTarget(nil)
+    bot:SetAttackTarget(nil, "BEHAVIOR_END")
 end
 
 --- Called when the behavior succeeds or fails. Useful for cleanup, as it is always called once the behavior is a) interrupted, or b) returns a success or failure state.

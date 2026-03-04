@@ -188,7 +188,7 @@ function CreateMedic.OnEnd(bot)
     local loco = bot:BotLocomotor()
     if not loco then return end
     loco:StopAttack()
-    bot:SetAttackTarget(nil)
+    bot:SetAttackTarget(nil, "BEHAVIOR_END")
     timer.Simple(1, function()
         if not IsValid(bot) then return end
         local inv = bot:BotInventory()

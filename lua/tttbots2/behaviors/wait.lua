@@ -34,7 +34,7 @@ function BehaviorWait.OnStart(bot)
     local chatter = bot:BotChatter()
     --- if the bot is attacking a target while waiting, stop attacking the target
     if bot.attackTarget then
-        bot:SetAttackTarget(nil)
+        bot:SetAttackTarget(nil, "BEHAVIOR_END")
     end
     --- if the bot is the same team as a non innocent we will use the teamOnly parameter to accept the request
     local teamOnly = (bot:GetTeam() == bot.waitRequester:GetTeam() and bot:GetTeam() ~= TEAM_INNOCENT) or false

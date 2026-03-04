@@ -3,36 +3,9 @@
 if not TTTBots.Lib.IsTTT2() then return false end
 if not ROLE_DOOMGUY then return false end
 
-local _bh = TTTBots.Behaviors
-local _prior = TTTBots.Behaviors.PriorityNodes
-
-local allyTeams = {
-    [TEAM_DOOMSLAYER] = true,
-    [TEAM_JESTER] = true,
-}
-
-local bTree = {
-    _prior.FightBack,
-    _prior.Requests,
-    _bh.Roledefib,
-    _prior.Restore,
-    _bh.Interact,
-}
-
-local doomguy = TTTBots.RoleData.New("doomguy", TEAM_DOOMSLAYER)
-doomguy:SetDefusesC4(false)
-doomguy:SetCanCoordinate(false)
-doomguy:SetCanHaveRadar(true)
-doomguy:SetStartsFights(true)
-doomguy:SetUsesSuspicion(false)
-doomguy:SetTeam(TEAM_DOOMSLAYER)
-doomguy:SetBTree(bTree)
-doomguy:SetAlliedTeams(allyTeams)
+local doomguy = TTTBots.RoleBuilder.NeutralKiller("doomguy", TEAM_DOOMSLAYER)
 doomguy:SetPreferredWeapon("weapon_dredux_de_supershotgun")
 doomguy:SetAutoSwitch(false)
-doomguy:SetKOSAll(true)
-doomguy:SetKOSedByAll(true)
-doomguy:SetLovesTeammates(true)
 TTTBots.Roles.RegisterRole(doomguy)
 
 return true

@@ -146,10 +146,10 @@ timer.Create("TTTBots.Behaviors.CaptureAnkh.UseNearbyAnkhs", 5, 0, function()
                 if v:GetSubRole() == ROLE_GRAVEROBBER and bot:GetSubRole() == ROLE_PHARAOH then
                     print("Witness is a graverobber")
                     --- set the attack target of the witness to the bot
-                    v:SetAttackTarget(bot)
+                    v:SetAttackTarget(bot, "CAPTURE_ANKH", 4)
                     -- print(v.attackTarget)
                 elseif bot:GetSubRole() == ROLE_GRAVEROBBER and v:GetTeam() == TEAM_INNOCENT then
-                    v:SetAttackTarget(bot)
+                    v:SetAttackTarget(bot, "CAPTURE_ANKH", 4)
                 end
 
             end

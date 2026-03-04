@@ -43,8 +43,8 @@ pirate_captain:SetAlliedRoles(allyRoles)
 pirate_captain:SetLovesTeammates(true)
 TTTBots.Roles.RegisterRole(pirate_captain)
 
--- Sidekick help master when shooting a victim
-hook.Add("TTTBotsOnWitnessFireBullets", "TTTBotsOnWitnessFireBullets", function(witness, attacker, data, angleDiff)
+-- Captain follows pirate direction when shooting
+hook.Add("TTTBotsOnWitnessFireBullets", "TTTBotsOnWitnessFireBullets_pirate_captain", function(witness, attacker, data, angleDiff)
     local attackerRole = attacker:GetRoleStringRaw()
     local witnessRole = witness:GetRoleStringRaw()
 
@@ -53,12 +53,12 @@ hook.Add("TTTBotsOnWitnessFireBullets", "TTTBotsOnWitnessFireBullets", function(
         if not IsValid(eyeTracePos) then return end
         local target = TTTBots.Lib.GetClosest(TTTBots.Roles.GetNonAllies(witness), eyeTracePos)
         if not target then return end
-        witness:SetAttackTarget(target)
+        witness:SetAttackTarget(target, "ROLE_DEFEND_ALLY", 4)
     end
 end)
 
--- Sidekick help its master when he's attacked
-hook.Add("TTTBotsOnWitnessHurt", "TTTBotsOnWitnessHurt",
+-- Captain defends pirates when they're attacked
+hook.Add("TTTBotsOnWitnessHurt", "TTTBotsOnWitnessHurt_pirate_captain",
     function(witness, victim, attacker, healthRemaining, damageTaken)
         if not IsValid(attacker) then return end
 
@@ -66,7 +66,7 @@ hook.Add("TTTBotsOnWitnessHurt", "TTTBotsOnWitnessHurt",
         local witnessRole = witness:GetRoleStringRaw()
 
         if witnessRole == 'pirate_captain' and victimRole == 'pirate' then
-            witness:SetAttackTarget(attacker)
+            witness:SetAttackTarget(attacker, "ROLE_DEFEND_ALLY", 4)
         end
     end)
 

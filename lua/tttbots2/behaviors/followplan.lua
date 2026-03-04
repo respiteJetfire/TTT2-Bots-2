@@ -171,7 +171,7 @@ local ACT_RUNNING_HASH = {
             if FollowPlan.Debug then print(string.format("%s's target is invalid or dead.", bot:Nick())) end
             return STATUS.FAILURE
         end
-        bot:SetAttackTarget(target)
+        bot:SetAttackTarget(target, "FOLLOW_PLAN_ATTACK", 4)
         return STATUS.RUNNING
     end,
     [ACTIONS.DEFEND] = function(bot, job)

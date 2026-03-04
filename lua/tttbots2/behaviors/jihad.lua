@@ -145,7 +145,7 @@ function BehaviorJihad.OnEnd(bot)
     -- Reset any state if necessary
     inventory:ResumeAutoSwitch()
     loco:StopAttack()
-    bot:SetAttackTarget(nil)
+    bot:SetAttackTarget(nil, "BEHAVIOR_END")
     loco:ResumeAttackCompat()
 end
 

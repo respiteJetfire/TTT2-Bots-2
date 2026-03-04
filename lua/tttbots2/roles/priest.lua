@@ -16,14 +16,10 @@ local bTree = {
     _prior.Patrol
 }
 
-local priest = TTTBots.RoleData.New("priest")
-priest:SetDefusesC4(true)
+local priest = TTTBots.RoleBuilder.DetectiveLike("priest")
 priest:SetCanHaveRadar(false)
 priest:SetAutoSwitch(true)
-priest:SetTeam(TEAM_INNOCENT)
 priest:SetBTree(bTree)
-priest:SetUsesSuspicion(true)
-priest:SetAppearsPolice(true)
 TTTBots.Roles.RegisterRole(priest)
 
 return true

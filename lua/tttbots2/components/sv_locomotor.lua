@@ -1723,11 +1723,27 @@ end)
 ---@class Player
 local plyMeta = FindMetaTable("Player")
 
-function plyMeta:SetAttackTarget(target)
+function plyMeta:SetAttackTarget(target, reason, priority)
     if self.attackTarget == target then return end
     if (IsValid(target) and TTTBots.Roles.IsAllies(self, target)) then return end
     if (hook.Run("TTTBotsCanAttack", self, target) == false) then return end
-    self.attackTarget = target
+
+    -- Record reason codes from the arbitration system (or from pending request)
+    local Arb = TTTBots.Morality
+    reason   = reason   or (self._pendingTargetReason)   or "LEGACY"
+    priority = priority or (self._pendingTargetPriority)  or (Arb and Arb.PRIORITY and Arb.PRIORITY.ROLE_HOSTILITY or 3)
+    self._pendingTargetReason   = nil
+    self._pendingTargetPriority = nil
+
+    self.attackTarget         = target
+    self.attackTargetReason   = reason
+    self.attackTargetPriority = (target ~= nil) and priority or 0
+
+    if Arb and Arb.DebugTarget then
+        local tgtName = (IsValid(target) and target.Nick and target:Nick()) or (target == nil and "nil") or tostring(target)
+        Arb.DebugTarget(self, string.format("SetAttackTarget -> %s (reason=%s, pri=%d)", tgtName, reason, priority))
+    end
+
     local loco = self:BotLocomotor()
     local personality = self:BotPersonality()
     if not (loco and personality) then return end

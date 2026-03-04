@@ -1,13 +1,7 @@
 if not TTTBots.Lib.IsTTT2() then return false end
 if not ROLE_OCCULTIST then return false end
 
-local occultist = TTTBots.RoleData.New("occultist")
-occultist:SetDefusesC4(true)
-occultist:SetTeam(TEAM_INNOCENT)
-occultist:SetBTree(TTTBots.Behaviors.DefaultTrees.innocent)
-occultist:SetCanHide(true)
-occultist:SetCanSnipe(true)
-occultist:SetUsesSuspicion(true)
+local occultist = TTTBots.RoleBuilder.InnocentLike("occultist")
 occultist:SetAlliedRoles({})
 occultist:SetAlliedTeams({})
 TTTBots.Roles.RegisterRole(occultist)

@@ -96,19 +96,19 @@ function BehaviorRequestAttack.RequestAttack(bot, player, target, teamOnly)
     if not targetAlive then return end
     if teamOnly and not sameTeam then return end
     if susCheck then
-        bot:SetAttackTarget(target)
+        bot:SetAttackTarget(target, "PLAYER_REQUEST", 4)
         print(bot:Nick() .. " is now attacking " .. target:Nick() .. " as requested by " .. player:Nick())
         chatter:On("AttackStart", { target = target:Nick() }, teamOnly, math.random(1, 4))
     elseif policeCheck and not sameTeamTarget then
-        bot:SetAttackTarget(target)
+        bot:SetAttackTarget(target, "PLAYER_REQUEST", 4)
         print(bot:Nick() .. " is now attacking " .. target:Nick() .. " as requested by " .. player:Nick())
         chatter:On("AttackStart", { target = target:Nick() }, teamOnly, math.random(1, 4))
     elseif (sameTeam and not sameTeamTarget) and roleDisablesSuspicion then
-        bot:SetAttackTarget(target)
+        bot:SetAttackTarget(target, "PLAYER_REQUEST", 4)
         print(bot:Nick() .. " is now attacking " .. target:Nick() .. " as requested by " .. player:Nick())
         chatter:On("AttackStart", { target = target:Nick() }, teamOnly, math.random(1, 4))
     elseif policeCheck and sameTeamTarget and bot:GetTeam() == TEAM_INNOCENT then
-        bot:SetAttackTarget(target)
+        bot:SetAttackTarget(target, "PLAYER_REQUEST", 4)
         print(bot:Nick() .. " is now attacking " .. target:Nick() .. " as requested by " .. player:Nick())
         chatter:On("AttackStart", { target = target:Nick() }, teamOnly, math.random(1, 4))
     else

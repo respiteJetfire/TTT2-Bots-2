@@ -6,8 +6,62 @@ local lib = TTTBots.Lib
 TTTBots.Roles.m_roles = {}
 
 include("sv_roledata.lua")
+include("sv_rolebuilder.lua")
+
+--- Emits a debug warning through the refactor-debug gate.
+---@param msg string
+local function RoleWarn(msg)
+    if TTTBots.Lib.GetConVarBool and TTTBots.Lib.GetConVarBool("ttt_bot_debug_refactor") then
+        print("[TTT Bots 2][RoleWarn] " .. msg)
+    end
+end
+
+--- Validates a RoleData instance at registration time.
+--- Emits warnings for known bad configurations but never blocks registration.
+---@param roleData RoleData
+local function ValidateRoleAtRegistration(roleData)
+    local name = roleData:GetName() or "<nil>"
+
+    -- KOSAll + NeutralOverride is contradictory
+    if roleData:GetKOSAll() and roleData:GetNeutralOverride() then
+        RoleWarn(string.format(
+            "Role '%s': KOSAll=true AND NeutralOverride=true are contradictory — role will KOS all but also be immune to attack.",
+            name
+        ))
+    end
+
+    -- BTree should be a non-empty table
+    local bt = roleData:GetBTree()
+    if type(bt) ~= "table" or #bt == 0 then
+        RoleWarn(string.format(
+            "Role '%s': BTree is empty or not a table — bot will have no behaviors.",
+            name
+        ))
+    end
+
+    -- AlliedRoles, AlliedTeams, EnemyRoles, EnemyTeams must all be tables
+    for _, field in ipairs({ "GetAlliedRoles", "GetAlliedTeams", "GetEnemyRoles", "GetEnemyTeams" }) do
+        local val = roleData[field](roleData)
+        if val ~= nil and type(val) ~= "table" then
+            RoleWarn(string.format(
+                "Role '%s': %s() returned a non-table value (%s) — will likely cause alliance errors.",
+                name, field, tostring(val)
+            ))
+        end
+    end
+
+    -- RoleDescription must be a string
+    local desc = roleData:GetRoleDescription()
+    if type(desc) ~= "string" then
+        RoleWarn(string.format(
+            "Role '%s': RoleDescription is not a string (got %s).",
+            name, type(desc)
+        ))
+    end
+end
 
 function TTTBots.Roles.RegisterRole(roleData)
+    ValidateRoleAtRegistration(roleData)
     TTTBots.Roles.m_roles[roleData:GetName()] = roleData
 end
 
@@ -218,8 +272,8 @@ function TTTBots.Roles.GenerateRegisterForRole(roleString)
     data:SetCanCoordinate(roleTeam == TEAM_TRAITOR)
     data:SetCanHaveRadar(isPolicingRole or roleTeam == TEAM_TRAITOR)
     data:SetAlliedRoles({ [roleString] = true })
-    data:GetKOSAll(GetKOSAll)
-    data:GetKOSedByAll(GetKOSedByAll)
+    data:SetKOSAll(GetKOSAll)
+    data:SetKOSedByAll(GetKOSedByAll)
     data:SetKnowsLifeStates(isOmniscient)
     data:SetBTree(TTTBots.Behaviors.DefaultTreesByTeam[roleTeam] or TTTBots.Behaviors.DefaultTrees.innocent)
     data:SetStartsFights(roleTeam == TEAM_TRAITOR)
@@ -250,6 +304,114 @@ end)
 local includedFilesTbl = TTTBots.Lib.IncludeDirectory("tttbots2/roles")
 local includedFilesStr = TTTBots.Lib.StringifyTable(includedFilesTbl)
 print("[TTT Bots 2] Registered officially supported roles: " .. string.gsub(includedFilesStr, ".lua", ""))
+
+--- Cross-reference all registered roles for unknown ally/enemy references,
+--- impossible team combinations, and conflicting flag pairs.
+--- Emits actionable warnings before round start.
+--- In debug mode (ttt_bot_debug_refactor=1) also prints a full compatibility report.
+function TTTBots.Roles.ValidateAllRoles()
+    local roles  = TTTBots.Roles.m_roles
+    local names  = {}
+    local teams  = {}
+    for n, r in pairs(roles) do
+        names[n] = true
+        teams[r:GetTeam()] = true
+    end
+
+    local debugMode = TTTBots.Lib.GetConVarBool and TTTBots.Lib.GetConVarBool("ttt_bot_debug_refactor")
+    local warnings  = {}
+
+    local function warn(msg)
+        table.insert(warnings, msg)
+        print("[TTT Bots 2][RoleWarn] " .. msg)
+    end
+
+    for roleName, role in pairs(roles) do
+        -- Unknown AlliedRoles references
+        local allied = role:GetAlliedRoles()
+        if type(allied) == "table" then
+            for ref, _ in pairs(allied) do
+                if not names[ref] then
+                    warn(string.format("Role '%s': AlliedRoles references unknown role '%s'.", roleName, ref))
+                end
+            end
+        end
+
+        -- Unknown AlliedTeams references
+        local alliedTeams = role:GetAlliedTeams()
+        if type(alliedTeams) == "table" then
+            for ref, _ in pairs(alliedTeams) do
+                if not teams[ref] then
+                    warn(string.format("Role '%s': AlliedTeams references unregistered team '%s'.", roleName, ref))
+                end
+            end
+        end
+
+        -- Unknown EnemyRoles references
+        local enemyRoles = role:GetEnemyRoles()
+        if type(enemyRoles) == "table" then
+            for ref, _ in pairs(enemyRoles) do
+                if not names[ref] then
+                    warn(string.format("Role '%s': EnemyRoles references unknown role '%s'.", roleName, ref))
+                end
+            end
+        end
+
+        -- Unknown EnemyTeams references
+        local enemyTeams = role:GetEnemyTeams()
+        if type(enemyTeams) == "table" then
+            for ref, _ in pairs(enemyTeams) do
+                if not teams[ref] then
+                    warn(string.format("Role '%s': EnemyTeams references unregistered team '%s'.", roleName, ref))
+                end
+            end
+        end
+
+        -- KOSAll + NeutralOverride conflict (cross-check after all roles loaded)
+        if role:GetKOSAll() and role:GetNeutralOverride() then
+            warn(string.format("Role '%s': KOSAll=true conflicts with NeutralOverride=true.", roleName))
+        end
+
+        -- KOSAll + allied with own team but enemies with everyone — sanity
+        if role:GetKOSAll() and role:GetLovesTeammates() == false then
+            -- This is technically valid (doomguy) but worth noting in debug
+            if debugMode then
+                print(string.format("[TTT Bots 2][RoleDebug] Role '%s': KOSAll=true with LovesTeammates=false — solo killer.", roleName))
+            end
+        end
+    end
+
+    -- Compatibility report (debug mode only)
+    if debugMode then
+        print("[TTT Bots 2] === Role Compatibility Report ===")
+        local sortedNames = table.GetKeys(roles)
+        table.sort(sortedNames)
+        for _, n in ipairs(sortedNames) do
+            local r    = roles[n]
+            local team = r:GetTeam() or "?"
+            local kos  = r:GetKOSAll() and "KOSAll" or "-"
+            local kosb = r:GetKOSedByAll() and "KOSedByAll" or "-"
+            local neut = r:GetNeutralOverride() and "Neutral" or "-"
+            local sus  = r:GetUsesSuspicion() and "Sus" or "-"
+            print(string.format("  %-20s  team=%-20s  %s %s %s %s",
+                n, team, kos, kosb, neut, sus))
+        end
+        if #warnings > 0 then
+            print("[TTT Bots 2] Warnings (" .. #warnings .. "):")
+            for _, w in ipairs(warnings) do
+                print("  " .. w)
+            end
+        else
+            print("[TTT Bots 2] No warnings.")
+        end
+        print("[TTT Bots 2] === End Role Compatibility Report ===")
+    end
+end
+
+-- Schedule validation after all role files have had a chance to finish loading
+timer.Simple(0, function()
+    TTTBots.Roles.ValidateAllRoles()
+end)
 
 if TTTBots.Lib.IsTTT2() then return end
 

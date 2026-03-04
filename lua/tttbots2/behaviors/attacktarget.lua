@@ -51,7 +51,7 @@ function Attack.Seek(bot, targetPos)
     local secsSince = timeNow - lastSeenTime
     local isAlive = target:Health() > 0
     if not isAlive then
-        bot:SetAttackTarget(nil)
+        bot:SetAttackTarget(nil, "BEHAVIOR_END")
         return
     end
 
@@ -60,7 +60,7 @@ function Attack.Seek(bot, targetPos)
         loco:LookAt(lastKnownPos + Vector(0, 0, 40)) -- around hip/abdomen level
     elseif secsSince > 45 then
         -- If we have not seen the target in 30 seconds, call off the attack.
-        bot:SetAttackTarget(nil)
+        bot:SetAttackTarget(nil, "BEHAVIOR_END")
     else
         -- We have not heard nor seen the target in a while, so we will wander around.
         lib.CallEveryNTicks(
@@ -465,7 +465,7 @@ function Attack.ValidateTarget(bot)
 
     if not (checkPassed or NPCPass) then
         print(bot:Nick() .. " failed to validate attack target behavior.")
-        bot:SetAttackTarget(nil)
+        bot:SetAttackTarget(nil, "BEHAVIOR_END")
         if bot.attackBehaviorMode == ATTACKMODE.Engaging then
             bot:BotLocomotor():StopAttack()
         end
@@ -495,7 +495,7 @@ function Attack.OnRunning(bot)
     if not Attack.ValidateTarget(bot) then return STATUS.FAILURE end -- Target is not valid
     if Attack.IsTargetAlly(bot) then return STATUS.FAILURE end       -- Target is an ally. No attack!
     if target == bot then
-        bot:SetAttackTarget(nil)
+        bot:SetAttackTarget(nil, "BEHAVIOR_END")
         return STATUS.FAILURE
     end
 
@@ -522,7 +522,7 @@ end
 
 --- Called when the behavior ends
 function Attack.OnEnd(bot)
-    bot:SetAttackTarget(nil)
+    bot:SetAttackTarget(nil, "BEHAVIOR_END")
     bot:BotLocomotor().stopLookingAround = false
     bot:BotLocomotor():StopAttack()
 end

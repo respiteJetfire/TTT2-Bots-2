@@ -77,7 +77,7 @@ end
 ---@param bot Bot
 ---@param victim Player
 function Bodyguard.SetAttackTarget(bot, victim)
-    bot:SetAttackTarget(victim)
+    bot:SetAttackTarget(victim, "BODYGUARD_DEFEND", 4)
     -- maybe some more logic here in the future
 end
 
