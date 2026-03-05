@@ -20,7 +20,7 @@ function BotChatter:New(bot)
     return newChatter
 end
 
-speakingPlayers = {}
+local speakingPlayers = {}
 
 
 
