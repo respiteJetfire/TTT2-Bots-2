@@ -179,6 +179,75 @@ function TTTBots.TTSURL.AzureSendRequest(ply, text, teamOnly, onVoiceComplete)
     })
 end
 
+function TTTBots.TTSURL.LocalTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
+    -- 1. Resolve URL (CVar override → TTSAPI global → hardcoded fallback)
+    local cvarURL = TTTBots.Lib.GetConVarString("chatter_voice_local_tts_url")
+    local url = (cvarURL and cvarURL ~= "") and cvarURL
+        or (TTSAPI and TTSAPI.LocalTTSURL)
+        or "http://ttsapi:80/local"
+
+    -- 2. Get voice config from personality
+    local personality = bot:BotPersonality()
+    local voiceName = (personality and personality.voice and personality.voice.piperVoice)
+        or (TTSAPI and TTSAPI.DefaultVoice)
+        or "en_US-lessac-medium"
+    local speed = (personality and personality.voice and personality.voice.speed) or 1.0
+
+    -- 3. Build JSON request body
+    local body = util.TableToJSON({
+        text = text,
+        voice = voiceName,
+        speed = speed,
+    })
+
+    -- 4. POST to /local
+    HTTP({
+        url = url,
+        method = "POST",
+        headers = { ["Content-Type"] = "application/json" },
+        body = body,
+        type = "application/json",
+        success = function(code, responseBody, headers)
+            if code ~= 200 then
+                print("[TTTBots] Local TTS request failed. HTTP " .. code .. ": " .. (responseBody or ""))
+                if onVoiceComplete then onVoiceComplete(1) end
+                TTTBots.Match.speakingBot = nil
+                return
+            end
+
+            local data = util.JSONToTable(responseBody)
+            if not data or not data.download_url then
+                print("[TTTBots] Local TTS: invalid response (no download_url)")
+                if onVoiceComplete then onVoiceComplete(1) end
+                TTTBots.Match.speakingBot = nil
+                return
+            end
+
+            -- Build the client-accessible download URL.
+            -- The POST was sent to the internal URL (url), but the download_url must be
+            -- reachable by game clients. If chatter_voice_local_tts_url is a public-facing
+            -- address (e.g. http://192.168.1.10:8080), rewrite the base accordingly.
+            -- This is Option B: public URL override → URL mode works.
+            -- Without an override the URL would still be Docker-internal, so sv_providers.lua
+            -- will have already forced binary mode before we ever reach this path.
+            local ttsapiRoot = string.gsub(url, "/local$", "")
+            local fullUrl = ttsapiRoot .. data.download_url
+
+            -- Estimate duration: ~80ms per character at normal speed
+            local duration = math.max(2, #text * 0.08 / speed)
+
+            playTTSUrl(bot, fullUrl, teamOnly, duration)
+            if onVoiceComplete then onVoiceComplete(duration) end
+            TTTBots.Match.speakingBot = nil
+        end,
+        failed = function(reason)
+            print("[TTTBots] Local TTS HTTP failed: " .. tostring(reason))
+            if onVoiceComplete then onVoiceComplete(1) end
+            TTTBots.Match.speakingBot = nil
+        end,
+    })
+end
+
 -- ---------------------------------------------------------------------------
 -- SendVoice — envelope-based entry point for the Providers adapter layer
 -- ---------------------------------------------------------------------------
@@ -213,6 +282,8 @@ function TTTBots.TTSURL.SendVoice(bot, text, opts, callback)
         TTTBots.TTSURL.ElevenLabsSendRequest(bot, text, teamOnly, wrappedComplete)
     elseif voiceType == "Azure" then
         TTTBots.TTSURL.AzureSendRequest(bot, text, teamOnly, wrappedComplete)
+    elseif voiceType == "local" then
+        TTTBots.TTSURL.LocalTTSSendRequest(bot, text, teamOnly, wrappedComplete)
     else
         TTTBots.TTSURL.FreeTTSSendRequest(bot, text, teamOnly, wrappedComplete)
     end

@@ -318,7 +318,7 @@ function TTTBots.Roles.ValidateAllRoles()
         teams[r:GetTeam()] = true
     end
 
-    local debugMode = TTTBots.Lib.GetConVarBool and TTTBots.Lib.GetConVarBool("ttt_bot_debug_refactor")
+    local debugMode = TTTBots.Lib.GetConVarBool and TTTBots.Lib.GetConVarBool("debug_refactor")
     local warnings  = {}
 
     local function warn(msg)

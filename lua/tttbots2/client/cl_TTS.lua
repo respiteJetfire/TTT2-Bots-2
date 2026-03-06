@@ -4,10 +4,28 @@ local speakingFilePaths = {}
 
 local MAX_SPEAKERS = 2
 
+-- Override VOICE.IsSpeaking so the native TTT2 voice widget picks up bot TTS speakers.
+-- The engine ply:IsSpeaking() always returns false for bots (no real mic), so we
+-- supplement it with our own speaking tables.
+hook.Add("InitPostEntity", "TTTBots_OverrideVOICEIsSpeaking", function()
+    local _originalIsSpeaking = VOICE.IsSpeaking
+    VOICE.IsSpeaking = function(ply)
+        if not ply or ply == LocalPlayer() then
+            return LocalPlayer().speaking
+        end
+        -- Check our bot speaking tables first
+        local id = IsValid(ply) and ply:SteamID64()
+        if id and (speakingPlayers[id] or speakingTeamPlayers[id]) then
+            return true
+        end
+        -- Fall back to the original (engine ply:IsSpeaking())
+        return _originalIsSpeaking(ply)
+    end
+end)
+
 local function playFileURL(ply, url, teamOnly)
     -- Add player to speakingPlayers table
     local localPlayer = LocalPlayer()
-    ply.speaking = true
     print("Local player: ", localPlayer)
     local localPlayerTeam = localPlayer and localPlayer:GetTeam()
     print("Local player team: ", localPlayerTeam)
@@ -64,6 +82,34 @@ local function playFileURL(ply, url, teamOnly)
             end
 
             if IsValid(ply) then
+                -- Set voice mode so the TTT2 widget uses the correct color
+                if VOICE and VOICE.SetVoiceMode then
+                    local mode = teamOnly and VOICE_MODE_TEAM or VOICE_MODE_GLOBAL
+                    VOICE.SetVoiceMode(ply, mode)
+                end
+                -- Seed lastSteps so spectrum bars animate from the start
+                ply.lastSteps = ply.lastSteps or {}
+                for i = 1, 24 do
+                    ply.lastSteps[i] = ply.lastSteps[i] or 0
+                end
+                -- Notify TTT2 that this player started voice chat
+                hook.Run("PlayerStartVoice", ply)
+
+                -- Drive ply:VoiceVolume() substitute via a timer so GetFakeVoiceSpectrum animates
+                timer.Create("BotSpectrumDrive_" .. ID, 0.05, 0, function()
+                    if not IsValid(ply) then
+                        timer.Remove("BotSpectrumDrive_" .. ID)
+                        return
+                    end
+                    -- Mutate lastSteps directly to keep bars moving
+                    ply.lastSteps = ply.lastSteps or {}
+                    for i = 1, 24 do
+                        local prev = ply.lastSteps[i] or 0
+                        local target = math.Clamp(math.sin((CurTime() * 8) + i * 0.4) * 0.5 + 0.5 + math.Rand(-0.1, 0.1), 0, 1)
+                        ply.lastSteps[i] = Lerp(0.3, prev, target)
+                    end
+                end)
+
                 -- print("Started voice for player: " .. ply:Nick())
                 timer.Create("VoiceTimer_" .. ID, 0.1, 0, function()
                     if not IsValid(channel) or channel:GetState() ~= GMOD_CHANNEL_PLAYING then
@@ -71,13 +117,21 @@ local function playFileURL(ply, url, teamOnly)
                             -- print("Ended voice for player: " .. ply:Nick())
                         end
                         timer.Remove("VoiceTimer_" .. ID)
+                        timer.Remove("BotSpectrumDrive_" .. ID)
                         -- Remove player from speakingPlayers table
                         if teamOnly then
                             speakingTeamPlayers[ID] = nil
                         else
                             speakingPlayers[ID] = nil
                         end
-                        ply.speaking = false
+                        -- Notify TTT2 that voice ended and clean up voice state
+                        if IsValid(ply) then
+                            hook.Run("PlayerEndVoice", ply)
+                            ply.lastSteps = nil
+                            if VOICE and VOICE.SetVoiceMode then
+                                VOICE.SetVoiceMode(ply, VOICE_MODE_GLOBAL)
+                            end
+                        end
                     end
                 end)
             end
@@ -148,6 +202,33 @@ local function playFile(ply, path, teamOnly)
             end
 
             if IsValid(ply) then
+                -- Set voice mode so the TTT2 widget uses the correct color
+                if VOICE and VOICE.SetVoiceMode then
+                    local mode = teamOnly and VOICE_MODE_TEAM or VOICE_MODE_GLOBAL
+                    VOICE.SetVoiceMode(ply, mode)
+                end
+                -- Seed lastSteps so spectrum bars animate from the start
+                ply.lastSteps = ply.lastSteps or {}
+                for i = 1, 24 do
+                    ply.lastSteps[i] = ply.lastSteps[i] or 0
+                end
+                -- Notify TTT2 that this player started voice chat
+                hook.Run("PlayerStartVoice", ply)
+
+                -- Drive spectrum animation
+                timer.Create("BotSpectrumDrive_" .. ID, 0.05, 0, function()
+                    if not IsValid(ply) then
+                        timer.Remove("BotSpectrumDrive_" .. ID)
+                        return
+                    end
+                    ply.lastSteps = ply.lastSteps or {}
+                    for i = 1, 24 do
+                        local prev = ply.lastSteps[i] or 0
+                        local target = math.Clamp(math.sin((CurTime() * 8) + i * 0.4) * 0.5 + 0.5 + math.Rand(-0.1, 0.1), 0, 1)
+                        ply.lastSteps[i] = Lerp(0.3, prev, target)
+                    end
+                end)
+
                 -- print("Started voice for player: " .. ply:Nick())
                 timer.Create("VoiceTimer_" .. ID, 0.1, 0, function()
                     if not IsValid(channel) or channel:GetState() ~= GMOD_CHANNEL_PLAYING then
@@ -155,6 +236,7 @@ local function playFile(ply, path, teamOnly)
                             -- print("Ended voice for player: " .. ply:Nick())
                         end
                         timer.Remove("VoiceTimer_" .. ID)
+                        timer.Remove("BotSpectrumDrive_" .. ID)
                         -- Remove player from speakingPlayers table
                         if teamOnly then
                             speakingTeamPlayers[ID] = nil
@@ -164,6 +246,15 @@ local function playFile(ply, path, teamOnly)
 
                         speakingFilePaths[path] = nil
                         deleteAllFiles()
+
+                        -- Notify TTT2 that voice ended and clean up voice state
+                        if IsValid(ply) then
+                            hook.Run("PlayerEndVoice", ply)
+                            ply.lastSteps = nil
+                            if VOICE and VOICE.SetVoiceMode then
+                                VOICE.SetVoiceMode(ply, VOICE_MODE_GLOBAL)
+                            end
+                        end
 
                         --- delete the file after playing
                         local fullPath = "data/" .. path
@@ -204,30 +295,9 @@ function deleteAllFiles()
 end
 
 
-hook.Add("HUDPaint", "DrawVoiceChatPopup", function()
-    local yOffset = 0
-    for steamID, ply in pairs(speakingPlayers) do
-        if IsValid(ply) then
-            local x, y = 50, 50 + yOffset -- Position of the popup
-            draw.RoundedBox(8, x, y, 400, 50, Color(0, 100, 0, 150)) -- Dark green box
-            draw.SimpleText(ply:Nick() .. " is speaking", "Trebuchet24", x + 10, y + 10, Color(255, 255, 255, 255)) -- White text
-            yOffset = yOffset + 60 -- Increase yOffset for the next player
-        end
-    end
-
-    -- Store the yOffset for team voice chat prompts
-    local teamYOffset = yOffset
-
-    for steamID, ply in pairs(speakingTeamPlayers) do
-        if IsValid(ply) then
-            local x, y = 50, 50 + teamYOffset -- Position of the popup below speakingPlayers
-            local teamColor = ply:GetRoleColor() or Color(0, 100, 0, 150) -- Default color is dark green
-            draw.RoundedBox(8, x, y, 400, 50, teamColor) -- Box for the player's team color
-            draw.SimpleText(ply:Nick() .. " is speaking", "Trebuchet24", x + 10, y + 10, Color(255, 255, 255, 255)) -- White text
-            teamYOffset = teamYOffset + 60 -- Increase yOffset for the next player
-        end
-    end
-end)
+-- NOTE: The custom HUDPaint voice popup has been removed.
+-- Bot TTS speakers are now displayed via the native TTT2 voice chat widget
+-- (pure_skin_voice HUD element) by overriding VOICE.IsSpeaking above.
 
 local function SetFileNameEL(name)
     name = string.lower( name:gsub("[%p%c]", ""):gsub("%s+", "_") )

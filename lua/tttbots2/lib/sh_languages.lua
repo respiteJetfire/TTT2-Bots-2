@@ -185,6 +185,7 @@ end
 
 function TTTBots.Locale.FormatArgsIntoTxt(txt, args)
     if not txt then return "" end
+    if not args then return txt end
     for k, v in pairs(args) do
         txt = txt:gsub("{{" .. k .. "}}", tostring(v))
     end

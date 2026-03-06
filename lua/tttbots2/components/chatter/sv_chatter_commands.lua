@@ -376,8 +376,15 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         -- Fall through to LLM conversational reply
         local chatter  = bot:BotChatter()
         local prompt   = TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
+        local sendOpts = {
+            teamOnly = teamOnly,
+            wasVoice = wasVoice,
+            -- Extra context for adapters that build their own prompts (e.g. Ollama/llama)
+            replyText = text,
+            replyPly  = ply,
+        }
 
-        TTTBots.Providers.SendText(prompt, bot, { teamOnly = teamOnly, wasVoice = wasVoice }, function(envelope)
+        TTTBots.Providers.SendText(prompt, bot, sendOpts, function(envelope)
             if not envelope.ok then
                 print("LLM request failed: " .. tostring(envelope.message))
                 return

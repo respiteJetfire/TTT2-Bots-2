@@ -455,7 +455,40 @@ function decideOnVoiceMicrosoftTTS(self)
         self.voice = { id = voices[selectedVoiceKey], type = "Azure" }
     end
 end
-    
+
+-- Piper voices available in the ttsapi Docker container.
+-- Each entry has piperVoice (model name) and name (display label).
+local PiperVoices = {
+    male = {
+        { piperVoice = "en_US-lessac-medium",              name = "Lessac" },   -- US male, natural
+        { piperVoice = "en_US-ryan-medium",                name = "Ryan" },     -- US male, expressive
+        { piperVoice = "en_US-joe-medium",                 name = "Joe" },      -- US male, casual
+        { piperVoice = "en_US-danny-low",                  name = "Danny" },    -- US male, soft-spoken
+        { piperVoice = "en_US-norman-medium",              name = "Norman" },   -- US male, warm baritone
+        { piperVoice = "en_US-bryce-medium",               name = "Bryce" },    -- US male, deep/calm
+        { piperVoice = "en_GB-alan-medium",                name = "Alan" },     -- GB male, authoritative
+        { piperVoice = "en_GB-northern_english_male-medium", name = "Callum" }, -- GB male, Northern
+    },
+    female = {
+        { piperVoice = "en_US-amy-medium",       name = "Amy" },     -- US female, clear
+        { piperVoice = "en_GB-cori-medium",      name = "Cori" },    -- GB female, distinct
+        { piperVoice = "en_US-kathleen-low",     name = "Kathleen" },-- US female, calm
+        { piperVoice = "en_US-ljspeech-medium",  name = "Lydia" },   -- US female, expressive
+        { piperVoice = "en_GB-jenny_dioco-medium", name = "Jenny" }, -- GB female, natural
+    },
+}
+
+function decideOnVoiceLocal(self)
+    local gender = self.gender or "male"
+    local pool = PiperVoices[gender] or PiperVoices.male
+    local chosen = pool[math.random(#pool)]
+    self.voice = {
+        piperVoice = chosen.piperVoice,
+        name       = chosen.name,
+        speed      = 0.9 + math.random() * 0.3, -- 0.9 to 1.2 speaking rate
+        type       = "local",
+    }
+end
 
 function BotPersonality:Initialize(bot)
     -- --- print("Initializing")
@@ -471,22 +504,30 @@ function BotPersonality:Initialize(bot)
     self.textAPI = (function()
         local apiProvider = lib.GetConVarInt("chatter_api_provider")
         if apiProvider == 3 then
+            -- Mixed mode: weighted random across all four providers.
+            -- Ollama is free/local so gets the largest share.
             local rand = math.random(100)
-            if rand <= 60 then
-                return "ChatGPT" -- 60% chance
-            elseif rand <= 70 then
-                return "Gemini" -- 10% chance
+            if rand <= 40 then
+                return "Ollama"   -- 40% chance
+            elseif rand <= 65 then
+                return "ChatGPT"  -- 25% chance
+            elseif rand <= 75 then
+                return "Gemini"   -- 10% chance
             else
-                return "DeepSeek" -- 30% chance
+                return "DeepSeek" -- 25% chance
             end
         else
             -- Directly map apiProvider values to API names
             if apiProvider == 0 then
                 return "ChatGPT"
             elseif apiProvider == 1 then
-                return "Gemini"  
-            else -- apiProvider == 2
+                return "Gemini"
+            elseif apiProvider == 2 then
                 return "DeepSeek"
+            elseif apiProvider == 4 then
+                return "Ollama"
+            else
+                return "ChatGPT" -- safe fallback
             end
         end
     end)()
@@ -529,11 +570,14 @@ function BotPersonality:Initialize(bot)
         mode = "microsoft only"
     elseif TTTBots.Lib.GetConVarInt("chatter_voice_tts_provider") == 3 then
         mode = "mixed"
+    elseif TTTBots.Lib.GetConVarInt("chatter_voice_tts_provider") == 4 then
+        mode = "local only"
     end
 
     local FreeTTSChance = TTTBots.Lib.GetConVarFloat("chatter_voice_free_tts_chance") / 100
     local MicrosoftTTSChance = TTTBots.Lib.GetConVarFloat("chatter_voice_microsoft_tts_chance") / 100
     local ElevenLabsChance = TTTBots.Lib.GetConVarFloat("chatter_voice_elevenlabs_tts_chance") / 100
+    local LocalTTSChance = TTTBots.Lib.GetConVarFloat("chatter_voice_local_tts_chance") / 100
 
     local ElevenlabsNameOverride = TTTBots.Lib.GetConVarBool("chatter_voice_good_tts_custom_name_override")
     local done = false
@@ -559,11 +603,15 @@ function BotPersonality:Initialize(bot)
             decideOnVoiceElevenLabs(self, bot)
         elseif mode == "microsoft only" then
             decideOnVoiceMicrosoftTTS(self)
+        elseif mode == "local only" then
+            decideOnVoiceLocal(self)
         elseif mode == "mixed" then
             local rand = math.random()
-            if rand < ElevenLabsChance then
+            if rand < LocalTTSChance then
+                decideOnVoiceLocal(self)
+            elseif rand < LocalTTSChance + ElevenLabsChance then
                 decideOnVoiceElevenLabs(self, bot)
-            elseif rand < ElevenLabsChance + MicrosoftTTSChance then
+            elseif rand < LocalTTSChance + ElevenLabsChance + MicrosoftTTSChance then
                 decideOnVoiceMicrosoftTTS(self)
             else
                 decideOnVoiceBadTTS(self)

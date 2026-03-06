@@ -74,12 +74,17 @@ TTTBots.Providers.TextAdapters = {
     [1] = "Gemini",
     [2] = "DeepSeek",
     -- [3] = mixed mode — resolved dynamically via bot personality
+    [4] = "Ollama",
 }
 
 --- Maps voice type strings to adapter names.
 TTTBots.Providers.VoiceAdapters = {
     ["elevenlabs"] = "ElevenLabs",
     ["Azure"]      = "Azure",
+    ["local"]      = "Local",
+    ["Local"]      = "Local",
+    ["piper"]      = "Local",
+    ["Piper"]      = "Local",
     -- anything else defaults to "FreeTTS"
 }
 
@@ -139,6 +144,8 @@ function TTTBots.Providers.SendText(prompt, bot, opts, callback)
         adapter = TTTBots.Gemini
     elseif adapterName == "DeepSeek" then
         adapter = TTTBots.DeepSeek
+    elseif adapterName == "Ollama" then
+        adapter = TTTBots.Ollama
     else
         adapter = TTTBots.ChatGPT
     end
@@ -174,7 +181,12 @@ function TTTBots.Providers.SendVoice(bot, text, opts, callback)
     local adapterName = TTTBots.Providers.GetVoiceAdapterName(voiceType)
 
     local adapter
-    if urlMode == 1 then
+    -- Local TTS URLs are Docker-internal (http://ttsapi:80) and unreachable by game clients.
+    -- In URL mode we can only use local TTS if the operator has set chatter_voice_local_tts_url
+    -- to a public-facing address (Option B). Without that override, force binary mode instead.
+    local localPublicURL = lib.GetConVarString("chatter_voice_local_tts_url")
+    local localNeedsURLOverride = (voiceType == "local" and urlMode == 1 and (not localPublicURL or localPublicURL == ""))
+    if urlMode == 1 and not localNeedsURLOverride then
         adapter = TTTBots.TTSURL
     else
         adapter = TTTBots.TTS

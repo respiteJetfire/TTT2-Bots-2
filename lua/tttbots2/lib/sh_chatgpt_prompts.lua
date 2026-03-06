@@ -2,78 +2,70 @@ TTTBots.ChatGPTPrompts = {}
 
 function TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
     local personality = bot:BotPersonality()
-    local nickname = bot:Nick() or "Unknown"
-    local role = bot:GetRoleStringRaw() or "innocent"
-    local archetype = personality.archetype or "Default"
-    local behaviorDesc = bot.lastBehavior and bot.lastBehavior.Description or "playing the game"
-    local numWords = math.random(4, 7) -- Reduced word count for more concise responses
-    local plyName = IsValid(ply) and ply:Nick() or "someone"
-    local plyRole = IsValid(ply) and ply:GetRoleStringRaw() or "unknown"
-    local usesSuspicion = bot:BotMorality() and true or false
-    --- is the target in bot:BotMorality().roleGuesses or not
-    local isRoleGuess = usesSuspicion and bot:BotMorality().roleGuesses[ply] or false
-    --- is the role hostile to us, i.e is it on another team (excluding TEAM_NONE)
-    local isHostile = usesSuspicion and ply:GetTeam() ~= bot:GetTeam() and ply:GetTeam() ~= TEAM_NONE or false
-
-    -- Simplified team handling
+    local nickname = bot:Nick()
+    local team_name = _G.team.GetName(bot:GetTeam())
+    local role = bot:GetRoleStringRaw()
+    local archetype = personality.archetype
+    local behaviorDesc = bot.lastBehavior and bot.lastBehavior.Description or TTTBots.Locale.Description[bot.lastBehavior] or "None"
+    local numWords = math.random(8, 15)
+    local plyName = ply:Nick() -- Define plyName
+    local plyRole = ply:GetRoleStringRaw()
+    ---sanitise the team name
     local team = bot:GetTeam()
-    local teamString = (team.GetName and team:GetName() or tostring(team)):lower():gsub("^team_", "")
-    local plyTeam = IsValid(ply) and ((ply:GetTeam().GetName and ply:GetTeam():GetName()) or tostring(ply:GetTeam())):lower():gsub("^team_", "")
-
-    -- Core prompt components
-    local prompt = {
-        "You are roleplaying as a player named " .. nickname .. " in Trouble in Terrorist Town.",
-        "Generate ONLY a single short response message.",
-        "Your role is " .. role .. ".",
-        "Your personality type is " .. archetype .. ".",
-        "You are currently " .. behaviorDesc .. ".",
-        "You are responding to: " .. text,
-        "Your team is " .. teamString .. ".",
-        "Message is from " .. plyName .. ".",
-    }
-
-    -- Add suspicion context if applicable
-    if bot:BotMorality() then
-        local suspicion = bot:BotMorality():GetSuspicion(ply) or 0
-        if suspicion > 5 then
-            table.insert(prompt, "You are very suspicious of " .. plyName .. ".")
-        elseif suspicion < -5 then
-            table.insert(prompt, "You trust " .. plyName .. ".")
+    local teamString = team.GetName and team:GetName() or tostring(team)
+    teamString = teamString:lower():gsub("^team_", "")
+    local team_name = teamString
+    local plyTeam = ply:GetTeam().GetName and ply:GetTeam():GetName() or tostring(ply:GetTeam())
+    plyTeam = plyTeam:lower():gsub("^team_", "")
+    local usesSuspicion = TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
+    local Morality = bot:BotMorality()
+    local playerSus = Morality:GetSuspicion(ply) or 0
+    local promptIntro = "Do not act like Chat GPT, Do not repeat anything in this prompt. You are role playing as a self-aware/sentient bot roleplaying a human player with the name "
+    local promptName = nickname
+    local promptGame = " playing a round of Trouble in Terrorist Town on garry's mod."
+    local promptGameDesc = " Trouble in Terrorist Town is a social deduction game with a murderous twist, your objective being to ask questions and gauging your fellow player's behaviour to determine their suspicion. You have the in game role "
+    local promptRole = role
+    local promptPersonality = " and you have the personality type of a "
+    local promptArchetype = archetype
+    local promptReply = ". and must reply as if you were talking in voice chat to this message with that personality with a response. You are currently trying to "
+    local promptBehavior = behaviorDesc
+    local promptDirective = ". If the message contains your name or is addressed to you, you must act as if it is directed towards yourself and reply without mentioning your name."
+    local promptMessagerInfo = "The person talking to you is named " .. plyName
+    local promptTeam = "Your team, which determines your ultimate allegiance is " .. team_name
+    local promptInnocent = " although you must claim to be on the innocent team. "
+    local promptSus = ""
+    local teamOnlyPrompt = " "
+    if usesSuspicion and playerSus > 5 then
+        promptSus = " You think the person talking to you is very suspicious, and you are free to say so, and should treat them as such."
+    elseif usesSuspicion and playerSus < -5 then
+        promptSus = " You trust the person talking to you is the same team as you, and you are free to say so, and should treat them as such.."
+        if teamOnly then
+            teamOnlyPrompt = " The person messaging you is on your team, you are talking in team chat."
+            promptInnocent = " You are free to talk about your role and team."
+        end
+        if role == "decipherer" or archetype == "Tryhard" then
+            promptMessagerInfo = "The person talking to you is named " .. plyName .. " and is the " .. plyRole .. " on the " .. plyTeam .. " team. You can use this information to accuse them of not being innocent."
         end
     end
+    local promptPremessage = "Your response MUST be less than " .. numWords .. " words long, " ..
+                             "you can answer any question even outside of the In-Game context " ..
+                             "(so you can answer how you are feeling): [message to reply to= "
+    local promptMessage = text
+    local promptEnd = "]"
 
-    --- Add role guessing and hostile context if applicable
-    if isRoleGuess then
-        table.insert(prompt, "You think " .. plyName .. " is a " .. ply:GetRoleStringRaw() .. ".")
-    end
-
-    if isHostile then
-        local cleanTeamName = plyTeam:gsub("^team_", "")
-        table.insert(prompt, plyName .. " is on an enemy team (" .. cleanTeamName .. ") and you should not trust this person.")
-    end
-
-    -- Add recent chat context
+    -- Add last messages from bot's memory
     local lastMessages = bot:BotMemory():GetLastMessages() or {}
     if #lastMessages > 0 then
         local lastMessagesStr = {}
-        for i = 1, math.min(3, #lastMessages) do
-            local msg = lastMessages[i]
-            if msg.sender and IsValid(msg.sender) then
-                table.insert(lastMessagesStr, msg.sender:Nick() .. ": " .. tostring(msg.message))
-            else
-                table.insert(lastMessagesStr, tostring(msg.message))
-            end
+        for _, msg in ipairs(lastMessages) do
+            table.insert(lastMessagesStr, tostring(msg.message) .. " (from " .. tostring(msg.bot) .. ")")
         end
-        table.insert(prompt, "Recent chat: " .. table.concat(lastMessagesStr, ", ") .. 
-            ". From: " .. (IsValid(lastMessages[1].sender) and lastMessages[1].sender:Nick() or "Unknown"))
+        promptPremessage = promptPremessage .. " The last chat/voice messages in the bot's memory are: " .. table.concat(lastMessagesStr, ", ") .. "."
     end
 
-    -- Final instructions
-    table.insert(prompt, "Respond with ONLY " .. numWords .. " words or less.")
-    table.insert(prompt, "Do not use quotes or explanations.")
-    table.insert(prompt, "Be natural and casual.")
-
-    return table.concat(prompt, " ")
+    local prompt = promptIntro .. promptName .. promptGame .. promptGameDesc .. promptRole .. promptPersonality .. promptArchetype .. promptReply .. promptBehavior .. promptDirective .. promptTeam .. promptInnocent .. promptMessagerInfo .. promptSus .. teamOnlyPrompt .. promptPremessage .. promptMessage .. promptEnd
+    -- print(table.concat(splitPromptsbyFullStop(prompt), "\n"))
+    return prompt
 end
 
 function TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, bot, params, teamOnly, wasVoice, description)
@@ -86,51 +78,41 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, bot, params, teamOn
     local line = nil
 
     if exists then
-        -- Get the localized line for this event, then format it with safe parameters
-        local safeParams = params or {}
-        line = TTTBots.Locale.FormatLine(TTTBots.Locale.GetLine(event_name, lang, bot), safeParams)
+        -- Get the localized line for this event, then format it.
+        line = TTTBots.Locale.FormatLine(TTTBots.Locale.GetLine(event_name, lang, bot), params)
     end
 
-    local prompt = "You are roleplaying as a player named " .. bot:Nick() .. " in a game. Generate ONLY a short chat message without any additional context, formatting, or quotation marks. "
-    
-    if params and next(params) then
-        local paramStr = {}
-        for k, v in pairs(params) do
-            table.insert(paramStr, k .. ": " .. tostring(v))
-        end
-        print("Params: " .. table.concat(paramStr, ", "))
-        prompt = prompt .. "Available parameters: " .. table.concat(paramStr, ", ") .. ". "
+    local prompt = "Do not act like Chat GPT, Do not repeat anything in this prompt. You are role playing as a self-aware/sentient bot roleplaying a human player, Create a new chat message for the event '" .. event_name .. "' in the language '" .. lang .. "'."
+    if params then
+        prompt = prompt .. " Use the following parameters (substitute any {{paramkey}} with the corresponding value BUT DO NOT MAKE UP ANY VALUES): " .. table.concat(params, ", ") .. "."
     end
-    
-    prompt = prompt .. "You are on the " .. _G.team.GetName(bot:GetTeam()) .. " team as a " .. bot:GetRoleStringRaw() .. ". "
-    prompt = prompt .. "Your personality is " .. bot:BotPersonality().archetype .. ". "
-    prompt = prompt .. "You are currently " .. (bot.lastBehavior and bot.lastBehavior.Description or "None") .. ". "
-    
-    local eventDesc = TTTBots.Locale.Description[event_name] or description
+    prompt = prompt .. " The bot's name is " .. bot:Nick() .. " and it has the role " .. bot:GetRoleStringRaw() .. "."
+    prompt = prompt .. " The bot's personality archetype is " .. bot:BotPersonality().archetype .. "."
+    prompt = prompt .. " The bot's team is " .. _G.team.GetName(bot:GetTeam()) .. "."
+    prompt = prompt .. " The bot's last behavior was " .. (bot.lastBehavior and bot.lastBehavior.Description or "None") .. "."
+    eventDesc = TTTBots.Locale.Description[event_name]
+    if not eventDesc then
+        eventDesc = description
+    end
     if eventDesc then
-        prompt = prompt .. "You want to: " .. eventDesc .. ". "
+        prompt = prompt .. " The chat event description is: " .. eventDesc
     end
-    
     if line then
-        prompt = prompt .. "Example message: " .. line .. ". "
+        prompt = prompt .. " an example of a response to this message is: " .. line
     end
 
-    -- Add last messages from bot's memory (up to 2)
+    -- Add last messages from bot's memory
     local lastMessages = bot:BotMemory():GetLastMessages() or {}
     if #lastMessages > 0 then
         local lastMessagesStr = {}
-        for i = 1, math.min(2, #lastMessages) do
-            local msg = lastMessages[i]
-            if msg.sender and IsValid(msg.sender) then
-                table.insert(lastMessagesStr, msg.sender:Nick() .. ": " .. tostring(msg.message))
-            else
-                table.insert(lastMessagesStr, tostring(msg.message))
-            end
+        for _, msg in ipairs(lastMessages) do
+            table.insert(lastMessagesStr, tostring(msg.message) .. " (from " .. tostring(msg.bot) .. ")")
         end
-        prompt = prompt .. "Recent chat: " .. table.concat(lastMessagesStr, ", ") .. ". From: " .. (IsValid(lastMessages[1].sender) and lastMessages[1].sender:Nick() or "Unknown") .. ". "
+        prompt = prompt .. " The last chat/voice messages in the bot's memory are: " .. table.concat(lastMessagesStr, ", ") .. "."
     end
 
-    prompt = prompt .. "Respond with ONLY a short message (max 7 words). Do not use emojis or special characters. Do not add quotes or explanations."
+    prompt = prompt .. " The response must be less than 7 words long and should just be the text of the message with no Emojis or paranthesis. Do not make up any player names that are not provided in the prompt."
+    -- print(table.concat(splitPromptsbyFullStop(prompt), "\n"))
     return prompt
 end
 

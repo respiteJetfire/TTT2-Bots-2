@@ -82,13 +82,19 @@ bot_sh_cvar("chatter_reply_chance_multi", "1",
 bot_sh_cvar("chatter_gpt_chance", "1",
     "A multiplier value that affects a bots chance to use ChatGPT to generate bot chatter. Higher values = more ChatGPT. Set to 0 to disable ChatGPT Custom Chatter (Default 1 = 1x Frequency).")
 bot_sh_cvar("chatter_api_provider", "0",
-    "The AI model provider for bot chat. 0 = ChatGPT, 1 = Gemini, 2 = Deepseek, 3 = All, Randomly Assigned to Bots")
+    "The AI model provider for bot chat. 0 = ChatGPT, 1 = Gemini, 2 = Deepseek, 3 = All, Randomly Assigned to Bots, 4 = Local Ollama (requires GMOD Container or compatible ttsapi)")
 bot_sh_cvar("chatter_gpt_model", "gpt-3.5-turbo",
     "The ChatGPT model to use. Options: gpt-3.5-turbo, gpt-4o-mini")
 bot_sh_cvar("chatter_gemini_model", "gemini-2.0-flash",
     "The Gemini model to use. Options: gemini-2.0-flash, gemini-1.5-pro-0409")
 bot_sh_cvar("chatter_deepseek_model", "deepseek-chat",
     "The Deepseek model to use. Options: deepseek-chat")
+bot_sh_cvar("chatter_ollama_model", "tinyllama",
+    "The Ollama model to use when chatter_api_provider is 4 (Local Ollama). Examples: tinyllama, llama3, mistral")
+bot_sh_cvar_server_only("chatter_ollama_url", "",
+    "Override URL for the Ollama /llm proxy endpoint. Leave blank to auto-detect from TTSAPI config (http://ttsapi:80/llm).")
+bot_sh_cvar("chatter_local_api_enabled", "0",
+    "Master toggle for local ttsapi features (Ollama LLM, Piper TTS). Set to 1 to enable. Auto-enabled when TTSAPI config is detected.")
 
 -- Gameplay-effecting cvars
 bot_sh_cvar("plans_mindelay", "12",
@@ -223,6 +229,8 @@ bot_sh_cvar("chatter_voice_azure_voice_quality", "3",
     "The quality of the Azure TTS voice. 1 = audio-8khz-8kbitrate-mono-mp3, 2 = audio-16khz-16kbitrate-mono-mp3, 3 = audio-16khz-32kbitrate-mono-mp3, 4 = audio-24khz-48kbitrate-mono-mp3, 5 = audio-24khz-96kbitrate-mono-mp3.")
 bot_sh_cvar("chatter_voice_stt", "0",
     "If set to 1, audio recorded in voice chat will be sent to a local Speech-to-Text service for transcription and relayed to bots to reply to. This is an experimental feature.")
+bot_sh_cvar("chatter_voice_stt_backend", "whisper",
+    "The STT backend to use. 'whisper' = local faster-whisper via ttsapi (no API key needed). 'azure' = Microsoft Azure STT (requires Azure credentials). Only relevant when ttsapi container is running.")
 bot_sh_cvar("chatter_voice_force_reply_player", "1",
     "If set to 1, bots will always reply to players in voice chat. If set to 0, bots will not always reply to players in voice chat.")
 bot_sh_cvar("chatter_voice_azure_resource_api_key", "",
@@ -232,12 +240,16 @@ bot_sh_cvar("chatter_voice_azure_resource_name", "",
 bot_sh_cvar("chatter_voice_azure_region", "eastus",
     "The region for Azure Speech-to-Text. This is required for bots to reply to voice chat. You can get one at https://azure.microsoft.com/en-us/services/cognitive-services/speech-to-text/")
 bot_sh_cvar("chatter_voice_tts_provider", "0",
-    "The TTS providet to use. 0 = Free TTS (Microsoft Sam API) Only, 1 = Elevenlabs (Good TTS) Only, 2 = Azure TTS Only, 3 = Mixed")
+    "The TTS provider to use. 0 = Free TTS (Microsoft Sam API) Only, 1 = Elevenlabs Only, 2 = Azure TTS Only, 3 = Mixed, 4 = Local Piper TTS (requires ttsapi container)")
 bot_sh_cvar("chatter_voice_free_tts_chance", "100",
     "The % chance (therefore 0-100) that a bot will use a free TTS voice in voice chat. This is only used if chatter_voice_tts_provider is set to 3.")
 bot_sh_cvar("chatter_voice_microsoft_tts_chance", "0",
     "The % chance (therefore 0-100) that a bot will use a Azure TTS voice in voice chat. This is only used if chatter_voice_tts_provider is set to 3.")
 bot_sh_cvar("chatter_voice_elevenlabs_tts_chance", "0",
     "The % chance (therefore 0-100) that a bot will use a Elevenlabs TTS voice in voice chat. This is only used if chatter_voice_tts_provider is set to 3.")
+bot_sh_cvar("chatter_voice_local_tts_chance", "0",
+    "The % chance (therefore 0-100) that a bot will use Local Piper TTS in voice chat. Only used if chatter_voice_tts_provider is set to 3 (mixed).")
+bot_sh_cvar("chatter_voice_local_tts_url", "",
+    "Override URL for the local Piper TTS endpoint. Leave blank to use Docker-internal auto-detection (binary mode only). Set to a public-facing address (e.g. http://192.168.1.10:8080/local) to enable URL mode for local TTS so clients can stream audio directly.")
 bot_sh_cvar("chatter_voice_url_mode", "0",
     "To enable URL mode set this to 1, this will make the bot voice chat go through URL rather than net.Send which should be quicker, to disable set to 0 (default).")

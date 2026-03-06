@@ -134,15 +134,23 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     end
 
     local prompt = TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description)
+    local sendOpts = {
+        teamOnly = teamOnly,
+        wasVoice = false,
+        -- Extra context for adapters that build their own prompts (e.g. Ollama/llama)
+        eventName   = event_name,
+        eventArgs   = args,
+        description = description,
+    }
 
     if math.random() < chatGPTChance then
-        TTTBots.Providers.SendText(prompt, self.bot, { teamOnly = teamOnly, wasVoice = false }, function(envelope)
+        TTTBots.Providers.SendText(prompt, self.bot, sendOpts, function(envelope)
             setLocalizedString(envelope.ok and envelope.text or nil)
         end)
     else
         localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
         if not localizedString then
-            TTTBots.Providers.SendText(prompt, self.bot, { teamOnly = teamOnly, wasVoice = false }, function(envelope)
+            TTTBots.Providers.SendText(prompt, self.bot, sendOpts, function(envelope)
                 setLocalizedString(envelope.ok and envelope.text or nil)
             end)
         else

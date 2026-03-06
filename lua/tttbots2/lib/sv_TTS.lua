@@ -216,6 +216,84 @@ function TTTBots.TTS.AzureTTSSendRequest(ply, text, teamOnly, onVoiceComplete)
     )
 end
 
+function TTTBots.TTS.LocalTTSSendRequest(bot, text, teamOnly, onVoiceComplete)
+    -- 1. Resolve URL (CVar override → TTSAPI global → hardcoded fallback)
+    local cvarURL = TTTBots.Lib.GetConVarString("chatter_voice_local_tts_url")
+    local url = (cvarURL and cvarURL ~= "") and cvarURL
+        or (TTSAPI and TTSAPI.LocalTTSURL)
+        or "http://ttsapi:80/local"
+
+    local chatter = bot:BotChatter()
+    local personality = bot:BotPersonality()
+    local voiceName = (personality and personality.voice and personality.voice.piperVoice)
+        or (TTSAPI and TTSAPI.DefaultVoice)
+        or "en_US-lessac-medium"
+    local speed = (personality and personality.voice and personality.voice.speed) or 1.0
+
+    local body = util.TableToJSON({
+        text = text,
+        voice = voiceName,
+        speed = speed,
+    })
+
+    HTTP({
+        url = url,
+        method = "POST",
+        headers = { ["Content-Type"] = "application/json" },
+        body = body,
+        type = "application/json",
+        success = function(code, responseBody, headers)
+            if code ~= 200 then
+                print("[TTTBots] Local TTS request failed. HTTP " .. code)
+                chatter:Say(text, teamOnly)
+                if onVoiceComplete then onVoiceComplete(1) end
+                TTTBots.Match.speakingBot = nil
+                return
+            end
+
+            local data = util.JSONToTable(responseBody)
+            if not data or not data.download_url then
+                print("[TTTBots] Local TTS: invalid response (no download_url)")
+                chatter:Say(text, teamOnly)
+                if onVoiceComplete then onVoiceComplete(1) end
+                TTTBots.Match.speakingBot = nil
+                return
+            end
+
+            -- Download the MP3 binary from ttsapi, then send via net chunks
+            local ttsapiRoot = string.gsub(url, "/local$", "")
+            local fullUrl = ttsapiRoot .. data.download_url
+
+            HTTP({
+                url = fullUrl,
+                method = "GET",
+                success = function(code2, audioBody)
+                    if code2 == 200 and audioBody and #audioBody > 0 then
+                        handleTTSResponse(code2, audioBody, chatter, teamOnly, bot, text, nil, onVoiceComplete)
+                    else
+                        print("[TTTBots] Local TTS: failed to download audio. HTTP " .. tostring(code2))
+                        chatter:Say(text, teamOnly)
+                        if onVoiceComplete then onVoiceComplete(1) end
+                        TTTBots.Match.speakingBot = nil
+                    end
+                end,
+                failed = function(reason)
+                    print("[TTTBots] Local TTS audio download failed: " .. tostring(reason))
+                    chatter:Say(text, teamOnly)
+                    if onVoiceComplete then onVoiceComplete(1) end
+                    TTTBots.Match.speakingBot = nil
+                end,
+            })
+        end,
+        failed = function(reason)
+            print("[TTTBots] Local TTS HTTP failed: " .. tostring(reason))
+            chatter:Say(text, teamOnly)
+            if onVoiceComplete then onVoiceComplete(1) end
+            TTTBots.Match.speakingBot = nil
+        end,
+    })
+end
+
 -- ---------------------------------------------------------------------------
 -- SendVoice — envelope-based entry point for the Providers adapter layer
 -- ---------------------------------------------------------------------------
@@ -250,6 +328,8 @@ function TTTBots.TTS.SendVoice(bot, text, opts, callback)
         TTTBots.TTS.ElevenLabsSendRequest(bot, text, teamOnly, wrappedComplete)
     elseif voiceType == "Azure" then
         TTTBots.TTS.AzureTTSSendRequest(bot, text, teamOnly, wrappedComplete)
+    elseif voiceType == "local" then
+        TTTBots.TTS.LocalTTSSendRequest(bot, text, teamOnly, wrappedComplete)
     else
         TTTBots.TTS.FreeTTSSendRequest(bot, text, teamOnly, wrappedComplete)
     end

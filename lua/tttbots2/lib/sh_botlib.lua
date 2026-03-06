@@ -1611,7 +1611,10 @@ end
 ---@realm shared
 function TTTBots.Lib.GetConVarBool(name)
     local cvar = GetConVar("ttt_bot_" .. name)
-    if not cvar then print(name) end
+    if not cvar then
+        print("[TTT Bots 2] Warning: ConVar 'ttt_bot_" .. name .. "' does not exist.")
+        return false
+    end
     return cvar:GetBool()
 end
 

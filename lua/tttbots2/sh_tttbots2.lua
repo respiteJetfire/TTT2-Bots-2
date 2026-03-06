@@ -36,6 +36,7 @@ local function includeServer()
     include("tttbots2/lib/sv_chatGPT.lua")
     include("tttbots2/lib/sv_gemini.lua")
     include("tttbots2/lib/sv_deepSeek.lua")
+    include("tttbots2/lib/sv_ollama.lua")
     include("tttbots2/lib/sv_spots.lua")
     include("tttbots2/lib/sv_plancoordinator.lua")
     include("tttbots2/commands/sv_chatcommands.lua")
@@ -78,6 +79,7 @@ local function includeShared(isReload)
     includeSharedFile("tttbots2/lib/sh_languages.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_botlib.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_chatgpt_prompts.lua", isReload)
+    includeSharedFile("tttbots2/lib/sh_llama_prompts.lua", isReload)
 end
 
 -- These first two need to run on both realms so we can AddCSLuaFile.
