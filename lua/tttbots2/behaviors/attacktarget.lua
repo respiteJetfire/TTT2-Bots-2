@@ -199,6 +199,41 @@ function Attack.HandleAttackMovement(bot, weapon, loco)
     Attack.ApproachIfNecessary(bot, weapon, loco)
 end
 
+--- Set bot.coverTarget to trigger SeekCover when conditions are met.
+---@param bot Bot
+---@param target Player
+function Attack.CheckCoverConditions(bot, target)
+    -- Hothead never seeks cover.
+    if bot.HasTrait and bot:HasTrait("hothead") then return end
+    -- Already in cover-seeking mode.
+    if IsValid(bot.coverTarget) then return end
+
+    local hp = bot:Health()
+    local lowHealth = hp < 60
+
+    -- Check if outgunned: target has a weapon with higher DPS.
+    local outgunned = false
+    if IsValid(target) then
+        local inv = bot:BotInventory()
+        local myInfo = inv and inv:GetHeldWeaponInfo()
+        local targetInv = bot.components and bot.components.inventory
+        local targetInfo = targetInv and targetInv:GetHeldWeaponInfo(target)
+        if myInfo and targetInfo and targetInfo.dps and myInfo.dps then
+            outgunned = targetInfo.dps > myInfo.dps * 1.5
+        end
+    end
+
+    -- Tryhard/cautious bots use cover aggressively (lower threshold).
+    local coverThreshold = 60
+    if bot.HasTrait and (bot:HasTrait("cautious") or bot:HasTrait("tryhard")) then
+        coverThreshold = 75
+    end
+
+    if (hp < coverThreshold and lowHealth) or outgunned then
+        bot.coverTarget = target
+    end
+end
+
 function Attack.GetPreferredBodyTarget(bot, wep, target)
     local body, head = Attack.GetTargetBodyPos(target), Attack.GetTargetHeadPos(target)
     if Attack.ShouldLookAtBody(bot, wep) then
@@ -283,6 +318,14 @@ function Attack.Engage(bot, targetPos)
     end
 
     Attack.HandleAttackMovement(bot, weapon, loco)
+
+    -- Check if we should retreat to cover based on health/outgunned status.
+    Attack.CheckCoverConditions(bot, target)
+
+    -- During reload, backpedal toward cover direction.
+    if weapon.should_reload then
+        loco:SetForceBackward(true)
+    end
 
     local predictedPoint = aimPoint + Attack.PredictMovement(target, 0.4)
     local inaccuracyTarget = predictedPoint + Attack.CalculateInaccuracy(bot, aimPoint, target)
@@ -539,6 +582,7 @@ end
 timer.Create("TTTBots_AttackFocus", 1 / TTTBots.Tickrate, 0, function()
     for _, bot in ipairs(TTTBots.Bots) do
         if not IsValid(bot) then continue end
+        if not bot.components then continue end
         Attack.UpdateFocus(bot)
     end
 end)

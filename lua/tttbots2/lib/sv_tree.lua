@@ -22,11 +22,13 @@ TTTBots.Behaviors.PriorityNodes = {
     --- Fight back vs the environment (blocking props) or other players.
     FightBack = {
         _bh.ClearBreakables,
-        _bh.AttackTarget
+        _bh.AttackTarget,
+        _bh.SeekCover,
     },
 
     --- Defend self from accusations or KOS calls (below FightBack, above social)
     SelfDefense = {
+        _bh.Retreat,
         _bh.DefendSelf,
     },
 
@@ -56,6 +58,7 @@ TTTBots.Behaviors.PriorityNodes = {
     Restore = {
         _bh.GetPirateContract,
         _bh.GetWeapons,
+        _bh.LootNearby,
         _bh.UseHealthStation
     },
     --- Investigate corpses/noises.

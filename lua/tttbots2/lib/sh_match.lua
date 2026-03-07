@@ -187,7 +187,16 @@ function Match.ResetStats(roundActive)
 
     if SERVER then
         for i, v in pairs(TTTBots.Bots) do
+            if not v.components then continue end
             v:SetAttackTarget(nil, "ROUND_RESET")
+            -- Clear cover-seeking state so it doesn't persist into the next round.
+            v.coverTarget = nil
+            v.seekCoverPos = nil
+            v.seekCoverPeeking = false
+            -- Clear loot attempt history so bots don't inherit stale cooldowns.
+            v.lootAttempted = nil
+            v.lootTarget = nil
+            v.lootStartTime = nil
         end
     end
 end

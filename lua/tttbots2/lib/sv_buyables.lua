@@ -98,8 +98,9 @@ hook.Add("TTTBeginRound", "TTTBots_Buyables", function()
         function()
             if not TTTBots.Match.IsRoundActive() then return end
             for _, bot in pairs(TTTBots.Bots) do
+                if not IsValid(bot) then continue end
+                if not bot.components then continue end
                 if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
-                if bot == NULL then continue end
                 TTTBots.Buyables.PurchaseBuyablesFor(bot)
             end
         end)

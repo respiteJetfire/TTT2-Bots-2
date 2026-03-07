@@ -562,6 +562,76 @@ function BotLocomotor:UpdateADS()
     end
 end
 
+--- Determine whether the bot should currently be sprinting.
+--- Called from Think() at 5Hz. Sets self.shouldSprint.
+function BotLocomotor:UpdateSprint()
+    local bot = self.bot
+    -- Never sprint when dead.
+    if not (IsValid(bot) and bot:Health() > 0) then
+        self.shouldSprint = false
+        return
+    end
+
+    -- Never sprint while the sprint system is disabled.
+    local sprintEnabled = GetConVar("ttt2_sprint_enabled")
+    if sprintEnabled and sprintEnabled:GetBool() == false then
+        self.shouldSprint = false
+        return
+    end
+
+    -- Stamina management: check TTT2 stamina on the player.
+    local stamina = bot.GetSprintStamina and bot:GetSprintStamina() or 1.0
+
+    -- Personality-based stamina threshold.
+    -- Cautious bots keep a 30% reserve; aggressive/risktaker keep 10%; default 20%.
+    local staminaThreshold = 0.20
+    if bot.HasTrait and bot:HasTrait("cautious") then
+        staminaThreshold = 0.30
+    elseif bot.HasTrait and (bot:HasTrait("aggressive") or bot:HasTrait("risktaker")) then
+        staminaThreshold = 0.10
+    end
+
+    if stamina < staminaThreshold then
+        self.shouldSprint = false
+        return
+    end
+
+    -- Never sprint while sneaking (traitor stalking behavior).
+    if self.sneaking then
+        self.shouldSprint = false
+        return
+    end
+
+    -- Conditions that warrant sprinting:
+    local shouldSprint = false
+
+    -- 1. Fleeing or retreating.
+    if bot.isRetreating then
+        shouldSprint = true
+    end
+
+    -- 2. Chasing a combat target (Seeking mode).
+    if not shouldSprint and IsValid(bot.attackTarget) and bot.attackBehaviorMode == 2 then
+        shouldSprint = true
+    end
+
+    -- 3. Long-distance pathing (path length > 500 units).
+    if not shouldSprint and self.isTryingPath then
+        local goal = self:GetGoal()
+        if goal and bot:GetPos():Distance(goal) > 500 then
+            shouldSprint = true
+        end
+    end
+
+    -- Personality gate for hothead: sprints freely (already default true above when chasing).
+    -- Cautious bots only sprint when fleeing.
+    if bot.HasTrait and bot:HasTrait("cautious") and not bot.isRetreating then
+        shouldSprint = false
+    end
+
+    self.shouldSprint = shouldSprint
+end
+
 --- Tick periodically. Do not tick per GM:StartCommand
 function BotLocomotor:Think()
     self.tick = self.tick + 1
@@ -570,6 +640,7 @@ function BotLocomotor:Think()
     self:UpdateMovement()                   -- Update the invisible angle that the bot moves at, and make it move.
     self:TickViewAngles()                   -- The real view angles
     self:UpdateADS()
+    self:UpdateSprint()
 end
 
 --- Gets nearby players then determines the best direction to strafe to avoid them.
@@ -1611,8 +1682,14 @@ function BotLocomotor:StartCommand(cmd) -- aka StartCmd
         self.reload = false
     end
 
-    -- TODO: use IN_SPEED to sprint around. cannot be held down constantly or else it won't work.
-    cmd:SetButtons(cmd:GetButtons())
+    -- Sprint: set IN_SPEED when shouldSprint is true and bot is moving forward.
+    if self.shouldSprint then
+        local buttons = cmd:GetButtons()
+        -- IN_FORWARD must be set for sprint to work when ttt2_sprint_forwards_only is enabled.
+        if bit.band(buttons, IN_FORWARD) ~= 0 or not (GetConVar("ttt2_sprint_forwards_only") and GetConVar("ttt2_sprint_forwards_only"):GetBool()) then
+            cmd:SetButtons(buttons + IN_SPEED)
+        end
+    end
 
     self.moveNormal = cmd:GetViewAngles():Forward()
 end

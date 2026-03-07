@@ -146,7 +146,10 @@ function TTTBots.Reload()
     hook.Add("StartCommand", "TTTBots_StartCommand", function(ply, cmd)
         if ply:IsBot() then
             local bot = ply
+            -- Guard: components table may not be populated yet on the first ticks after bot creation.
+            if not bot.components then return end
             local locomotor = bot:BotLocomotor()
+            if not locomotor then return end
 
             -- Update locomotor
             locomotor:StartCommand(cmd)

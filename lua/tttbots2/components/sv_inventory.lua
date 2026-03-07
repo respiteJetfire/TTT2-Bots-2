@@ -327,6 +327,79 @@ function BotInventory:ManageDebugWeapon()
     return false
 end
 
+--- Score a weapon info table based on range to target, personality, and combat context.
+--- Higher scores = more appropriate to equip right now.
+---@param wepInfo WeaponInfo
+---@param bot Bot
+---@param distToTarget number|nil Distance to current attack target (nil if no target)
+---@return number score
+function BotInventory:ScoreWeaponForContext(wepInfo, bot, distToTarget)
+    if not wepInfo then return -999 end
+
+    -- No ammo anywhere: strongly penalise.
+    if (wepInfo.ammo <= 0 and wepInfo.clip <= 0) then return -999 end
+
+    -- Base score from DPS.
+    local score = wepInfo.dps or 1
+
+    -- ── Range-based scoring ────────────────────────────────────────────────
+    if distToTarget then
+        if distToTarget < 200 then
+            -- Close quarters: prefer shotgun/melee.
+            if wepInfo.is_shotgun then score = score + 10 end
+            if wepInfo.is_melee   then score = score + 8  end
+            -- SMG decent at CQB too.
+            if not wepInfo.is_sniper and not wepInfo.is_shotgun and not wepInfo.is_melee then
+                score = score + 3
+            end
+            -- Sniper penalised at close range.
+            if wepInfo.is_sniper then score = score - 8 end
+        elseif distToTarget < 800 then
+            -- Mid range: prefer primary/SMG.
+            if not wepInfo.is_sniper and not wepInfo.is_shotgun and not wepInfo.is_melee then
+                score = score + 8
+            end
+            if wepInfo.is_shotgun then score = score + 2 end
+        else
+            -- Long range: prefer sniper.
+            if wepInfo.is_sniper  then score = score + 10 end
+            if wepInfo.is_shotgun then score = score - 5  end
+            if wepInfo.is_melee   then score = score - 15 end
+        end
+    end
+
+    -- ── Personality modulation ─────────────────────────────────────────────
+    if bot.HasTrait then
+        if bot:HasTrait("CQB") then
+            if wepInfo.is_shotgun or wepInfo.is_melee then score = score + 5 end
+        end
+        if bot:HasTrait("sniper") or bot:HasTrait("veryobservant") then
+            if wepInfo.is_sniper then score = score + 5 end
+        end
+        if bot:HasTrait("heavy") then
+            -- Heavy bots prefer high-damage weapons.
+            if (wepInfo.damage or 0) > 30 then score = score + 5 end
+        end
+    end
+
+    -- ── Stealth preference for traitors not in active combat ───────────────
+    if bot.GetRoleStringRaw and bot:GetRoleStringRaw() == "traitor" then
+        local inCombat = IsValid(bot.attackTarget)
+        if not inCombat and wepInfo.silent then
+            score = score + 15
+        end
+    end
+
+    -- ── Low ammo penalty ──────────────────────────────────────────────────
+    if wepInfo.clip and wepInfo.max_ammo and wepInfo.max_ammo > 0 then
+        if wepInfo.clip <= math.ceil(wepInfo.max_ammo * 0.2) and wepInfo.ammo <= 0 then
+            score = score - 20
+        end
+    end
+
+    return score
+end
+
 --- Manage our own inventory by selecting the best weapon, queueing a reload if necessary, etc.
 function BotInventory:AutoManageInventory()
     local SLOWDOWN = math.floor(TTTBots.Tickrate / 2) -- about twice per second
@@ -334,30 +407,42 @@ function BotInventory:AutoManageInventory()
 
     if self:ManageDebugWeapon() then return end
 
-    local w_special = self:GetSpecialPrimary()
-    local special = w_special and self:GetWeaponInfo(w_special) or nil
-    local w_primary, primary = self:GetPrimary()
+    local w_special  = self:GetSpecialPrimary()
+    local special    = w_special and self:GetWeaponInfo(w_special) or nil
+    local w_primary, primary   = self:GetPrimary()
     local w_secondary, secondary = self:GetSecondary()
 
-    -- local isAttacking = self.bot.attackTarget ~= nil
+    -- Distance to current attack target (nil when not in combat).
+    local distToTarget = nil
+    if IsValid(self.bot.attackTarget) then
+        distToTarget = self.bot:GetPos():Distance(self.bot.attackTarget:GetPos())
+    end
 
-    local hash = {
-        [self.EquipSpecial] = special,
-        [self.EquipPrimary] = primary,
-        [self.EquipSecondary] = secondary,
-        -- [self.EquipMelee] = self:HasNoWeaponAvailable(false),
+    -- Build scored candidates table: { equip_func, wepInfo, weapon_entity }.
+    local candidates = {
+        { func = self.EquipSpecial,   info = special,    wep = w_special   },
+        { func = self.EquipPrimary,   info = primary,    wep = w_primary   },
+        { func = self.EquipSecondary, info = secondary,  wep = w_secondary },
     }
 
-    local foundGun = false
-    for func, wepInfo in pairs(hash) do
-        if wepInfo.ammo > 0 or wepInfo.clip > 0 then
-            func(self)
-            foundGun = true
-            break
+    local bestFunc  = nil
+    local bestScore = -999
+
+    for _, entry in ipairs(candidates) do
+        local info = entry.info
+        if not info then continue end
+        -- Must have at least some ammo available.
+        if (info.ammo <= 0) and (info.clip <= 0) then continue end
+        local score = self:ScoreWeaponForContext(info, self.bot, distToTarget)
+        if score > bestScore then
+            bestScore = score
+            bestFunc  = entry.func
         end
     end
 
-    if not foundGun and self:HasNoWeaponAvailable(false) then
+    if bestFunc then
+        bestFunc(self)
+    elseif self:HasNoWeaponAvailable(false) then
         self:EquipMelee()
     end
 
