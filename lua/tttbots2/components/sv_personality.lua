@@ -952,7 +952,8 @@ function plyMeta:GetTraitMult(attribute)
     local total = 1
     if not traits then return total end
     for i, trait in pairs(traits) do
-        total = total * ((trait.effects and trait.effects[attribute]) or 1)
+        local val = trait.effects and trait.effects[attribute]
+        total = total * (tonumber(val) or 1)
     end
     return total
 end
@@ -962,7 +963,8 @@ function plyMeta:GetTraitAdditive(attribute)
     local total = 0
     if not traits then return total end
     for i, trait in pairs(traits) do
-        total = total + ((trait.effects and trait.effects[attribute]) or 0)
+        local val = trait.effects and trait.effects[attribute]
+        total = total + (tonumber(val) or 0)
     end
     return total
 end

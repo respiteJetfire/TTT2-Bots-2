@@ -93,6 +93,23 @@ end
 function Stalk.Validate(bot)
     if not IsValid(bot) then return false end
     if bot.attackTarget ~= nil then return false end -- Do not stalk if we're killing someone already.
+
+    -- Phase gate: Stalk is a subtle behavior, only use in EARLY and MID phases.
+    -- In LATE/OVERTIME, traitors should move to bolder behaviors.
+    local ra = bot:BotRoundAwareness()
+    if ra then
+        local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+        if PHASE then
+            local phase = ra:GetPhase()
+            if phase == PHASE.LATE or phase == PHASE.OVERTIME then
+                -- In overtime with overtake advantage, allow stalking to continue (assassinate stragglers)
+                if not ra:IsOvertake() then
+                    return false
+                end
+            end
+        end
+    end
+
     return Stalk.ValidateTarget(bot) or Stalk.ShouldStartStalking(bot)
 end
 

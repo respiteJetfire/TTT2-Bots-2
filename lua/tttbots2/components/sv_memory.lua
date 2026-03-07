@@ -114,6 +114,7 @@ function Memory:ResetMemory()
     self.messages = {}               -- List of messages this bot has received
 
     self.m_genericmemory = { game = {}, round = {} }
+    self.visitedNavAreas = {}  -- [navID] = CurTime() timestamp of last visit
 end
 
 hook.Add("TTTEndRound", "TTTBots.Memory.ClearRoundMemory", function()
@@ -419,6 +420,7 @@ function Memory:Think()
 
     self:UpdateKnownPositions()
     self:UpdatePlayerLifeStates()
+    self:CullDangerZones()
 end
 
 --- Returns (and sets, if applicable) the hearing multiplier for this bot.
@@ -442,6 +444,63 @@ function Memory:GetRecentSoundsFromPly(ply)
         end
     end
     return sounds
+end
+
+--- Record that this bot has visited the given nav area.
+---@param navArea CNavArea
+function Memory:RecordNavVisit(navArea)
+    if not IsValid(navArea) then return end
+    self.visitedNavAreas[navArea:GetID()] = CurTime()
+end
+
+--- Returns true if the bot has visited this nav area within the last `withinSecs` seconds (default 90).
+---@param navArea CNavArea
+---@param withinSecs number?
+---@return boolean
+function Memory:HasVisitedNavRecently(navArea, withinSecs)
+    if not IsValid(navArea) then return false end
+    withinSecs = withinSecs or 90
+    local t = self.visitedNavAreas[navArea:GetID()]
+    if not t then return false end
+    return (CurTime() - t) < withinSecs
+end
+
+--- Returns true if the given position is in a known danger zone (recent kill nearby).
+---@param pos Vector
+---@return boolean
+function Memory:IsDangerZone(pos)
+    for _, zone in ipairs(self.dangerZones or {}) do
+        if pos:Distance(zone.pos) < 400 then
+            return true
+        end
+    end
+    return false
+end
+
+--- Record a danger zone at the given position.
+---@param pos Vector
+function Memory:AddDangerZone(pos)
+    self.dangerZones = self.dangerZones or {}
+    -- Avoid duplicates within 400 units
+    for _, zone in ipairs(self.dangerZones) do
+        if zone.pos:Distance(pos) < 400 then
+            zone.time = CurTime()
+            return
+        end
+    end
+    table.insert(self.dangerZones, { pos = pos, time = CurTime() })
+end
+
+--- Prune danger zones older than 120 seconds.
+function Memory:CullDangerZones()
+    if not self.dangerZones then return end
+    local fresh = {}
+    for _, zone in ipairs(self.dangerZones) do
+        if (CurTime() - zone.time) < 120 then
+            table.insert(fresh, zone)
+        end
+    end
+    self.dangerZones = fresh
 end
 
 function Memory:GetHeardC4Sounds()
@@ -627,6 +686,112 @@ hook.Add("EntityEmitSound", "TTTBots.EntityEmitSound", function(data)
     -- print("Unknown sound: " .. sn)
 end)
 
+
+-- ===========================================================================
+-- Location-based reasoning hooks
+-- ===========================================================================
+
+if SERVER then
+    -- When a body is found, check which players were last seen near that location
+    -- and generate NEAR_BODY evidence against them.
+    hook.Add("TTTBodyFound", "TTTBots.Memory.NearBodyReasoning", function(discoverer, deceased, ragdoll)
+        if not TTTBots.Match.RoundActive then return end
+        if not (IsValid(deceased) and deceased:IsPlayer()) then return end
+        local corpsePos = deceased:GetPos()
+        -- Find the estimated death time: look for the most recent damage log entry for this player
+        local deathTime = CurTime()
+        for _, log in ipairs(TTTBots.Match.DamageLogs or {}) do
+            if log.victim == deceased and log.time > (deathTime - 120) then
+                deathTime = math.max(deathTime, log.time)
+            end
+        end
+
+        -- For each alive bot that uses suspicion, check who was near the corpse around death time
+        for _, bot in ipairs(TTTBots.Bots or {}) do
+            if not (IsValid(bot) and bot.components and bot.components.memory) then continue end
+            if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then continue end
+            local mem = bot.components.memory
+            local evidence = bot:BotEvidence()
+            if not evidence then continue end
+
+            -- Check all players we have position records for
+            for nick, pnp in pairs(mem.playerKnownPositions) do
+                local ply = pnp.ply
+                if not (IsValid(ply) and ply:IsPlayer()) then continue end
+                if ply == deceased then continue end
+                if ply == bot then continue end
+                -- Check if last-seen position was within 700 units of the corpse
+                -- AND the last-seen time was within ±20 seconds of death time
+                local dist = pnp.pos:Distance(corpsePos)
+                local timeDiff = math.abs(pnp.time - deathTime)
+                if dist < 700 and timeDiff < 20 then
+                    local navArea = navmesh.GetNearestNavArea(corpsePos)
+                    local location = (navArea and navArea.GetPlace and navArea:GetPlace() ~= "") and navArea:GetPlace() or "unknown"
+                    evidence:AddEvidence({
+                        type     = "NEAR_BODY",
+                        subject  = ply,
+                        detail   = string.format("was near %s around time of death", location),
+                        location = location,
+                    })
+                end
+            end
+        end
+    end)
+
+    -- When a player dies, record danger zone in all living bot memories
+    hook.Add("PlayerDeath", "TTTBots.Memory.DangerZone", function(victim, weapon, attacker)
+        if not TTTBots.Match.RoundActive then return end
+        if not (IsValid(victim) and victim:IsPlayer()) then return end
+        local deathPos = victim:GetPos()
+        for _, bot in ipairs(TTTBots.Bots or {}) do
+            if not (IsValid(bot) and bot.components and bot.components.memory) then continue end
+            bot.components.memory:AddDangerZone(deathPos)
+        end
+    end)
+
+    -- Suspicious movement: if a player emerges from the direction of recent gunshots,
+    -- generate SUSPICIOUS_MOVEMENT evidence.
+    timer.Create("TTTBots.Memory.SuspiciousMovement", 2, 0, function()
+        if not TTTBots.Match.RoundActive then return end
+
+        for _, bot in ipairs(TTTBots.Bots or {}) do
+            if not (IsValid(bot) and bot.components and bot.components.memory) then continue end
+            if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then continue end
+            local mem = bot.components.memory
+            local evidence = bot:BotEvidence()
+            if not evidence then continue end
+
+            -- Get recent gunshot sounds this bot heard
+            local gunshots = {}
+            for _, snd in ipairs(mem.recentSounds) do
+                if snd.sound == "Gunshot" then
+                    table.insert(gunshots, snd)
+                end
+            end
+            if #gunshots == 0 then continue end
+
+            -- For each known player position, check if they appear to be moving FROM a gunshot area
+            for nick, pnp in pairs(mem.playerKnownPositions) do
+                local ply = pnp.ply
+                if not (IsValid(ply) and ply:IsPlayer()) then continue end
+                if ply == bot then continue end
+                -- Check distance from player's last-known pos to any gunshot position
+                for _, snd in ipairs(gunshots) do
+                    local distFromShot = pnp.pos:Distance(snd.pos)
+                    -- Player was within 400 units of the gunshot sound location recently
+                    if distFromShot < 400 and (CurTime() - snd.time) < 10 then
+                        evidence:AddEvidence({
+                            type    = "SUSPICIOUS_MOVEMENT",
+                            subject = ply,
+                            detail  = "emerged from direction of recent gunshots",
+                        })
+                        break  -- one entry per player per sweep
+                    end
+                end
+            end
+        end
+    end)
+end
 
 ---@class Bot
 local plyMeta = FindMetaTable("Player")

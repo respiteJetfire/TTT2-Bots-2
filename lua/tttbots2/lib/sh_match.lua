@@ -123,6 +123,32 @@ function Match.Time()
     return (Match.RoundActive and Match.SecondsPassed) or 0
 end
 
+--- Returns the estimated number of traitors still alive.
+--- Uses initial traitor count minus confirmed traitor deaths.
+---@return number
+---@realm shared
+function Match.GetExpectedRemainingTraitors()
+    if not Match.RoundActive then return 0 end
+    local confirmed = 0
+    for ply, _ in pairs(Match.ConfirmedDead) do
+        if IsValid(ply) and ply:IsPlayer() then
+            local role = TTTBots.Roles and TTTBots.Roles.GetRoleFor and TTTBots.Roles.GetRoleFor(ply)
+            if role and role:GetTeam() == TEAM_TRAITOR then
+                confirmed = confirmed + 1
+            end
+        end
+    end
+    return math.max((Match.InitialTraitorCount or 0) - confirmed, 0)
+end
+
+--- Returns the number of players whose role/team is unknown to us (alive, not confirmed team).
+--- This is a rough measure of how many unknowns remain in the round.
+---@return number
+---@realm shared
+function Match.GetUnknownAliveCount()
+    return math.max(#Match.AlivePlayers - 1, 0)  -- subtract 1 for "self" heuristic
+end
+
 ---@realm shared
 function Match.IsRoundActive()
     return Match.RoundActive
@@ -157,6 +183,7 @@ function Match.ResetStats(roundActive)
     Match.CheckedPlayers = {}
     Match.MarkedForDefib = {}
     Match.MarkedPlayers = {}
+    Match.InitialTraitorCount = 0  -- Set in TTTBeginRound hook after roles are assigned
 
     if SERVER then
         for i, v in pairs(TTTBots.Bots) do
@@ -292,6 +319,21 @@ hook.Add("TTTBeginRound", "TTTBots.Match.BeginRound", function()
         end
     end
     Match.UpdateAlivePlayers()
+    -- Count initial traitors for deductive reasoning
+    -- Use a slight delay so roles are fully assigned before we count
+    timer.Simple(1, function()
+        if not Match.RoundActive then return end
+        local count = 0
+        for _, ply in pairs(player.GetAll()) do
+            if TTTBots.Lib.IsPlayerAlive(ply) and TTTBots.Roles and TTTBots.Roles.GetRoleFor then
+                local role = TTTBots.Roles.GetRoleFor(ply)
+                if role and role:GetTeam() == TEAM_TRAITOR then
+                    count = count + 1
+                end
+            end
+        end
+        Match.InitialTraitorCount = count
+    end)
 end)
 
 hook.Add("TTTEndRound", "TTTBots.Match.EndRound", function()

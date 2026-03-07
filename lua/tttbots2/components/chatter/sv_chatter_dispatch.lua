@@ -23,6 +23,7 @@ speakingPlayers = speakingPlayers or {}
 ---@param wasVoice boolean whether this reply was prompted by voice STT input
 function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
     if not (bot and text) then return end
+    if not IsValid(bot)  then return end
 
     teamOnly  = teamOnly  or false
     wasVoice  = wasVoice  or false
@@ -72,7 +73,8 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
 
         -- Inform alive bots of this message
         for _, aliveBot in ipairs(TTTBots.Lib.GetAliveBots()) do
-            aliveBot:BotMemory():UpdateMessages(text, bot)
+            local memory = IsValid(aliveBot) and aliveBot:BotMemory()
+            if memory then memory:UpdateMessages(text, bot) end
         end
 
         TTTBots.Providers.SendVoice(bot, text, { teamOnly = teamOnly }, function(envelope)

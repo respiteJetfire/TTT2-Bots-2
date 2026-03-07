@@ -2857,6 +2857,202 @@ local LoadLang = function()
     Line("I found something terrible — {{killer}} killed {{victim}}.", A.Nice)
     Line("Forensic data confirms: {{killer}} eliminated {{victim}}.", A.Tryhard)
     Line("Team: body evidence confirms {{killer}} killed {{victim}}.", A.Teamer)
+
+    -----------------------------------------------------------
+    -- ROUND PHASE AWARENESS
+    -----------------------------------------------------------
+
+    RegisterCategory("PhaseGroupUp", P.IMPORTANT, "Bot urges teammates to group up in late round")
+    Line("We're running out of time — everyone group up!", A.Default)
+    Line("Late round, stick together people.", A.Default)
+    Line("Get to me, NOW. Don't wander alone.", A.Default)
+    Line("Group up before it's too late.", A.Default)
+    Line("STICK TOGETHER. Late round.", A.Default)
+
+    Line("yo group up its late game", A.Casual)
+    Line("yall need to stick together rn", A.Casual)
+    Line("come on come on, group time", A.Casual)
+
+    Line("I said GROUP UP.", A.Hothead)
+    Line("IF YOU DON'T GROUP UP I SWEAR—", A.Hothead)
+    Line("Stop wandering around like idiots. GROUP UP.", A.Hothead)
+
+    Line("Everyone to me. Now.", A.Stoic)
+    Line("Consolidate positions immediately.", A.Stoic)
+    Line("Tactical grouping required.", A.Stoic)
+
+    Line("maybe we should like... go together?", A.Dumb)
+    Line("guys should we group? i think we should group", A.Dumb)
+
+    Line("Buddy up everyone! Safety in numbers!", A.Nice)
+    Line("Please stick with someone — it's getting dangerous!", A.Nice)
+
+    RegisterCategory("PhaseOvertimePanic", P.CRITICAL, "Bot demands everyone get tested in overtime")
+    Line("TEST EVERYONE. Right now. No exceptions.", A.Default)
+    Line("Time is up — get on the tester or you're KOS.", A.Default)
+    Line("Everyone line up for testing. NOW.", A.Default)
+    Line("If you haven't been tested, you're sus. Do it now.", A.Default)
+
+    Line("test NOW or i kos everyone lol", A.Casual)
+    Line("bro get tested literally right now", A.Casual)
+
+    Line("EVERYONE GETS TESTED OR EVERYONE DIES.", A.Hothead)
+    Line("Test. Now. Or I start shooting.", A.Hothead)
+
+    Line("Mandatory testing. Refusal equals KOS.", A.Stoic)
+    Line("Role verification required. Immediately.", A.Stoic)
+
+    Line("TEEEEST TIMEEEE", A.Dumb)
+    Line("i dunno whats happening but test i guess??", A.Dumb)
+
+    Line("Everyone please get tested, we're almost out of time!", A.Nice)
+    Line("Testing time! It'll only take a second, I promise!", A.Nice)
+
+    RegisterCategory("PhaseTraitorNow", P.IMPORTANT, "Traitor bot rallies team for late-round strike (team chat)")
+    Line("Now's our chance — move in.", A.Default)
+    Line("Time to make our move. Let's go.", A.Default)
+    Line("They're scattered. Hit them now.", A.Default)
+    Line("Stop waiting. We strike now.", A.Default)
+
+    Line("ok gang time to go crazy", A.Casual)
+    Line("lets gooo its time", A.Casual)
+
+    Line("MOVE. NOW. KILL THEM ALL.", A.Hothead)
+    Line("I'm tired of waiting. Attacking.", A.Hothead)
+
+    Line("Execute. Now.", A.Stoic)
+    Line("Initiating final phase.", A.Stoic)
+
+    Line("uh guys can we go kill them now pleeease", A.Dumb)
+
+    RegisterCategory("PhaseOvertimeAssault", P.CRITICAL, "Traitor bot calls all-out assault in overtime (team chat)")
+    Line("All out — no more hiding. Attack everything.", A.Default)
+    Line("Forget stealth. Full assault.", A.Default)
+    Line("No more games. Kill them all, now.", A.Default)
+    Line("Overtime. Gloves are off.", A.Default)
+
+    Line("YOLO IT LETS GOOOO", A.Casual)
+    Line("forget the plan just go ham", A.Casual)
+
+    Line("ATTACK. ALL OF YOU. NOW.", A.Hothead)
+    Line("THEY DIE NOW.", A.Hothead)
+
+    Line("Stealth protocol terminated. Full assault.", A.Stoic)
+    Line("All-out attack. No restraint.", A.Stoic)
+
+    Line("can we just like, shoot everyone??", A.Dumb)
+
+    RegisterCategory("DeductionMustBeTraitor", P.IMPORTANT, "Bot uses process of elimination to call out a player")
+    Line("Process of elimination — it's gotta be {player}.", A.Default)
+    Line("{player} is the only one unaccounted for. KOS.", A.Default)
+    Line("Everyone else is cleared. {player} is the traitor.", A.Default)
+    Line("By elimination, {player} must be the traitor.", A.Default)
+
+    Line("{player} its you by process of elimination lol", A.Casual)
+    Line("bro its literally {player}, nobody else", A.Casual)
+
+    Line("{player}. Process of elimination. You're dead.", A.Hothead)
+    Line("It can ONLY be {player}. KOS.", A.Hothead)
+
+    Line("Logic dictates: {player}.", A.Stoic)
+    Line("By elimination: {player} is the traitor.", A.Stoic)
+
+    Line("uhhhh i think it might be {player}? maybe?", A.Dumb)
+    Line("i counted everyone and its {player} i think", A.Dumb)
+
+    Line("I hate to say it, but the math says {player}...", A.Nice)
+    Line("By process of elimination it's {player}. Sorry!", A.Nice)
+
+    RegisterCategory("TooQuiet", P.NORMAL, "Bot notices nobody has died in a while and gets suspicious")
+    Line("Nobody's died in a while... something's wrong.", A.Default)
+    Line("It's been too quiet. Stay sharp.", A.Default)
+    Line("Why hasn't anyone died? Something's off.", A.Default)
+    Line("Too quiet. I don't like it.", A.Default)
+
+    Line("guys its sus that nobodys died", A.Casual)
+    Line("why is everyone alive still lol", A.Casual)
+
+    Line("SOMETHING IS WRONG. Stay alert.", A.Hothead)
+    Line("Why is everyone alive?! The traitors are planning something.", A.Hothead)
+
+    Line("Anomalous silence. Maintain vigilance.", A.Stoic)
+    Line("No casualties recorded. Suspicious.", A.Stoic)
+
+    Line("wait nobody died?? is that good or bad", A.Dumb)
+    Line("heyyy everyone's alive! ...wait is that bad", A.Dumb)
+
+    Line("It's been so peaceful! ...too peaceful.", A.Nice)
+    Line("Everyone's okay so far! Stay careful though!", A.Nice)
+
+    RegisterCategory("OvertakeWarning", P.IMPORTANT, "Innocent bot warns that traitors may outnumber them")
+    Line("They might outnumber us. Be careful.", A.Default)
+    Line("Watch out — we may be in the minority now.", A.Default)
+    Line("There's more of them than us. Stick together.", A.Default)
+    Line("Numbers aren't in our favor. Group up.", A.Default)
+
+    Line("yo we might be outnumbered rn", A.Casual)
+    Line("guys there might be more bad guys than us", A.Casual)
+
+    Line("WE'RE OUTNUMBERED. EVERYONE TOGETHER.", A.Hothead)
+    Line("They outnumber us! Don't get separated!", A.Hothead)
+
+    Line("Numerical disadvantage detected. Regroup.", A.Stoic)
+    Line("We are potentially outnumbered. Consolidate.", A.Stoic)
+
+    Line("uh oh i think there are more bad guys than us", A.Dumb)
+
+    Line("We might be outnumbered! Please don't split up!", A.Nice)
+
+    RegisterCategory("OvertakeReady", P.IMPORTANT, "Traitor bot rallies team when they have numbers advantage (team chat)")
+    Line("We outnumber them. Move in.", A.Default)
+    Line("Numbers are on our side. Let's end this.", A.Default)
+    Line("We have the advantage. Attack.", A.Default)
+
+    Line("we outnumber them letsss gooo", A.Casual)
+
+    Line("WE HAVE NUMBERS. CHARGE.", A.Hothead)
+    Line("More of us than them. ATTACK.", A.Hothead)
+
+    Line("Numerical advantage confirmed. Engage.", A.Stoic)
+    Line("We outnumber them. Execute.", A.Stoic)
+
+    RegisterCategory("DangerZoneWarning", P.NORMAL, "Bot warns about a dangerous area where someone just died")
+    Line("Stay away from that area — someone just died there.", A.Default)
+    Line("Danger zone ahead. Someone was just killed there.", A.Default)
+    Line("Don't go that way, there was a kill nearby.", A.Default)
+
+    Line("yo dont go over there someone died", A.Casual)
+    Line("theres a kill zone over there watch out", A.Casual)
+
+    Line("AVOID THAT AREA. DEATH ZONE.", A.Hothead)
+    Line("Don't go there unless you want to die!", A.Hothead)
+
+    Line("Casualty reported in that area. Avoid.", A.Stoic)
+    Line("Known kill site ahead. Exercise caution.", A.Stoic)
+
+    Line("someone died there i think?? dont go there", A.Dumb)
+
+    Line("Careful! Someone died near there recently!", A.Nice)
+
+    RegisterCategory("TraitorCountDeduction", P.IMPORTANT, "Bot deduces the number of traitors remaining")
+    Line("Only {count} traitor left. Stay sharp.", A.Default)
+    Line("{count} traitor remaining. Don't let your guard down.", A.Default)
+    Line("We're almost there — {count} traitor left.", A.Default)
+
+    Line("{count} traitor left!! almost got em", A.Casual)
+    Line("just {count} more to go guys!!", A.Casual)
+
+    Line("{count} traitor left. FIND THEM.", A.Hothead)
+    Line("ONE traitor left. I WILL FIND YOU.", A.Hothead)
+
+    Line("{count} hostile remaining.", A.Stoic)
+    Line("Confirmed: {count} traitor unit remaining.", A.Stoic)
+
+    Line("wait theres only {count} traitor left?? yay!", A.Dumb)
+    Line("so like, {count} bad guy, right?", A.Dumb)
+
+    Line("Just {count} traitor left! We can do this!", A.Nice)
+    Line("Only {count} more! Stay together and we've got this!", A.Nice)
 end
 
 local DEPENDENCIES = { "Plans" }

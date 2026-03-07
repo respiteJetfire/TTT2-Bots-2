@@ -78,6 +78,19 @@ local chancesOf100 = {
     VouchChat                  = 70,  -- "{{player}} is with me, they're clean"
     EvidenceShare              = 60,  -- Sharing evidence with a nearby bot
     BodyEvidenceFound          = 75,  -- Bot found killer info on a corpse
+    -- -----------------------------------------------------------------------
+    -- Round Phase Awareness
+    -- -----------------------------------------------------------------------
+    PhaseGroupUp               = 60,  -- "We're running out of time, group up!" (late/innocent)
+    PhaseOvertimePanic         = 80,  -- "Test everyone NOW" (overtime/innocent)
+    PhaseTraitorNow            = 65,  -- "Now's our chance" (late/traitor, team-only)
+    PhaseOvertimeAssault       = 75,  -- "All-out, no more stealth" (overtime/traitor, team-only)
+    DeductionMustBeTraitor     = 70,  -- "Process of elimination — it's gotta be X"
+    TooQuiet                   = 45,  -- "Nobody's died in a while... stay alert"
+    OvertakeWarning            = 60,  -- "They outnumber us, be careful" (innocent)
+    OvertakeReady              = 65,  -- "We have numbers — move in" (traitor, team-only)
+    DangerZoneWarning          = 55,  -- "Stay away from X, someone just died there"
+    TraitorCountDeduction      = 65,  -- "One traitor left, stay sharp" (innocent/detective)
 }
 
 -- ---------------------------------------------------------------------------
@@ -148,6 +161,7 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
             if isCasual then localizedString = string.lower(localizedString) end
             if delay then
                 timer.Simple(delay, function()
+                    if not IsValid(self.bot) then return end
                     self:textorTTS(self.bot, localizedString, teamOnly, event_name, args)
                 end)
             else
@@ -307,5 +321,138 @@ timer.Create("TTTBots.Chatter.EvidenceShare", 15, 0, function()
                 end
             end
         end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- Phase-aware chatter — periodic round-phase callouts
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.PhaseAwareness", 30, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    local bots = lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    -- Pick a random eligible bot as the speaker
+    local speaker = bots[math.random(1, #bots)]
+    if not (speaker and IsValid(speaker) and speaker.components) then return end
+    local chatter = speaker:BotChatter()
+    if not chatter then return end
+
+    local ra = speaker:BotRoundAwareness()
+    if not ra then return end
+
+    local phase = ra:GetPhase()
+    local role = TTTBots.Roles.GetRoleFor(speaker)
+    local isTraitor = role:GetTeam() == TEAM_TRAITOR
+    local usesSuspicion = role:GetUsesSuspicion()
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+
+    -- Too quiet detection (any role)
+    if ra:IsTooQuiet() and math.random(1, 3) == 1 then
+        chatter:On("TooQuiet", {}, false)
+        return
+    end
+
+    -- Overtake awareness
+    if ra:IsOvertake() then
+        if isTraitor and math.random(1, 2) == 1 then
+            chatter:On("OvertakeReady", {}, true)  -- team-only
+            return
+        elseif usesSuspicion then
+            chatter:On("OvertakeWarning", {}, false)
+            return
+        end
+    end
+
+    -- Phase-specific callouts
+    if PHASE then
+        if phase == PHASE.LATE then
+            if isTraitor then
+                chatter:On("PhaseTraitorNow", {}, true)
+            elseif usesSuspicion then
+                chatter:On("PhaseGroupUp", {}, false)
+            end
+        elseif phase == PHASE.OVERTIME then
+            if isTraitor then
+                chatter:On("PhaseOvertimeAssault", {}, true)
+            elseif usesSuspicion then
+                chatter:On("PhaseOvertimePanic", {}, false)
+            end
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- Deduction chatter — "process of elimination" callouts
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.Deduction", 45, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    local bots = lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not role:GetUsesSuspicion() then continue end  -- only innocents/detectives
+
+        local ra = bot:BotRoundAwareness()
+        if not ra then continue end
+
+        local chatter = bot:BotChatter()
+        if not chatter then continue end
+
+        -- "One traitor left" deduction
+        local remaining = ra:GetRemainingTraitorCount()
+        if remaining == 1 and math.random(1, 4) == 1 then
+            chatter:On("TraitorCountDeduction", { count = remaining }, false)
+        end
+
+        -- "Process of elimination" — only when very few unknowns remain
+        local susPress = ra:GetSuspicionPressure()
+        if susPress >= 2.0 then
+            local evidence = bot:BotEvidence()
+            if evidence then
+                local suspects = evidence:GetSuspects(6)
+                if #suspects == 1 then
+                    local suspect = suspects[1]
+                    if IsValid(suspect) then
+                        chatter:On("DeductionMustBeTraitor", { player = suspect:Nick(), playerEnt = suspect }, false)
+                    end
+                end
+            end
+        end
+
+        break  -- only one bot speaks per sweep to avoid spam
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- Danger zone proximity warning
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.DangerZone", 8, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    local bots = lib.GetAliveBots()
+
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not role:GetUsesSuspicion() then continue end  -- only innocents warn about danger zones
+
+        local memory = bot:BotMemory()
+        if not memory then continue end
+
+        -- Check if the bot's current wander destination is a danger zone
+        if bot.wander and bot.wander.targetPos then
+            if memory:IsDangerZone(bot.wander.targetPos) then
+                local chatter = bot:BotChatter()
+                if chatter and math.random(1, 4) == 1 then
+                    chatter:On("DangerZoneWarning", {}, false)
+                end
+            end
+        end
+        break  -- only one bot warns per sweep
     end
 end)

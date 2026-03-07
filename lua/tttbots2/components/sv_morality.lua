@@ -92,6 +92,11 @@ function BotMorality:SetRandomNearbyTarget()
 
     local aggression = math.max((self.bot:GetTraitMult("aggression")) * (self.bot:BotPersonality().rage / 100), 0.3)
     local time_modifier = TTTBots.Match.SecondsPassed / 30
+    -- Phase-based aggression scaling: traitors become bolder as round progresses
+    local ra = self.bot:BotRoundAwareness()
+    if ra then
+        time_modifier = time_modifier * ra:GetAggressionMult()
+    end
 
     local maxTargets = math.max(2, math.ceil(aggression * 2 * time_modifier))
     local targets = lib.GetAllVisible(self.bot:EyePos(), true, self.bot)
@@ -114,7 +119,19 @@ end
 function BotMorality:TickIfLastAlive()
     if not TTTBots.Match.RoundActive then return end
     local plys = self.bot.components.memory:GetActualAlivePlayers()
-    if #plys > 2 then return end
+
+    -- Phase-aware threshold: trigger at ≤3 players in LATE/OVERTIME, ≤2 otherwise
+    local threshold = 2
+    local ra = self.bot:BotRoundAwareness()
+    if ra then
+        local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+        if PHASE and (ra:IsPhase(PHASE.LATE) or ra:IsPhase(PHASE.OVERTIME)) then
+            threshold = 3
+        end
+    end
+
+    if #plys > threshold then return end
+
     local otherPlayer = nil
     for i, ply in pairs(plys) do
         if ply ~= self.bot then
@@ -123,6 +140,7 @@ function BotMorality:TickIfLastAlive()
         end
     end
 
+    if not otherPlayer then return end
     local isCloaked = TTTBots.Match.IsPlayerCloaked(otherPlayer)
     if isCloaked then return end
 

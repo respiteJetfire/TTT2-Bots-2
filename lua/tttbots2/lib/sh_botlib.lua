@@ -13,6 +13,7 @@ if SERVER then
     include("tttbots2/components/sv_memory.lua")
     include("tttbots2/components/sv_morality.lua")
     include("tttbots2/components/sv_evidence.lua")
+    include("tttbots2/components/sv_roundawareness.lua")
     include("tttbots2/components/chatter/sv_chatter_core.lua")
 end
 
@@ -1209,6 +1210,7 @@ local function createPlayerBot(botname)
         memory = TTTBots.Components.Memory:New(bot),
         morality = TTTBots.Components.Morality:New(bot),
         evidence = TTTBots.Components.Evidence:New(bot),
+        roundawareness = TTTBots.Components.RoundAwareness:New(bot),
         chatter = TTTBots.Components.Chatter:New(bot),
     }
 
@@ -1443,6 +1445,8 @@ end
 ---@return number ClosestDist
 ---@realm shared
 function TTTBots.Lib.GetClosest(entities, pos, extraCallback)
+    if not istable(entities) then return nil, 99999 end
+    if (#entities == 0) then return nil, 99999 end
     if (#entities == 1) then return entities[1], 0 end
     local closest = nil
     local closestDist = 99999

@@ -103,7 +103,16 @@ function BotMorality:ChangeSuspicion(target, reason, mult)
     if targetIsPolice and susValue > 0 then
         mult = mult * 0.3
     end
-    local increase = math.ceil(susValue * mult)
+    -- Apply round-phase suspicion pressure: as fewer players remain unknown, suspicion
+    -- events have more weight (reflecting that each unknown is proportionally more suspicious)
+    local pressureMult = 1.0
+    if susValue > 0 then
+        local ra = self.bot:BotRoundAwareness()
+        if ra then
+            pressureMult = ra:GetSuspicionPressure()
+        end
+    end
+    local increase = math.ceil(susValue * mult * pressureMult)
     local susFinal = ((self:GetSuspicion(target)) + (increase))
     self.suspicions[target] = math.floor(susFinal)
 
@@ -114,6 +123,23 @@ end
 
 function BotMorality:GetSuspicion(target)
     return self.suspicions[target] or 0
+end
+
+--- Mark a player as tested clean by a role tester. Sets suspicion floor to -5.
+--- Call this when a player passes a RoleChecker test.
+---@param target Player
+function BotMorality:SetTestedClean(target)
+    if not (IsValid(target) and target:IsPlayer()) then return end
+    self.testedClean = self.testedClean or {}
+    self.testedClean[target] = true
+    -- Immediately reduce suspicion to at most -5
+    local cur = self:GetSuspicion(target)
+    self.suspicions[target] = math.min(cur, -5)
+    -- Add positive evidence entry
+    local evidence = self.bot:BotEvidence()
+    if evidence then
+        evidence:ConfirmInnocent(target, "passed_role_tester")
+    end
 end
 
 --- Announce the suspicion level of the given player if it is above a certain threshold.
@@ -189,11 +215,71 @@ function BotMorality:GuessRole(target)
     end
 end
 
+--- Returns the evidence-weighted suspicion floor for a player.
+--- This prevents suspicion from decaying below what the evidence supports.
+---@param target Player
+---@return number
+function BotMorality:GetEvidenceFloor(target)
+    local evidence = self.bot:BotEvidence()
+    if not evidence then return 0 end
+    return evidence:EvidenceWeight(target)
+end
+
 function BotMorality:TickSuspicions()
     local roundStarted = TTTBots.Match.RoundActive
     if not roundStarted then
         self.suspicions = {}
         return
+    end
+
+    -- Skip decay for roles that don't use suspicion
+    if not TTTBots.Roles.GetRoleFor(self.bot):GetUsesSuspicion() then return end
+
+    -- Trait-modulated decay rate
+    local personality = self.bot:BotPersonality()
+    local decayRate = 0.998  -- base per-tick decay multiplier (close to 1 = slow decay)
+    if personality then
+        local traits = personality.traits or {}
+        for _, trait in ipairs(traits) do
+            if trait == "suspicious" then
+                decayRate = math.max(decayRate, 0.9995)  -- suspicious: even slower decay
+            elseif trait == "gullible" then
+                decayRate = math.min(decayRate, 0.994)   -- gullible: faster decay
+            end
+        end
+    end
+
+    for target, value in pairs(self.suspicions) do
+        if not (IsValid(target) and target:IsPlayer()) then
+            self.suspicions[target] = nil
+            continue
+        end
+
+        -- Apply decay only to positive (suspicious) values; trust values decay separately
+        local newValue
+        if value > 0 then
+            newValue = value * decayRate
+            -- Snap to zero when negligible
+            if newValue < 0.5 then newValue = 0 end
+        elseif value < 0 then
+            -- Negative (trust) decays back toward 0 slightly faster
+            newValue = value * (2 - decayRate)  -- e.g. 0.998 → 1.002 for negative direction
+            if newValue > -0.5 then newValue = 0 end
+        else
+            newValue = 0
+        end
+
+        -- Enforce evidence floor: can't decay below the evidence-based score
+        local evidenceFloor = self:GetEvidenceFloor(target)
+        newValue = math.max(newValue, evidenceFloor)
+
+        -- Enforce tested-clean floor: players tested clean can't go above -5
+        local testedClean = self.testedClean and self.testedClean[target]
+        if testedClean and newValue > -5 then
+            newValue = -5
+        end
+
+        self.suspicions[target] = math.floor(newValue)
     end
 end
 
@@ -554,5 +640,18 @@ timer.Create("TTTBots.Components.Morality.DisguisedPlayerDetection", 1, 0, funct
                 bot:BotChatter():On("DisguisedPlayer")
             end
         end
+    end
+end)
+
+-- When a player passes a role tester, mark them as tested clean in nearby bots' morality
+hook.Add("TTTBots.UseRoleChecker.Result", "TTTBots.Morality.TestedClean", function(user, target, result)
+    -- result is expected to be "innocent" or "traitor" or similar
+    if not (IsValid(user) and IsValid(target)) then return end
+    if result ~= "innocent" then return end
+    -- Inform nearby bots
+    local witnesses = lib.GetAllWitnessesBasic(user:EyePos(), TTTBots.Match.AlivePlayers, user)
+    for _, bot in ipairs(witnesses) do
+        if not (bot:IsBot() and bot.components and bot.components.morality) then continue end
+        bot.components.morality:SetTestedClean(target)
     end
 end)

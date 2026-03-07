@@ -41,6 +41,11 @@ function Wander.OnRunning(bot)
 
     if loco:IsCloseEnough(wanderPos) then
         Wander.StareAtNearbyPlayers(bot, loco)
+        -- Record nav area visit for patrol coverage tracking
+        local memory = bot:BotMemory()
+        if memory and bot.wander and bot.wander.targetArea then
+            memory:RecordNavVisit(bot.wander.targetArea)
+        end
     end
 
     return STATUS.RUNNING
@@ -128,6 +133,26 @@ function Wander.GetAnyRandomNav(bot, level)
             local bombPos = bomb:GetPos()
             local dist = bombPos:Distance(area:GetCenter())
             if dist < 1000 then
+                return Wander.GetAnyRandomNav(bot, level + 1)
+            end
+        end
+
+        -- Prefer unvisited areas: 60% chance to retry if we've been here recently
+        local memory = bot:BotMemory()
+        local roleData = TTTBots.Roles.GetRoleFor(bot)
+        local isInnocent = roleData:GetUsesSuspicion()  -- innocents use suspicion; investigators should explore
+        if memory and isInnocent and memory:HasVisitedNavRecently(area) then
+            if math.random(1, 10) <= 6 then
+                return Wander.GetAnyRandomNav(bot, level + 1)
+            end
+        end
+
+        -- Cautious innocents avoid danger zones
+        local botPos = bot:GetPos()
+        if memory and isInnocent and memory:IsDangerZone(area:GetCenter()) then
+            local personality = bot:BotPersonality()
+            local isCautious = personality and (personality:GetTraitBool("cautious") or personality:GetTraitBool("sniper") or personality:GetTraitBool("camper"))
+            if isCautious or math.random(1, 3) == 1 then
                 return Wander.GetAnyRandomNav(bot, level + 1)
             end
         end

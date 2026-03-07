@@ -97,17 +97,17 @@ end
 function DefendSelf.Validate(bot)
     if not lib.IsPlayerAlive(bot) then return false end
 
-    local kos'd, kosCaller = isKOSed(bot)
-    local acc'd, accCaller = isAccused(bot)
+    local isKosed, kosCaller = isKOSed(bot)
+    local isAcced, accCaller = isAccused(bot)
 
-    if not (kos'd or acc'd) then return false end
+    if not (isKosed or isAcced) then return false end
 
     -- If we're already in active combat, FightBack takes priority; skip
     if bot.attackTarget and IsValid(bot.attackTarget) then return false end
 
     local state   = TTTBots.Behaviors.GetState(bot, "DefendSelf")
     state.accuser = kosCaller or accCaller
-    state.isKOS   = kos'd
+    state.isKOS   = isKosed
     state.phase   = "respond"
     state.startTime = state.startTime or CurTime()
 
