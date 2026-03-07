@@ -121,6 +121,8 @@ end
 
 --- Called when the behavior returns a success state
 function InvestigateCorpse.OnSuccess(bot)
+    local name = bot.corpseTarget and CORPSE.GetPlayerNick(bot.corpseTarget) or "someone"
+    bot.components.chatter:On("ReportCorpse", { corpse = name })
 end
 
 --- Called when the behavior returns a failure state

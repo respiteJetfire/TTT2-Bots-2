@@ -13,6 +13,7 @@ local BotChatter = TTTBots.Components.Chatter
 local chancesOf100 = {
     InvestigateNoise           = 15,
     InvestigateCorpse          = 65, -- overrides the 15 below (last entry wins in Lua)
+    ReportCorpse               = 90,
     DeclareInnocent            = 25,
     DeclareSuspicious          = 20,
     DeclareTrustworthy         = 15,
