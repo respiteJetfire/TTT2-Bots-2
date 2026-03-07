@@ -12,6 +12,7 @@ if SERVER then
     include("tttbots2/components/sv_personality.lua")
     include("tttbots2/components/sv_memory.lua")
     include("tttbots2/components/sv_morality.lua")
+    include("tttbots2/components/sv_evidence.lua")
     include("tttbots2/components/chatter/sv_chatter_core.lua")
 end
 
@@ -1207,6 +1208,7 @@ local function createPlayerBot(botname)
         personality = TTTBots.Components.Personality:New(bot),
         memory = TTTBots.Components.Memory:New(bot),
         morality = TTTBots.Components.Morality:New(bot),
+        evidence = TTTBots.Components.Evidence:New(bot),
         chatter = TTTBots.Components.Chatter:New(bot),
     }
 

@@ -253,3 +253,21 @@ bot_sh_cvar("chatter_voice_local_tts_url", "",
     "Override URL for the local Piper TTS endpoint. Leave blank to use Docker-internal auto-detection (binary mode only). Set to a public-facing address (e.g. http://192.168.1.10:8080/local) to enable URL mode for local TTS so clients can stream audio directly.")
 bot_sh_cvar("chatter_voice_url_mode", "0",
     "To enable URL mode set this to 1, this will make the bot voice chat go through URL rather than net.Send which should be quicker, to disable set to 0 (default).")
+
+-- Evidence / Social Deduction cvars
+bot_sh_cvar("evidence_kos_threshold", "14",
+    "The minimum evidence weight (sum of all evidence entries) required before a bot will call KOS on a player. Higher = less accusatory.")
+bot_sh_cvar("evidence_accuse_threshold", "7",
+    "The minimum evidence weight before a bot will make a medium accusation (DeclareSuspicious-level).")
+bot_sh_cvar("evidence_soft_threshold", "3",
+    "The minimum evidence weight before a bot will make a soft accusation hint.")
+bot_sh_cvar("evidence_decay_time", "90",
+    "Seconds before an evidence entry's weight is halved due to age.")
+bot_sh_cvar("evidence_prune_time", "180",
+    "Seconds before an old evidence entry is removed entirely from the log.")
+bot_sh_cvar("evidence_accuse_cooldown", "60",
+    "Seconds a bot must wait before accusing the same player again.")
+bot_sh_cvar("evidence_companion_min_time", "20",
+    "Seconds a bot must have traveled with another player before they can provide an alibi vouch.")
+bot_sh_cvar("evidence_trust_decay_time", "120",
+    "Seconds before a player vouch entry expires if not refreshed.")

@@ -114,6 +114,34 @@ function InvestigateCorpse.OnRunning(bot)
         loco:StopMoving()
         CORPSE.ShowSearch(bot, bot.corpseTarget, false, false)
         CORPSE.SetFound(bot.corpseTarget, true)
+
+        -- Extract evidence from the corpse
+        local evidence = bot:BotEvidence()
+        if evidence then
+            local corpse = bot.corpseTarget
+            -- Killer identity from corpse data
+            local killerEnt = CORPSE.GetPlayer(corpse, "killer")
+            local victimEnt = CORPSE.GetPlayer(corpse)
+            if IsValid(killerEnt) and killerEnt:IsPlayer() and killerEnt ~= bot then
+                local weaponClass = CORPSE.GetPlayerNick(corpse, "weapon") or "unknown weapon"
+                evidence:AddEvidence({
+                    type   = "WITNESSED_KILL",
+                    subject = killerEnt,
+                    victim  = victimEnt,
+                    detail  = weaponClass .. " (from corpse)",
+                    weight  = 8, -- slightly lower than direct witness
+                })
+                local chatter = bot:BotChatter()
+                if chatter then
+                    chatter:On("BodyEvidenceFound", {
+                        killer = killerEnt:Nick(),
+                        killerEnt = killerEnt,
+                        victim = IsValid(victimEnt) and victimEnt:Nick() or CORPSE.GetPlayerNick(corpse) or "unknown",
+                    })
+                end
+            end
+        end
+
         return STATUS.SUCCESS
     end
     return STATUS.RUNNING

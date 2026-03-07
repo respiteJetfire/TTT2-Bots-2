@@ -111,6 +111,8 @@ function Match.CallKOS(caller, target)
         morality:OnKOSCalled(caller, target)
     end
 
+    hook.Run("TTTBots.KOSCalled", caller, target)
+
     return true
 end
 

@@ -25,8 +25,19 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.AttackTarget
     },
 
+    --- Defend self from accusations or KOS calls (below FightBack, above social)
+    SelfDefense = {
+        _bh.DefendSelf,
+    },
+
+    --- Accuse players based on evidence (between SelfDefense and Chatter)
+    Accuse = {
+        _bh.AccusePlayer,
+    },
+
     Chatter = {
         _bh.ChatterHelp,
+        _bh.VouchForPlayer,
     },
 
     Convert = {
@@ -55,6 +66,7 @@ TTTBots.Behaviors.PriorityNodes = {
     --- Patrolling stuffs
     Patrol = {
         _bh.Follow,
+        _bh.GroupUp,
         _bh.Wander
     },
     --- Minge around with others
@@ -86,6 +98,8 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Requests,
         _prior.Chatter,
         _prior.FightBack,
+        _prior.SelfDefense,
+        _prior.Accuse,
         _prior.Support,
         _bh.Defuse,
         _prior.Restore,
@@ -99,6 +113,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _bh.Jihad,
         _prior.Chatter,
         _prior.FightBack,
+        _prior.SelfDefense,
         _prior.Requests,
         _prior.Convert,
         _prior.Support,
@@ -115,6 +130,8 @@ TTTBots.Behaviors.DefaultTrees = {
     detective = {
         _prior.Chatter,
         _prior.FightBack,
+        _prior.SelfDefense,
+        _prior.Accuse,
         _prior.Requests,
         _prior.Support,
         _prior.Convert,

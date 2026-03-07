@@ -53,6 +53,31 @@ local chancesOf100 = {
     PlacedAnkh                 = 75,
     NewContract                = 75,
     ContractAccepted           = 75,
+    -- -----------------------------------------------------------------------
+    -- Social Deduction Core — new events
+    -- -----------------------------------------------------------------------
+    WitnessCallout             = 90,  -- Saw someone kill (richer than Kill)
+    ProximityCallout           = 40,  -- Someone has been following/crowding
+    DeathCallout               = 80,  -- Bot's last words naming their killer
+    LifeCheckRollCall          = 65,  -- "Who's still alive? Sound off"
+    AccuseKOS                  = 85,  -- Strong evidence KOS accusation
+    AccuseMedium               = 75,  -- Medium evidence declaration
+    AccuseSoft                 = 50,  -- Weak/soft suspicion hint
+    AccuseRetract              = 70,  -- Retracting a previous accusation
+    RequestRoleCheck           = 80,  -- Asking a player to take the role test
+    DefendOfferTest            = 80,  -- "I'll use the tester, I'm clean"
+    DefendAlibi                = 80,  -- "I was with {{player}} the whole time"
+    DefendCounterAccuse        = 75,  -- Innocent counter-accusing
+    DefendAppealGroup          = 65,  -- Appealing to group
+    DefendRage                 = 60,  -- Hothead rage at accuser
+    DefendFeign                = 70,  -- Traitor feigning innocence
+    DefendFrameOther           = 70,  -- Traitor framing someone else
+    DefendAssassinate          = 60,  -- Traitor announcing they'll silence someone (team-only)
+    DefendTraitorPanic         = 55,  -- Dumb traitor panicking
+    BreakTrust                 = 75,  -- "Wait, {{player}} just... I take it back!"
+    VouchChat                  = 70,  -- "{{player}} is with me, they're clean"
+    EvidenceShare              = 60,  -- Sharing evidence with a nearby bot
+    BodyEvidenceFound          = 75,  -- Bot found killer info on a corpse
 }
 
 -- ---------------------------------------------------------------------------
@@ -191,4 +216,96 @@ timer.Create("TTTBots.Chatter.SillyChat", 20, 0, function()
 
     local eventName = lib.IsPlayerAlive(targetBot) and "SillyChat" or "SillyChatDead"
     chatter:On(eventName, { player = randomPlayer:Nick() })
+end)
+
+-- ---------------------------------------------------------------------------
+-- Death callout — bot's last words naming their killer
+-- ---------------------------------------------------------------------------
+
+hook.Add("PlayerDeath", "TTTBots.Chatter.DeathCallout", function(victim, weapon, attacker)
+    if not (IsValid(victim) and victim:IsBot()) then return end
+    if not (IsValid(attacker) and attacker:IsPlayer()) then return end
+
+    local chatter = victim:BotChatter()
+    if not chatter then return end
+
+    local personality = victim:BotPersonality()
+    local archetype   = personality and personality:GetClosestArchetype() or "Default"
+    local A = TTTBots.Archetypes
+
+    -- Dumb archetype: 20% chance to name the wrong person as their killer
+    local namedKiller = attacker
+    if archetype == A.Dumb and math.random(1, 100) <= 20 then
+        local alive = TTTBots.Match.AlivePlayers or {}
+        local others = {}
+        for _, p in ipairs(alive) do
+            if p ~= victim and p ~= attacker then table.insert(others, p) end
+        end
+        if #others > 0 then
+            namedKiller = others[math.random(1, #others)]
+        end
+    end
+
+    chatter:On("DeathCallout", { player = namedKiller:Nick(), playerEnt = namedKiller }, false, 0)
+end)
+
+-- ---------------------------------------------------------------------------
+-- Life check roll call — periodic "who's alive?" callout
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.LifeCheck", 90, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    local bots = lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    local caller = bots[math.random(1, #bots)]
+    if not (caller and IsValid(caller) and caller.components) then return end
+
+    local chatter = caller:BotChatter()
+    if not chatter then return end
+
+    chatter:On("LifeCheckRollCall", {}, false, 0)
+
+    -- Start tracking who responds in CEvidence
+    local evidence = caller:BotEvidence()
+    if evidence then
+        evidence:StartLifeCheck()
+        -- Schedule result processing after LIFE_CHECK_WINDOW seconds
+        timer.Simple(16, function()
+            if IsValid(caller) and caller.components and caller.components.evidence then
+                caller.components.evidence:ProcessLifeCheckResults()
+            end
+        end)
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- Evidence sharing — bots near each other share evidence periodically
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.EvidenceShare", 15, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    local bots = lib.GetAliveBots()
+
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local evidence = bot:BotEvidence()
+        if not evidence then continue end
+        if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then continue end
+
+        -- Share evidence with nearby allied/trustworthy bots
+        local nearby = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Match.AlivePlayers, bot)
+        for _, other in ipairs(nearby) do
+            if not (IsValid(other) and other:IsBot()) then continue end
+            if other == bot then continue end
+            -- Share if they are on same team or both confirmed innocent-side
+            if bot:GetTeam() == other:GetTeam() or
+               (bot:GetTeam() == TEAM_INNOCENT and other:GetTeam() == TEAM_INNOCENT) then
+                local myEvidence = bot:BotEvidence()
+                if myEvidence then
+                    myEvidence:ShareEvidence(other)
+                end
+            end
+        end
+    end
 end)

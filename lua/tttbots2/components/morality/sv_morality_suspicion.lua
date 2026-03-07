@@ -243,9 +243,37 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
         self:ChangeSuspicion(attacker, "Kill")
     end
 
+    -- Feed evidence log
+    local evidence = self.bot:BotEvidence()
+    if evidence then
+        local weaponName = (weapon and IsValid(weapon) and weapon.GetPrintName) and weapon:GetPrintName() or "unknown weapon"
+        local navArea    = navmesh.GetNearestNavArea(attacker:GetPos())
+        local location   = (navArea and navArea.GetPlace and navArea:GetPlace() ~= "") and navArea:GetPlace() or "unknown location"
+        evidence:AddEvidence({
+            type     = "WITNESSED_KILL",
+            subject  = attacker,
+            victim   = victim,
+            detail   = weaponName,
+            location = location,
+        })
+    end
+
     local chatter = self.bot:BotChatter()
     if not chatter then return end
     if TTTBots.Roles.IsAllies(self.bot, attacker) and self.bot:GetTeam() ~= TEAM_INNOCENT then return end
+    -- Use the richer WitnessCallout event; fall back to Kill for backwards compat
+    local weaponName = (weapon and IsValid(weapon) and weapon.GetPrintName) and weapon:GetPrintName() or nil
+    local navArea    = navmesh.GetNearestNavArea(attacker:GetPos())
+    local location   = (navArea and navArea.GetPlace and navArea:GetPlace() ~= "") and navArea:GetPlace() or nil
+    chatter:On("WitnessCallout", {
+        victim      = victim:Nick(),
+        victimEnt   = victim,
+        attacker    = attacker:Nick(),
+        attackerEnt = attacker,
+        weapon      = weaponName,
+        location    = location,
+    })
+    -- Also fire legacy Kill event so existing locale lines still trigger
     chatter:On("Kill", { victim = victim:Nick(), victimEnt = victim, attacker = attacker:Nick(), attackerEnt = attacker })
 end
 
@@ -272,6 +300,16 @@ function BotMorality:OnKOSCalled(caller, target)
         self:ChangeSuspicion(target, "KOSByTraitor")
     else
         self:ChangeSuspicion(target, "KOSByOther")
+    end
+
+    -- Feed evidence log: hearing a KOS gives the bot reason to suspect the target
+    local evidence = self.bot:BotEvidence()
+    if evidence then
+        evidence:AddEvidence({
+            type    = "KOS_CALLED_BY",
+            subject = target,
+            detail  = caller:Nick(),
+        })
     end
 end
 
@@ -466,7 +504,26 @@ timer.Create("TTTBots.Components.Morality.PlayerCorpseTimer", 1, 0, function()
         if not IsValid(ply) then continue end
         local isNearCorpse = BotMorality.IsPlayerNearUnfoundCorpse(ply, corpses)
         if isNearCorpse then
-            playersNearBodies[ply] = (playersNearBodies[ply] or 0) + 1
+            local prev = playersNearBodies[ply] or 0
+            playersNearBodies[ply] = prev + 1
+            -- After 3 continuous seconds near a body, apply suspicion + evidence
+            if playersNearBodies[ply] == 3 then
+                for _, bot in pairs(lib.GetAliveBots()) do
+                    if not (bot.components and bot.components.morality) then continue end
+                    if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then continue end
+                    -- Only apply if the bot can see the player near the body
+                    if not bot:Visible(ply) then continue end
+                    bot.components.morality:ChangeSuspicion(ply, "NearUnidentified")
+                    local evidence = bot:BotEvidence()
+                    if evidence then
+                        evidence:AddEvidence({
+                            type    = "NEAR_BODY",
+                            subject = ply,
+                            detail  = "near unidentified corpse for 3+ seconds",
+                        })
+                    end
+                end
+            end
         else
             playersNearBodies[ply] = math.max((playersNearBodies[ply] or 0) - 1, 0)
         end

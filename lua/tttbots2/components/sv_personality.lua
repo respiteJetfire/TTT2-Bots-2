@@ -485,7 +485,7 @@ function decideOnVoiceLocal(self)
     self.voice = {
         piperVoice = chosen.piperVoice,
         name       = chosen.name,
-        speed      = 0.9 + math.random() * 0.3, -- 0.9 to 1.2 speaking rate
+        speed      = 1.26 + math.random() * 0.42, -- 1.26 to 1.68 speaking rate (40% faster)
         type       = "local",
     }
 end
