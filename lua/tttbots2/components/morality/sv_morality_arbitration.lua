@@ -115,6 +115,15 @@ function Arb.RequestAttackTarget(bot, target, reason, priority)
         return Arb.RequestClearTarget(bot, reason, priority)
     end
 
+    -- Karma awareness gate: block attacks that would risk auto-kick
+    local KarmaAwareness = TTTBots.Morality
+    if KarmaAwareness.CheckPreAttack and not KarmaAwareness.CheckPreAttack(bot, priority) then
+        Arb.DebugTarget(bot, string.format("KARMA_BLOCKED set %s (pri %d, reason=%s)",
+            IsValid(target) and (target.Nick and target:Nick() or tostring(target)) or "nil",
+            priority, reason))
+        return false
+    end
+
     local currentPriority = bot.attackTargetPriority or -1
 
     -- Only allow if new priority >= current (higher or equal priority wins).

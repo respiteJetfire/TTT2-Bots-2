@@ -50,6 +50,7 @@ local chancesOf100 = {
     ComeHereEnd                = 50,
     JihadBombWarn              = 75,
     JihadBombUse               = 100,
+    UseTraitorButton           = 60,  -- Activating a traitor button
     PlacedAnkh                 = 75,
     NewContract                = 75,
     ContractAccepted           = 75,
@@ -91,6 +92,8 @@ local chancesOf100 = {
     OvertakeReady              = 65,  -- "We have numbers — move in" (traitor, team-only)
     DangerZoneWarning          = 55,  -- "Stay away from X, someone just died there"
     TraitorCountDeduction      = 65,  -- "One traitor left, stay sharp" (innocent/detective)
+    DNAMatch                   = 90,  -- DNA scanner found a match
+    ScanningBody               = 40,  -- About to scan a body
 }
 
 -- ---------------------------------------------------------------------------

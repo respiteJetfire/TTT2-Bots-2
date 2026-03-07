@@ -19,6 +19,7 @@ local BotMorality = TTTBots.Components.Morality
 -- Sub-module includes  (order matters — arbitration first, then the others)
 -- ---------------------------------------------------------------------------
 include("tttbots2/components/morality/sv_morality_arbitration.lua")
+include("tttbots2/components/morality/sv_karma_awareness.lua")
 include("tttbots2/components/morality/sv_morality_suspicion.lua")
 include("tttbots2/components/morality/sv_morality_hostility.lua")
 

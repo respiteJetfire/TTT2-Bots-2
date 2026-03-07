@@ -84,7 +84,7 @@ function BehaviorDropContract.OnRunning(bot)
 
     --- stop any allied Pirates from attacking the target, iterate through all living bots. Only do this if the attack target is the same as the contract target.
     for _, other in ipairs(TTTBots.Lib.GetAliveBots()) do
-        if other:GetSubRole() == ROLE_PIRATE and other:GetAttackTarget() == target then
+        if other:GetSubRole() == ROLE_PIRATE and other.attackTarget == target then
             other:SetAttackTarget(nil, "PIRATE_CONTRACT_DONE")
         end
     end

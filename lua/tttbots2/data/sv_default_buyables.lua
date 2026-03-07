@@ -953,6 +953,228 @@ Registry.DeadRinger = {
 -- }
 
 
-for key, data in pairs(Registry) do
-    TTTBots.Buyables.RegisterBuyable(data)
+-- ============================================================
+-- TTT2 Core Equipment — Situational Buyables
+-- ============================================================
+
+-- Helper: get count of alive players without relying on player.GetAlive()
+local function getAlivePlayers()
+	local t = {}
+	for _, p in pairs(player.GetAll()) do
+		if p:Alive() then t[#t + 1] = p end
+	end
+	return t
 end
+
+---@type Buyable
+Registry.BodyArmor = {
+	Name = "Body Armor",
+	Class = "item_ttt_armor",
+	Price = 1,
+	Priority = 4,
+	SituationalScore = function(ply)
+		-- More valuable with many players alive (more threats)
+		local aliveCount = #getAlivePlayers()
+		local base = 4
+		if aliveCount > 8 then base = base + 3 end
+		if aliveCount > 5 then base = base + 1 end
+		-- Extra value for detective (main target)
+		if ply:GetRoleStringRaw() == "detective" then base = base + 2 end
+		return base
+	end,
+	RandomChance = 2,  -- 50% chance
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = true,
+	Roles = { "detective", "survivalist", "sheriff", "deputy", "decipherer", "sniffer", "banker", "vigilante" },
+}
+
+---@type Buyable
+Registry.TraitorArmor = {
+	Name = "Body Armor (Traitor)",
+	Class = "item_ttt_armor",
+	Price = 1,
+	Priority = 2,
+	SituationalScore = function(ply)
+		local aliveCount = #getAlivePlayers()
+		local base = 2
+		if aliveCount > 8 then base = base + 2 end
+		return base
+	end,
+	RandomChance = 3,  -- ~33% chance
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = true,
+	Roles = GetRolesByTeam(TEAM_TRAITOR),
+}
+
+---@type Buyable
+Registry.Radar = {
+	Name = "Radar",
+	Class = "item_ttt_radar",
+	Price = 1,
+	Priority = 3,
+	SituationalScore = function(ply)
+		local aliveCount = #getAlivePlayers()
+		local base = 3
+		-- More valuable with many players alive
+		if aliveCount > 7 then base = base + 3 end
+		if aliveCount > 10 then base = base + 2 end
+		return base
+	end,
+	CanBuy = function(ply)
+		local roleData = TTTBots.Roles.GetRoleFor(ply)
+		return roleData and roleData.CanHaveRadar or false
+	end,
+	RandomChance = 2,
+	ShouldAnnounce = false,
+	AnnounceTeam = true,
+	TTT2 = true,
+	Roles = GetRolesByTeam(TEAM_TRAITOR),
+}
+
+---@type Buyable
+Registry.DetectiveRadar = {
+	Name = "Radar (Detective)",
+	Class = "item_ttt_radar",
+	Price = 1,
+	Priority = 3,
+	SituationalScore = function(ply)
+		local aliveCount = #getAlivePlayers()
+		local base = 3
+		if aliveCount > 7 then base = base + 2 end
+		return base
+	end,
+	RandomChance = 2,
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = true,
+	Roles = { "detective", "survivalist", "sheriff", "sniffer" },
+}
+
+---@type Buyable
+Registry.Disguiser = {
+	Name = "Disguiser",
+	Class = "item_ttt_disguiser",
+	Price = 1,
+	Priority = 2,
+	SituationalScore = function(ply)
+		local base = 2
+		-- More useful mid-round when suspicion is building
+		local awareness = ply.BotRoundAwareness and ply:BotRoundAwareness()
+		if awareness then
+			local phase = awareness:GetPhase()
+			if phase == 2 or phase == 3 then base = base + 2 end -- MID or LATE
+		end
+		if testPlyHasTrait(ply, "disguiser", 1) then base = base + 3 end
+		return base
+	end,
+	CanBuy = function(ply)
+		return testPlyHasTrait(ply, "disguiser", 4)
+	end,
+	RandomChance = 1,
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = true,
+	Roles = GetRolesByTeam(TEAM_TRAITOR),
+}
+
+---@type Buyable
+Registry.DNAScanner = {
+	Name = "DNA Scanner",
+	Class = "weapon_ttt_cse",
+	Price = 1,
+	Priority = 5,  -- High priority for detective
+	SituationalScore = function(ply)
+		local base = 5
+		-- Even more valuable if bodies exist
+		if TTTBots.Match and TTTBots.Match.Corpses and #TTTBots.Match.Corpses > 0 then
+			base = base + 3
+		end
+		return base
+	end,
+	RandomChance = 1,
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = true,
+	Roles = { "detective", "survivalist", "sniffer", "decipherer" },
+}
+
+---@type Buyable
+Registry.TraitorC4Deferred = {
+	Name = "C4 (Deferred)",
+	Class = "weapon_ttt_c4",
+	Price = 1,
+	Priority = 0,
+	DeferredEvent = "round_mid",
+	SituationalScore = function(ply)
+		local aliveCount = #getAlivePlayers()
+		local base = 0
+		-- C4 is most valuable with many targets alive
+		if aliveCount > 6 then base = 5 end
+		if aliveCount > 9 then base = base + 3 end
+		return base
+	end,
+	CanBuy = function(ply)
+		-- Only buy if don't already have C4
+		return not ply:HasWeapon("weapon_ttt_c4") and testPlyHasTrait(ply, "planter", 4)
+	end,
+	RandomChance = 2,
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = false,
+	Roles = GetRolesByTeam(TEAM_TRAITOR),
+}
+
+---@type Buyable
+Registry.DetectiveDefibrillator = {
+	Name = "Defibrillator (Deferred)",
+	Class = "weapon_ttt_defibrillator",
+	Price = 1,
+	Priority = 0,
+	DeferredEvent = "ally_died",
+	SituationalScore = function(ply)
+		-- Only buy if we have credits and an ally just died
+		return 6
+	end,
+	CanBuy = function(ply)
+		return not ply:HasWeapon("weapon_ttt_defibrillator") and testPlyHasTrait(ply, "healer", 3)
+	end,
+	RandomChance = 1,
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = false,
+	Roles = { "detective", "survivalist", "sheriff", "deputy" },
+}
+
+for key, data in pairs(Registry) do
+	TTTBots.Buyables.RegisterBuyable(data)
+end
+
+-- Hook: try deferred buys at mid-round
+timer.Create("TTTBots.Buyables.DeferredBuyMid", 1.0, 0, function()
+	if not TTTBots.Match or not TTTBots.Match.IsRoundActive() then return end
+	for _, bot in pairs(TTTBots.Bots) do
+		if not (IsValid(bot) and bot.components) then continue end
+		if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+		local awareness = bot.BotRoundAwareness and bot:BotRoundAwareness()
+		local phase = awareness and awareness:GetPhase()
+		if phase == "MID" or phase == "LATE" or phase == "OVERTIME" then  -- MID or later
+			TTTBots.Buyables.TryDeferredBuy(bot, "round_mid")
+		end
+	end
+end)
+
+-- Hook: ally death → try deferred defib purchase
+hook.Add("PostPlayerDeath", "TTTBots_DeferredBuy_AllyDied", function(victim)
+	if not (IsValid(victim) and victim:IsPlayer()) then return end
+	timer.Simple(1, function()
+		for _, bot in pairs(TTTBots.Bots) do
+			if not (IsValid(bot) and bot.components) then continue end
+			if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+			if TTTBots.Roles.IsAllies(bot, victim) then
+				TTTBots.Buyables.TryDeferredBuy(bot, "ally_died")
+			end
+		end
+	end)
+end)

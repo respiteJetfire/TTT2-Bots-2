@@ -32,6 +32,11 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.DefendSelf,
     },
 
+    --- Throw grenades situationally
+    Grenades = {
+        _bh.UseGrenade,
+    },
+
     --- Accuse players based on evidence (between SelfDefense and Chatter)
     Accuse = {
         _bh.AccusePlayer,
@@ -52,6 +57,11 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.SwapRole,
         _bh.CopyRole,
         _bh.DropContract,
+    },
+
+    --- Lock doors after kills to trap bodies
+    TrapPlayer = {
+        _bh.TrapPlayer,
     },
 
     --- Restore values, like health, ammo, etc.
@@ -77,11 +87,20 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.MingeCrowbar,
     },
 
+    --- Activate traitor buttons on the map
+    TraitorButton = {
+        _bh.UseTraitorButton,
+    },
+
     --- Use Traitor Checkers, heal players and revive players
     Support = {
         _bh.Defib,
         _bh.Healgun,
         _bh.Roledefib
+    },
+    --- DNA Scanner usage for detective roles
+    DNAScanner = {
+        _bh.UseDNAScanner,
     },
     Requests = {
         _bh.CeaseFire,
@@ -102,6 +121,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Chatter,
         _prior.FightBack,
         _prior.SelfDefense,
+        _prior.Grenades,
         _prior.Accuse,
         _prior.Support,
         _bh.Defuse,
@@ -114,14 +134,17 @@ TTTBots.Behaviors.DefaultTrees = {
     },
     traitor = {
         _bh.Jihad,
+        _prior.Grenades,
         _prior.Chatter,
         _prior.FightBack,
         _prior.SelfDefense,
         _prior.Requests,
         _prior.Convert,
+        _prior.TrapPlayer,
         _prior.Support,
         _bh.Roledefib,
         _bh.PlantBomb,
+        _prior.TraitorButton,
         _bh.InvestigateCorpse,
         _prior.Restore,
         _bh.FollowPlan,
@@ -134,9 +157,11 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Chatter,
         _prior.FightBack,
         _prior.SelfDefense,
+        _prior.Grenades,
         _prior.Accuse,
         _prior.Requests,
         _prior.Support,
+        _prior.DNAScanner,
         _prior.Convert,
         _bh.Defuse,
         _prior.Restore,

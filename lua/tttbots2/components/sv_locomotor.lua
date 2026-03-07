@@ -548,6 +548,111 @@ function BotLocomotor:TestDoorTimer()
     return not self:GetSetTimedVariable("cantUseAgain", true, 1.2)
 end
 
+--- Check if a door entity is locked.
+---@param doorEnt Entity
+---@return boolean
+function BotLocomotor:IsDoorLocked(doorEnt)
+	if not IsValid(doorEnt) then return false end
+	-- TTT2 uses a NetworkVar for lock state
+	if doorEnt.GetNWBool then
+		return doorEnt:GetNWBool("ttt2_door_locked", false)
+	end
+	return false
+end
+
+--- Lock a door using TTT2's door library. Returns true if successful.
+---@param doorEnt Entity
+---@return boolean
+function BotLocomotor:LockDoor(doorEnt)
+	if not IsValid(doorEnt) then return false end
+	if self:IsDoorLocked(doorEnt) then return false end -- Already locked
+
+	-- Use TTT2 door library if available
+	if door and door.Lock then
+		door.Lock(doorEnt)
+		return true
+	end
+
+	-- Fallback: try to lock via entity input
+	if doorEnt.Fire then
+		doorEnt:Fire("Lock", "", 0)
+		return true
+	end
+
+	return false
+end
+
+--- Unlock a door using TTT2's door library. Returns true if successful.
+---@param doorEnt Entity
+---@return boolean
+function BotLocomotor:UnlockDoor(doorEnt)
+	if not IsValid(doorEnt) then return false end
+	if not self:IsDoorLocked(doorEnt) then return false end -- Already unlocked
+
+	if door and door.Unlock then
+		door.Unlock(doorEnt)
+		return true
+	end
+
+	if doorEnt.Fire then
+		doorEnt:Fire("Unlock", "", 0)
+		return true
+	end
+
+	return false
+end
+
+--- Break down a destructible door (for traitors pursuing targets or bots bypassing locks).
+--- Returns true if we started attacking the door.
+---@param doorEnt Entity
+---@return boolean
+function BotLocomotor:BreakDoor(doorEnt)
+	if not IsValid(doorEnt) then return false end
+
+	-- Check if destructible
+	local isDestructible = false
+	if door and door.IsDestructible then
+		isDestructible = door.IsDestructible(doorEnt)
+	else
+		-- Fallback: prop_door_rotating are often destructible
+		isDestructible = doorEnt:GetClass() == "prop_door_rotating"
+	end
+
+	if not isDestructible then return false end
+
+	self:LookAt(doorEnt:GetPos())
+	self:StartAttack()
+
+	-- Store target for attacking
+	self.bot.breakDoorTarget = doorEnt
+
+	return true
+end
+
+--- Find the nearest locked door within radius that is blocking the current path.
+---@param radius number
+---@return Entity|nil
+function BotLocomotor:FindNearestLockedDoor(radius)
+	radius = radius or 150
+	local myPos = self.bot:GetPos()
+	local bestDoor = nil
+	local bestDist = radius
+
+	local doorClasses = { "func_door", "func_door_rotating", "prop_door_rotating" }
+	for _, class in pairs(doorClasses) do
+		for _, ent in pairs(ents.FindByClass(class)) do
+			if not IsValid(ent) then continue end
+			local dist = myPos:Distance(ent:GetPos())
+			if dist < bestDist and self:IsDoorLocked(ent) then
+				bestDoor = ent
+				bestDist = dist
+			end
+		end
+	end
+
+	return bestDoor
+end
+
 function BotLocomotor:UpdateADS()
     local bot = self.bot
     if IsValid(bot) and IsValid(bot.attackTarget) then
@@ -845,6 +950,12 @@ function BotLocomotor:AvoidDoor(door)
     if dvlpr_door then print(self.bot:Nick() .. " opening door") end
 
     self:SetUse(true)
+
+    -- If the door is locked and we can't open it normally, try to break it down
+    if self:IsDoorLocked(door) then
+        self:BreakDoor(door)
+    end
+
     if not self.doorStandPos then
         local vec = self:GetWhereStandForDoor(door)
         local duration = 0.9

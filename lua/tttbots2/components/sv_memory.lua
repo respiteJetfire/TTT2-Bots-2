@@ -46,6 +46,11 @@ local lib = TTTBots.Lib
 local Memory = TTTBots.Components.Memory
 local DEAD = "DEAD"
 local ALIVE = "ALIVE"
+
+-- Door activity tracking: detect door camping
+Memory.DoorActivityLog = Memory.DoorActivityLog or {} -- [entIndex] = {uses=0, lastActivity=0, usersNearby={}}
+Memory.DOOR_CAMP_THRESHOLD = 4  -- 4+ use events in 10 seconds = suspicious
+Memory.DOOR_CAMP_WINDOW = 10    -- seconds
 local FORGET = {
     Base = 30,
     Variance = 5,
@@ -792,6 +797,56 @@ if SERVER then
         end
     end)
 end
+
+-- Track door activity for camping detection
+hook.Add("PlayerUse", "TTTBots_Memory_DoorCamping", function(ply, ent)
+	if not IsValid(ent) then return end
+	local class = ent:GetClass()
+	if class ~= "func_door" and class ~= "func_door_rotating" and class ~= "prop_door_rotating" then return end
+
+	local idx = ent:EntIndex()
+	Memory.DoorActivityLog[idx] = Memory.DoorActivityLog[idx] or { uses = 0, lastActivity = 0, usersNearby = {} }
+	local log = Memory.DoorActivityLog[idx]
+
+	-- Reset counters if the activity window has expired
+	if CurTime() - log.lastActivity > Memory.DOOR_CAMP_WINDOW then
+		log.uses = 0
+		log.usersNearby = {}
+	end
+
+	log.uses = log.uses + 1
+	log.lastActivity = CurTime()
+
+	-- Track who's nearby
+	if IsValid(ply) and not table.HasValue(log.usersNearby, ply) then
+		table.insert(log.usersNearby, ply)
+	end
+end)
+
+--- Check if a door entity has suspicious activity (door camping).
+---@param doorEnt Entity
+---@return boolean
+function Memory.IsDoorSuspicious(doorEnt)
+	if not IsValid(doorEnt) then return false end
+	local idx = doorEnt:EntIndex()
+	local log = Memory.DoorActivityLog[idx]
+	if not log then return false end
+
+	-- Window expired?
+	if CurTime() - log.lastActivity > Memory.DOOR_CAMP_WINDOW then return false end
+
+	return log.uses >= Memory.DOOR_CAMP_THRESHOLD
+end
+
+-- Clean up old entries periodically
+timer.Create("TTTBots_Memory_DoorActivityCleanup", 30, 0, function()
+	local now = CurTime()
+	for idx, log in pairs(Memory.DoorActivityLog) do
+		if now - log.lastActivity > Memory.DOOR_CAMP_WINDOW * 3 then
+			Memory.DoorActivityLog[idx] = nil
+		end
+	end
+end)
 
 ---@class Bot
 local plyMeta = FindMetaTable("Player")
