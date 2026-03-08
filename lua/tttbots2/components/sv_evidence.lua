@@ -410,6 +410,82 @@ function BotEvidence:DecayTrust()
 end
 
 -- ===========================================================================
+-- Evidence summary for LLM prompts (9.3)
+-- ===========================================================================
+
+--- Human-readable type labels for evidence entries.
+local EVIDENCE_LABELS = {
+    WITNESSED_KILL      = "witnessed kill",
+    NEAR_BODY           = "found near body",
+    TRAITOR_WEAPON      = "carrying traitor weapon",
+    FAILED_TEST         = "failed role test",
+    REFUSED_TEST        = "refused role test",
+    ABSENT_FROM_GROUP   = "absent from group",
+    DNA_MATCH           = "DNA match",
+    ALIBI_BROKEN        = "alibi disproved",
+    KOS_CALLED_BY       = "KOS called by others",
+    BODY_FOUND_NEAR     = "found near a body",
+    SUSPICIOUS_MOVEMENT = "suspicious movement",
+}
+
+--- Build a compact, natural-language evidence brief for a suspect.
+--- Used by GetAccusationPrompt (9.3) to feed the LLM concrete evidence.
+--- Capped at ~200 characters to stay within small context windows.
+---@param suspect Player
+---@return string  e.g. "witnessed kill (Alex, at storage); DNA match; refused role test"
+function BotEvidence:FormatEvidenceSummary(suspect)
+    if not (IsValid(suspect) and suspect:IsPlayer()) then return "no evidence" end
+
+    local now     = CurTime()
+    local entries = {}
+
+    for _, entry in ipairs(self.log) do
+        if entry.subject ~= suspect then continue end
+        local age   = now - (entry.time or 0)
+        local label = EVIDENCE_LABELS[entry.type] or entry.type
+
+        local detail = ""
+        if entry.victim and IsValid(entry.victim) then
+            detail = detail .. entry.victim:Nick()
+        end
+        if entry.location and entry.location ~= "" and entry.location ~= "unknown" then
+            detail = detail ~= "" and (detail .. " at " .. entry.location) or ("at " .. entry.location)
+        elseif entry.detail and entry.detail ~= "" and not entry.victim then
+            detail = entry.detail
+        end
+
+        local piece = label
+        if detail ~= "" then
+            piece = piece .. " (" .. detail .. ")"
+        end
+        if age > 60 then
+            piece = piece .. " ~" .. math.floor(age) .. "s ago"
+        end
+
+        table.insert(entries, { text = piece, weight = entry.weight or 1, time = entry.time or 0 })
+    end
+
+    if #entries == 0 then return "no specific evidence" end
+
+    -- Sort by weight descending, keep top 4
+    table.sort(entries, function(a, b) return a.weight > b.weight end)
+
+    local parts = {}
+    for i = 1, math.min(4, #entries) do
+        table.insert(parts, entries[i].text)
+    end
+
+    local summary = table.concat(parts, "; ")
+
+    -- Hard cap
+    if #summary > 200 then
+        summary = summary:sub(1, 197) .. "..."
+    end
+
+    return summary
+end
+
+-- ===========================================================================
 -- Accusation cooldown helpers
 -- ===========================================================================
 

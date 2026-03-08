@@ -153,3 +153,111 @@ Dialog.NewTemplate(
     true  -- onlyWhenDead = true
 )
 Dialog.Templates["PostRoundBanter"].context = "postround"
+
+-- ===========================================================================
+-- Casual / idle dialog templates
+-- These fire during quiet stretches to add flavour conversation.
+-- They use the new "idle" context type and support optional llm_line steps.
+-- ===========================================================================
+
+-- "Coffee Break" — 2 bots have a relaxed off-topic chat
+Dialog.NewTemplate(
+    "CoffeeBreak",
+    2,
+    {
+        Dialog.NewLine("CasualCoffeeBreakOpen",  1),
+        Dialog.NewLine("CasualCoffeeBreakReply", 2),
+        Dialog.NewLine("CasualCoffeeBreakTopic", 1),
+    },
+    false
+)
+Dialog.Templates["CoffeeBreak"].context = "idle"
+
+-- "Nervous Waiting" — 2 bots share their unease during a quiet stretch
+Dialog.NewTemplate(
+    "NervousWaiting",
+    2,
+    {
+        Dialog.NewLine("CasualNervousOpen",  1),
+        Dialog.NewLine("CasualNervousReply", 2),
+    },
+    false
+)
+Dialog.Templates["NervousWaiting"].context = "idle"
+
+-- "Strange Noise" — 2 bots react to an imagined sound (pure flavour)
+Dialog.NewTemplate(
+    "StrangeNoise",
+    2,
+    {
+        Dialog.NewLine("CasualNoiseOpen",  1),
+        Dialog.NewLine("CasualNoiseReply", 2),
+    },
+    false
+)
+Dialog.Templates["StrangeNoise"].context = "idle"
+
+-- "Map Commentary" — 2 bots chat about the map
+Dialog.NewTemplate(
+    "MapCommentary",
+    2,
+    {
+        Dialog.NewLine("CasualMapOpen",  1),
+        Dialog.NewLine("CasualMapReply", 2),
+    },
+    false
+)
+Dialog.Templates["MapCommentary"].context = "idle"
+
+-- "Weapon Chat" — 2 bots compare loadouts
+Dialog.NewTemplate(
+    "WeaponChat",
+    2,
+    {
+        Dialog.NewLine("CasualWeaponOpen",  1),
+        Dialog.NewLine("CasualWeaponReply", 2),
+    },
+    false
+)
+Dialog.Templates["WeaponChat"].context = "idle"
+
+-- "LLM Coffee Break" — same structure as CoffeeBreak but final line is LLM-generated
+-- (Bot 1 opens with a locale line, Bot 2 replies with locale, Bot 1 says
+--  something LLM-generated to cap it off with personality-driven flair)
+Dialog.NewTemplate(
+    "LLMCoffeeBreak",
+    2,
+    {
+        Dialog.NewLine("CasualCoffeeBreakOpen",  1),
+        Dialog.NewLine("CasualCoffeeBreakReply", 2),
+        Dialog.NewLLMLine(1, "idle"),           -- LLM-generated closing remark
+    },
+    false
+)
+Dialog.Templates["LLMCoffeeBreak"].context = "idle"
+
+-- "LLM Nervous Waiting" — nervous exchange capped by LLM line
+Dialog.NewTemplate(
+    "LLMNervousWaiting",
+    2,
+    {
+        Dialog.NewLine("CasualNervousOpen",  1),
+        Dialog.NewLine("CasualNervousReply", 2),
+        Dialog.NewLLMLine(1, "idle"),
+    },
+    false
+)
+Dialog.Templates["LLMNervousWaiting"].context = "idle"
+
+-- "LLM Post Combat" — 2 bots debrief after surviving a fight,
+-- second bot's reply is LLM-generated for variety
+Dialog.NewTemplate(
+    "LLMPostCombat",
+    2,
+    {
+        Dialog.NewLine("CasualCoffeeBreakOpen", 1),  -- reuse open as "how'd that go?"
+        Dialog.NewLLMLine(2, "post_combat"),          -- LLM reaction from bot 2
+    },
+    false
+)
+Dialog.Templates["LLMPostCombat"].context = "idle"

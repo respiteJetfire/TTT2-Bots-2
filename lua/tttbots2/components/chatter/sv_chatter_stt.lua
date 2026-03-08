@@ -2,6 +2,7 @@
 --- Local Speech-to-Text polling: watches the data/transcribed/ folder for
 --- freshly written transcript files and routes them through RespondToPlayerMessage.
 --- Depends on: sv_chatter_commands.lua (BotChatter:RespondToPlayerMessage)
+---             sv_chatter_stt_evidence.lua (TTTBots.STTEvidence.Process)  [9.4]
 
 local BotChatter = TTTBots.Components.Chatter
 
@@ -47,6 +48,12 @@ local function checkTranscriptionsLocal()
                         if IsValid(ply) then
                             local sanitized = sanitizeText(text)
                             print(string.format("[TTTBots STT] Routing to RespondToPlayerMessage: player='%s' sanitized='%s'", ply:Nick(), sanitized))
+
+                            -- 9.4: Extract evidence claims from speech BEFORE command matching
+                            if TTTBots.STTEvidence then
+                                TTTBots.STTEvidence.Process(text, sanitized, ply)
+                            end
+
                             BotChatter:RespondToPlayerMessage(ply, sanitized, false, false, true)
                             file.Delete(textFilePath)
                             print(string.format("[TTTBots STT] Deleted transcript: %s", textFilePath))

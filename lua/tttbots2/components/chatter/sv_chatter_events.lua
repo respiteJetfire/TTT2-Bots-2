@@ -110,6 +110,22 @@ local chancesOf100 = {
     FakeInvestigateReport      = 85,  -- Traitor reports fake findings from a body
     FalseKOS                   = 80,  -- Traitor calls false KOS on an innocent
     PlausibleIgnorance         = 80,  -- Traitor excuses presence near fresh kill
+    -- -----------------------------------------------------------------------
+    -- Casual / Idle events
+    -- -----------------------------------------------------------------------
+    CasualObservation          = 20,  -- Random map/environment observation
+    CasualJoke                 = 15,  -- Light joke or pun
+    CasualStory                = 15,  -- Mini anecdote snippet
+    CasualCompliment           = 20,  -- Complimenting another player
+    CasualComplaint            = 18,  -- Low-stakes gripe
+    CasualQuestion             = 22,  -- Rhetorical or idle question
+    CasualNervous              = 25,  -- Nervous small-talk during quiet stretch
+    CasualBoredom              = 35,  -- Boredom-driven chatter (boosted by mood multiplier)
+    CasualWeather              = 12,  -- Absurd map flavour observation
+    PostCombatRelief           = 60,  -- After surviving a fight
+    NearMissReaction           = 50,  -- Bullet narrowly missed
+    SurvivorRelief             = 55,  -- Survived when others nearby died
+    QuietRoundComment          = 30,  -- Nobody has died in a long while
 }
 
 -- ---------------------------------------------------------------------------
@@ -158,7 +174,18 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     local personality = self.bot.components.personality ---@type CPersonality
     if dynamicChances[event_name] then
         local chance = dynamicChances[event_name]
-        if math.random(0, 100) > (chance * personality:GetTraitMult("textchat") * ChanceMult) then
+        -- For casual/idle events, also apply the mood multiplier so boredom
+        -- increases chatter frequency while pressure/rage suppress it.
+        local casualEvents = {
+            CasualObservation = true, CasualJoke = true, CasualStory = true,
+            CasualCompliment = true, CasualComplaint = true, CasualQuestion = true,
+            CasualNervous = true, CasualBoredom = true, CasualWeather = true,
+            SillyChat = true, SillyChatDead = true,
+        }
+        local moodMult = casualEvents[event_name]
+            and (personality.GetChatMoodMultiplier and personality:GetChatMoodMultiplier() or 1.0)
+            or 1.0
+        if math.random(0, 100) > (chance * personality:GetTraitMult("textchat") * ChanceMult * moodMult) then
             return false
         end
     end
@@ -203,12 +230,14 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
 
     if math.random() < chatGPTChance then
         TTTBots.Providers.SendText(prompt, self.bot, sendOpts, function(envelope)
+            if not IsValid(self.bot) then return end
             setLocalizedString(envelope.ok and envelope.text or nil)
         end)
     else
         localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
         if not localizedString then
             TTTBots.Providers.SendText(prompt, self.bot, sendOpts, function(envelope)
+                if not IsValid(self.bot) then return end
                 setLocalizedString(envelope.ok and envelope.text or nil)
             end)
         else
@@ -249,6 +278,85 @@ timer.Create("TTTBots.Chatter.SillyChat", 20, 0, function()
 
     local eventName = lib.IsPlayerAlive(targetBot) and "SillyChat" or "SillyChatDead"
     chatter:On(eventName, { player = randomPlayer:Nick() })
+end)
+
+-- ---------------------------------------------------------------------------
+-- Casual proximity trigger — bots near each other start idle conversation
+-- ---------------------------------------------------------------------------
+
+local CASUAL_PROXIMITY_DIST = 300  -- units; close enough to chat
+--- Casual event pool (weighted): pick from these for proximity-triggered chatter
+local casualProximityPool = {
+    { event = "CasualObservation", weight = 3 },
+    { event = "CasualJoke",        weight = 2 },
+    { event = "CasualQuestion",    weight = 3 },
+    { event = "CasualNervous",     weight = 2 },
+    { event = "CasualCompliment",  weight = 2 },
+    { event = "CasualWeather",     weight = 1 },
+    { event = "CasualStory",       weight = 1 },
+}
+local casualProximityWeighted = (function()
+    local t = {}
+    for _, entry in ipairs(casualProximityPool) do
+        for _ = 1, entry.weight do table.insert(t, entry.event) end
+    end
+    return t
+end)()
+
+timer.Create("TTTBots.Chatter.CasualProximity", 15, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    local bots = lib.GetAliveBots()
+    if #bots < 2 then return end
+
+    -- Shuffle bot list to avoid always picking the same pair
+    local shuffled = table.Copy(bots)
+    for i = #shuffled, 2, -1 do
+        local j = math.random(1, i)
+        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+    end
+
+    for _, bot in ipairs(shuffled) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local personality = bot:BotPersonality()
+        if not personality then continue end
+
+        -- Respect the mood multiplier — high pressure bots skip casual chat
+        local moodMult = personality.GetChatMoodMultiplier
+            and personality:GetChatMoodMultiplier() or 1.0
+        if moodMult <= 0.1 then continue end  -- silent/suppressed
+
+        -- Find a nearby bot to chat with
+        local botPos = bot:GetPos()
+        local chatTarget = nil
+        for _, other in ipairs(shuffled) do
+            if other == bot then continue end
+            if not (IsValid(other) and other.components) then continue end
+            if botPos:Distance(other:GetPos()) <= CASUAL_PROXIMITY_DIST then
+                chatTarget = other
+                break
+            end
+        end
+        if not chatTarget then continue end
+
+        -- Per-bot casual cooldown (separate from regular rate-limit table)
+        local now = CurTime()
+        if (bot._lastCasualProximityTime or 0) + 30 > now then continue end
+        bot._lastCasualProximityTime = now
+
+        -- Pick a random casual event from the weighted pool
+        local eventName = casualProximityWeighted[math.random(1, #casualProximityWeighted)]
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On(eventName, { player = chatTarget:Nick() }, false, math.random(0, 2))
+        end
+        break  -- one pair per sweep to keep it natural
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetCasualProximity", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then bot._lastCasualProximityTime = nil end
+    end
 end)
 
 -- ---------------------------------------------------------------------------
@@ -690,8 +798,188 @@ hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetLastInnocentFlag", function()
 end)
 
 -- ---------------------------------------------------------------------------
--- TraitorVictory — traitor gloats after winning (team chat, post-round)
+-- QuietRoundComment — nobody has died in a while
 -- ---------------------------------------------------------------------------
+
+local QUIET_ROUND_THRESHOLD = 120  -- seconds with no death before "quiet" triggers
+local _lastDeathTime = 0
+
+hook.Add("PlayerDeath", "TTTBots.Chatter.QuietRoundTracker", function(victim)
+    if TTTBots.Match.RoundActive then
+        _lastDeathTime = CurTime()
+    end
+end)
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetQuietTimer", function()
+    _lastDeathTime = CurTime()
+end)
+
+timer.Create("TTTBots.Chatter.QuietRound", 45, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if (CurTime() - _lastDeathTime) < QUIET_ROUND_THRESHOLD then return end
+
+    local bots = lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    local speaker = bots[math.random(1, #bots)]
+    if not (speaker and IsValid(speaker) and speaker.components) then return end
+
+    -- Only fire once per quiet stretch
+    if speaker._quietCommentFired and
+       (CurTime() - (speaker._quietCommentFiredTime or 0)) < 90 then return end
+    speaker._quietCommentFired = true
+    speaker._quietCommentFiredTime = CurTime()
+
+    local chatter = speaker:BotChatter()
+    if chatter then
+        chatter:On("QuietRoundComment", {}, false, 0)
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetQuietComment", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then
+            bot._quietCommentFired = nil
+            bot._quietCommentFiredTime = nil
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- PostCombatRelief — bot survived a fight (fires after AttackEnd)
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBots.AttackEnd", "TTTBots.Chatter.PostCombatRelief", function(attacker, victim)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not (IsValid(attacker) and attacker:IsBot()) then return end
+    if not TTTBots.Lib.IsPlayerAlive(attacker) then return end
+
+    -- Rate-limit: don't fire more than once per 20s per bot
+    if (CurTime() - (attacker._lastPostCombatChat or 0)) < 20 then return end
+    attacker._lastPostCombatChat = CurTime()
+
+    local chatter = attacker:BotChatter()
+    if not chatter then return end
+
+    -- 50% chance to make a post-combat remark
+    if math.random(1, 2) == 1 then
+        chatter:On("PostCombatRelief", {}, false, math.random(1, 3))
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- NearMissReaction — bot narrowly avoids being shot (EntityTakeDamage with 0)
+-- Note: we detect "near miss" via the EntityTakeDamage hook when the dmg is
+-- very low (graze) or via a proximity bullet hook if available.
+-- ---------------------------------------------------------------------------
+
+hook.Add("EntityTakeDamage", "TTTBots.Chatter.NearMiss", function(target, dmginfo)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not (IsValid(target) and target:IsPlayer() and target:IsBot()) then return end
+    if not TTTBots.Lib.IsPlayerAlive(target) then return end
+
+    -- Only react to very low damage (graze/near miss), not full hits
+    local dmg = dmginfo:GetDamage()
+    if dmg == 0 or dmg > 5 then return end  -- graze only
+
+    -- Rate-limit: once per 15s
+    if (CurTime() - (target._lastNearMissChat or 0)) < 15 then return end
+    target._lastNearMissChat = CurTime()
+
+    local attacker = dmginfo:GetAttacker()
+    if not (IsValid(attacker) and attacker:IsPlayer()) then return end
+    if attacker == target then return end
+
+    local chatter = target:BotChatter()
+    if not chatter then return end
+
+    chatter:On("NearMissReaction", { player = attacker:Nick(), playerEnt = attacker }, false, 0)
+end)
+
+-- ---------------------------------------------------------------------------
+-- SurvivorRelief — bot survived when all nearby allies died in quick succession
+-- ---------------------------------------------------------------------------
+
+hook.Add("PlayerDeath", "TTTBots.Chatter.SurvivorCheck", function(victim, weapon, attacker)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TTTBots.Match.RoundActive then return end
+
+    -- After a death, check if any nearby surviving bots should comment
+    timer.Simple(1.5, function()
+        local bots = lib.GetAliveBots()
+        if #bots == 0 then return end
+
+        for _, bot in ipairs(bots) do
+            if not (IsValid(bot) and bot.components) then continue end
+            -- Must have been near the victim
+            if not IsValid(victim) then continue end
+            local dist = bot:GetPos():Distance(victim:GetPos())
+            if dist > 600 then continue end  -- only nearby survivors
+
+            -- Rate-limit
+            if (CurTime() - (bot._lastSurvivorChat or 0)) < 30 then continue end
+            bot._lastSurvivorChat = CurTime()
+
+            if math.random(1, 4) == 1 then  -- 25% chance
+                local chatter = bot:BotChatter()
+                if chatter then
+                    chatter:On("SurvivorRelief", {
+                        victim    = IsValid(victim) and victim:Nick() or "someone",
+                        victimEnt = victim,
+                    }, false, math.random(1, 3))
+                end
+            end
+            break  -- only one bot per death
+        end
+    end)
+end)
+
+-- ---------------------------------------------------------------------------
+-- Boredom-driven casual chatter — periodic single-bot casual remarks
+-- scaled by each bot's boredom stat
+-- ---------------------------------------------------------------------------
+
+local boredCasualPool = {
+    "CasualBoredom", "CasualObservation", "CasualQuestion",
+    "CasualNervous", "CasualComplaint", "CasualWeather",
+}
+
+timer.Create("TTTBots.Chatter.BoredomCasual", 25, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    local bots = lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local personality = bot:BotPersonality()
+        if not personality then continue end
+
+        local boredom = personality:GetBoredom() or 0
+        if boredom < 0.25 then continue end  -- not bored enough
+
+        local moodMult = personality.GetChatMoodMultiplier
+            and personality:GetChatMoodMultiplier() or 1.0
+        if moodMult <= 0.05 then continue end
+
+        -- Scale chance: 10% at min boredom → 50% at max boredom
+        local chance = 0.10 + (boredom * 0.40)
+        chance = chance * moodMult
+        if math.random() > chance then continue end
+
+        -- Pick a casual event — weight toward CasualBoredom at high boredom
+        local eventName
+        if boredom > 0.7 and math.random(1, 2) == 1 then
+            eventName = "CasualBoredom"
+        else
+            eventName = boredCasualPool[math.random(1, #boredCasualPool)]
+        end
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On(eventName, {}, false, math.random(0, 4))
+        end
+        break  -- one bot per sweep
+    end
+end)
 
 hook.Add("TTTEndRound", "TTTBots.Chatter.TraitorVictory", function(result)
     if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end

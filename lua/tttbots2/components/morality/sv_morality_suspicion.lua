@@ -342,6 +342,16 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
             detail   = weaponName,
             location = location,
         })
+
+        -- Record in witness ring buffer for LLM game-state context (9.1)
+        local mem = self.bot:BotMemory()
+        if mem then
+            local desc = string.format("%s killed %s", attacker:Nick(), victim:Nick())
+            if location and location ~= "unknown location" then
+                desc = desc .. " at " .. location
+            end
+            mem:AddWitnessEvent("kill", desc)
+        end
     end
 
     local chatter = self.bot:BotChatter()
@@ -396,6 +406,12 @@ function BotMorality:OnKOSCalled(caller, target)
             subject = target,
             detail  = caller:Nick(),
         })
+
+        -- Record in witness ring buffer for LLM game-state context (9.1)
+        local mem = self.bot:BotMemory()
+        if mem then
+            mem:AddWitnessEvent("kos", string.format("%s called KOS on %s", caller:Nick(), target:Nick()))
+        end
     end
 end
 
@@ -412,13 +428,17 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
         return
     end
     if self.bot == victim then
+        -- Bot was hurt: request retaliation and apply HurtMe suspicion.
         Arb.RequestAttackTarget(self.bot, attacker, "SELF_DEFENSE", PRI.SELF_DEFENSE)
+        self:ChangeSuspicion(attacker, "HurtMe")
         local personality = self.bot:BotPersonality()
         if personality then
             personality:OnPressureEvent("Hurt")
         end
+        return -- self is victim, skip bystander suspicion logic below
     end
-    if self.bot == victim or self.bot == attacker and TTTBots.Roles.IsAllies(victim, attacker) then return end
+    -- Bystander logic: skip if attacker is an ally hurting the victim
+    if TTTBots.Roles.IsAllies(victim, attacker) then return end
     if TTTBots.Match.IsPlayerDisguised(attacker) then
         if self.bot.attackTarget == nil then
             Arb.RequestAttackTarget(self.bot, attacker, "DISGUISED_ATTACKER", PRI.ROLE_HOSTILITY)
@@ -478,6 +498,8 @@ hook.Add("PlayerDeath", "TTTBots.Components.Morality.PlayerDeath", function(vict
     if not (IsValid(victim) and victim:IsPlayer()) then return end
     if not (IsValid(attacker) and attacker:IsPlayer()) then return end
     local timestamp = CurTime()
+    -- Stash the attacker on the victim so TTTOnCorpseCreated can tag the rag.
+    victim.tttbots_killedBy = attacker
     if attacker:IsBot() then
         attacker.lastKillTime = timestamp
         -- Track self-defense kills for innocent-side bots so InvestigateCorpse can
@@ -529,9 +551,6 @@ end)
 hook.Add("PlayerHurt", "TTTBots.Components.Morality.PlayerHurt", function(victim, attacker, healthRemaining, damageTaken)
     if not (IsValid(victim) and victim:IsPlayer()) then return end
     if not (IsValid(attacker) and attacker:IsPlayer()) then return end
-    if not victim:Visible(attacker) then return end
-    local witnesses = lib.GetAllWitnesses(attacker:EyePos(), true)
-    table.insert(witnesses, victim)
 
     -- If NPC is the attacker, attack them directly.
     if attacker:IsNPC() and not attacker:IsBot() then
@@ -541,10 +560,21 @@ hook.Add("PlayerHurt", "TTTBots.Components.Morality.PlayerHurt", function(victim
         return
     end
 
-    for i, witness in pairs(witnesses) do
-        if witness and witness.components then
-            witness.components.morality:OnWitnessHurt(victim, attacker, healthRemaining, damageTaken)
-            hook.Run("TTTBotsOnWitnessHurt", witness, victim, attacker, healthRemaining, damageTaken)
+    -- Always notify the victim bot so it can retaliate, even if it can't see the attacker.
+    if victim:IsBot() and victim.components then
+        victim.components.morality:OnWitnessHurt(victim, attacker, healthRemaining, damageTaken)
+        hook.Run("TTTBotsOnWitnessHurt", victim, victim, attacker, healthRemaining, damageTaken)
+    end
+
+    -- Notify visible bystander bots (exclude victim — already handled above).
+    if victim:Visible(attacker) then
+        local witnesses = lib.GetAllWitnesses(attacker:EyePos(), true)
+        for i, witness in pairs(witnesses) do
+            if witness == victim then continue end -- already dispatched
+            if witness and witness.components then
+                witness.components.morality:OnWitnessHurt(victim, attacker, healthRemaining, damageTaken)
+                hook.Run("TTTBotsOnWitnessHurt", witness, victim, attacker, healthRemaining, damageTaken)
+            end
         end
     end
 end)

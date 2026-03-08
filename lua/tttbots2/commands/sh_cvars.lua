@@ -53,6 +53,8 @@ bot_sh_cvar("cheat_bot_zombie", "0",
     "If set to 1, bots will not move and will not shoot.")
     
 -- Chatter cvars
+bot_sh_cvar("llm_enabled", "1",
+    "Master toggle to enable or disable all LLM (AI text generation) calls. When set to 0, bots will fall back to locale-string responses for all chatter events and will not contact any LLM provider.")
 bot_sh_cvar("chatter_lvl", "3",
     "The level of chatter that bots will have. 0 = none (not even KOS), 1 = critical only (like KOS), 2 = >= callouts/important only, 3 = everything.")
 bot_sh_cvar("chatter_cps", "30",
@@ -73,6 +75,14 @@ bot_sh_cvar_server_only("chatter_gemini_api_key", "",
     "The API key for Gemini. This is required for bots to reply. You can get one at https://ai.google.dev/")
 bot_sh_cvar_server_only("chatter_deepseek_api_key", "",
     "The API key for Deepseek. This is required for bots to reply.")
+bot_sh_cvar_server_only("chatter_openrouter_api_key", "",
+    "The API key for OpenRouter. Get one at https://openrouter.ai/keys — required when chatter_api_provider is 5.")
+bot_sh_cvar("chatter_openrouter_model", "arcee-ai/trinity-large-preview:free",
+    "The OpenRouter model to use when chatter_api_provider is 5. Can be any model slug from https://openrouter.ai/models. Free models end in :free. Examples: nvidia/llama-nemotron-embed-vl-1b-v2:free, openai/gpt-5-nano, anthropic/claude-sonnet-4.6")
+bot_sh_cvar("chatter_openrouter_site_url", "",
+    "Optional: your site URL sent to OpenRouter as HTTP-Referer for app attribution. Leave blank to omit.")
+bot_sh_cvar("chatter_openrouter_site_name", "TTT Bots 2",
+    "Optional: your app name sent to OpenRouter as X-Title for attribution. Defaults to 'TTT Bots 2'.")
 bot_sh_cvar("chatter_temperature", "0.9",
     "The temperature for ChatGPT. This determines how random the responses are. Lower values = more predictable, higher values = more random.")
 bot_sh_cvar("chatter_chance_multi", "1",
@@ -82,7 +92,7 @@ bot_sh_cvar("chatter_reply_chance_multi", "1",
 bot_sh_cvar("chatter_gpt_chance", "1",
     "A multiplier value that affects a bots chance to use ChatGPT to generate bot chatter. Higher values = more ChatGPT. Set to 0 to disable ChatGPT Custom Chatter (Default 1 = 1x Frequency).")
 bot_sh_cvar("chatter_api_provider", "0",
-    "The AI model provider for bot chat. 0 = ChatGPT, 1 = Gemini, 2 = Deepseek, 3 = All, Randomly Assigned to Bots, 4 = Local Ollama (requires GMOD Container or compatible ttsapi)")
+    "The AI model provider for bot chat. 0 = ChatGPT, 1 = Gemini, 2 = Deepseek, 3 = All, Randomly Assigned to Bots, 4 = Local Ollama (requires GMOD Container or compatible ttsapi), 5 = OpenRouter (any model via https://openrouter.ai)")
 bot_sh_cvar("chatter_gpt_model", "gpt-3.5-turbo",
     "The ChatGPT model to use. Options: gpt-3.5-turbo, gpt-4o-mini")
 bot_sh_cvar("chatter_gemini_model", "gemini-2.0-flash",
@@ -95,6 +105,10 @@ bot_sh_cvar_server_only("chatter_ollama_url", "",
     "Override URL for the Ollama /llm proxy endpoint. Leave blank to auto-detect from TTSAPI config (http://ttsapi:80/llm).")
 bot_sh_cvar("chatter_local_api_enabled", "0",
     "Master toggle for local ttsapi features (Ollama LLM, Piper TTS). Set to 1 to enable. Auto-enabled when TTSAPI config is detected.")
+bot_sh_cvar("chatter_casual_llm", "1",
+    "Whether LLM-generated lines are used in casual/idle dialog exchanges (the llm_line template steps). Set to 0 to always use locale templates instead.")
+bot_sh_cvar("chatter_casual_llm_chance", "0.4",
+    "Probability (0.0-1.0) that a casual dialog llm_line step will call the LLM instead of being skipped. Default 0.4 = 40% of casual dialog closing lines are LLM-generated.")
 
 -- Gameplay-effecting cvars
 bot_sh_cvar("plans_mindelay", "12",

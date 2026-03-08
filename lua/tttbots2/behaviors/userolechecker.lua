@@ -52,24 +52,31 @@ function UseRoleChecker.Validate(bot)
 
     local role = bot:GetSubRole()
 
-    local chance = (bot:GetTeam() == TEAM_NONE or bot:GetTeam() == TEAM_INNOCENT) and 5 or 1
-    if not bot.isGoingToChecker then
-        if math.random(0, 200) > chance then
-            -- print("UseRoleChecker.Validate: Random chance failed")
-            return false
-        ---else if distance to nearest checker is less than 100
-        end
-    end
-
-    local hasRoleChecker = UseRoleChecker.HasRoleChecker(bot)
-    local isCheckerNearby = (bot.targetChecker or UseRoleChecker.GetNearestChecker(bot) ~= nil)
-
     if TTTBots.Match.CheckedPlayers[bot] and TTTBots.Match.CheckedPlayers[bot][role] then
         -- print("UseRoleChecker.Validate: Already checked player")
         return false
     end
 
-    return hasRoleChecker or isCheckerNearby
+    local hasRoleChecker = UseRoleChecker.HasRoleChecker(bot)
+    local isCheckerNearby = (bot.targetChecker or UseRoleChecker.GetNearestChecker(bot) ~= nil)
+
+    if not (hasRoleChecker or isCheckerNearby) then return false end
+
+    -- Detective bots should almost always use/place the role checker when they have one —
+    -- don't gate them behind the stochastic roll.
+    if hasRoleChecker and bot:GetBaseRole() == ROLE_DETECTIVE then
+        return true
+    end
+
+    -- Innocent / None bots have a small random chance to walk to a nearby checker
+    if not bot.isGoingToChecker then
+        local chance = (bot:GetTeam() == TEAM_NONE or bot:GetTeam() == TEAM_INNOCENT) and 5 or 1
+        if math.random(0, 200) > chance then
+            return false
+        end
+    end
+
+    return true
 end
 
 --- Called when the behavior is started
@@ -103,7 +110,15 @@ end
 function UseRoleChecker.OnRunning(bot)
 
     if UseRoleChecker.HasRoleChecker(bot) then
+        -- Detective (or whoever carries the weapon) places the checker on the ground.
         UseRoleChecker.PlaceRoleChecker(bot)
+        -- Once the weapon has been fired (held for >0.3s), consider it placed and succeed.
+        if not bot._checkerPlacedAt then
+            bot._checkerPlacedAt = CurTime()
+        elseif (CurTime() - bot._checkerPlacedAt) > 0.3 then
+            bot._checkerPlacedAt = nil
+            return STATUS.SUCCESS
+        end
         return STATUS.RUNNING
     end
 
@@ -151,6 +166,7 @@ end
 function UseRoleChecker.OnEnd(bot)
     bot.isGoingToChecker = nil
     bot.targetChecker = nil
+    bot._checkerPlacedAt = nil
     local locomotor = bot:BotLocomotor()
     local inventory = bot:BotInventory()
     inventory:ResumeAutoSwitch()

@@ -42,7 +42,7 @@ local function getOwnUndiscoveredCorpse(bot)
     for _, corpse in pairs(corpses) do
         if not IsValid(corpse) then continue end
         if CORPSE.GetFound(corpse, false) then continue end  -- already discovered
-        local killerEnt = CORPSE.GetPlayer(corpse, "killer")
+        local killerEnt = corpse.tttbots_killedBy
         if IsValid(killerEnt) and killerEnt == bot then
             return corpse
         end

@@ -189,7 +189,13 @@ function DefibPlayer.OnRunning(bot)
 
     local dist = bot:GetPos():Distance(ragPos)
 
-    if dist < 100 then
+    -- Use a larger threshold to approach, and once we've started the hold timer
+    -- don't cancel it just because of minor locomotor drift (hysteresis).
+    local closeThreshold = 120
+    local cancelThreshold = 250  -- only cancel if we've drifted *far* away
+    local alreadyStarted = bot.defibStartTime ~= nil
+
+    if dist < closeThreshold or (alreadyStarted and dist < cancelThreshold) then
         inventory:PauseAutoSwitch()
         bot:SetActiveWeapon(defib)
         loco:SetGoal() -- reset goal to stop moving
@@ -206,11 +212,13 @@ function DefibPlayer.OnRunning(bot)
             return STATUS.SUCCESS
         end
     else
-        -- print("Failed to defib, too far away")
-        inventory:ResumeAutoSwitch()
-        loco:ResumeAttackCompat()
-        loco:SetHalt(false)
-        loco:ResumeRepel()
+        -- Only fully reset if we've moved genuinely far from the target
+        if not alreadyStarted then
+            inventory:ResumeAutoSwitch()
+            loco:ResumeAttackCompat()
+            loco:SetHalt(false)
+            loco:ResumeRepel()
+        end
         bot.defibStartTime = nil
     end
 

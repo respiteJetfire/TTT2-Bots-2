@@ -1148,7 +1148,7 @@ function BotLocomotor:UpdatePathRequest()
     local pathLength = self:GetPathLength()
     local hasPath = self:HasPath()
 
-    local endIsGoal = hasPath and pathRequest and pathRequest.pathInfo.path[pathLength] == goalNav
+    local endIsGoal = hasPath and pathRequest and type(pathRequest.pathInfo.path) == "table" and pathRequest.pathInfo.path[pathLength] == goalNav
     if pathRequest and hasPath and endIsGoal and not self:AnySegmentsNearby(pathRequest.pathInfo.path, 500) then
         if lib.GetConVarBool("debug_pathfinding") then
             print(self.bot:Nick() .. " path is too far")
@@ -1176,7 +1176,7 @@ function BotLocomotor:UpdatePathRequest()
     local reqPriority = (self.replanCooldown and self.replanCooldown > CurTime()) and 1 or 10
     local pathid, pathInfo, status = TTTBots.PathManager.RequestPath(self.bot, self.bot:GetPos(), goalPos, false, reqPriority)
 
-    if not pathInfo then -- path is impossible
+    if not pathInfo then -- path is truly impossible (open-set exhausted, not a timeout)
         self.cantReachGoal = true
         self.pathRequestWaiting = false
         self.pathRequest = nil

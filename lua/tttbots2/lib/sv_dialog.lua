@@ -29,6 +29,23 @@ function Dialog.NewLine(line, participantId)
         line = line,
         spoken = false,
         participantId = participantId,
+        isLLM = false,
+    }
+end
+
+--- Create an LLM-generated line for template creation.
+--- The bot will use the LLM provider to produce a contextual casual remark
+--- instead of pulling from the locale.
+---@param participantId number  The ID of the participant who will speak this line.
+---@param triggerReason string  Passed to GetCasualPrompt (e.g. "idle", "post_combat").
+---@return DialogLine
+function Dialog.NewLLMLine(participantId, triggerReason)
+    return {
+        line = "__llm__",
+        spoken = false,
+        participantId = participantId,
+        isLLM = true,
+        triggerReason = triggerReason or "idle",
     }
 end
 
@@ -115,6 +132,66 @@ function Dialog.ExecuteDialog(dialog)
     local nextParticipant = nextdline and dialog.participants[nextdline.participantId] ---@type Player|nil
     local nextParticipantName = nextParticipant and nextParticipant:Nick() or ""
 
+    local chatter = participant:BotChatter()
+    if not chatter then
+        Dialog.EndDialog(dialog)
+        print("no chatter on bot`")
+        return dialog
+    end
+
+    -- LLM-generated line branch
+    if dline.isLLM then
+        local casualLLMEnabled = TTTBots.Lib.GetConVarBool("chatter_casual_llm") ~= false
+        local casualLLMChance  = TTTBots.Lib.GetConVarFloat("chatter_casual_llm_chance") or 0.40
+        if not casualLLMEnabled or math.random() > casualLLMChance then
+            -- Skip this line gracefully (advance without speaking)
+            dialog.currentLine = dialog.currentLine + 1
+            return Dialog.ExecuteDialog(dialog)
+        end
+
+        local triggerReason = dline.triggerReason or "idle"
+        local prompt, sendOpts
+        local apiProvider = TTTBots.Lib.GetConVarInt("chatter_api_provider") or 0
+        if apiProvider == 4 then  -- local/Ollama
+            local promptData = TTTBots.LlamaPrompts.GetCasualPrompt(participant, triggerReason)
+            prompt = promptData.prompt
+            sendOpts = {
+                teamOnly = false,
+                wasVoice = false,
+                systemPrompt = promptData.system,
+                triggerReason = triggerReason,
+            }
+        else
+            prompt = TTTBots.PromptContext.GetCasualCloudPrompt(participant, triggerReason)
+            sendOpts = {
+                teamOnly = false,
+                wasVoice = false,
+                triggerReason = triggerReason,
+            }
+        end
+
+        dialog.waiting = true
+        dline.spoken = true
+        TTTBots.Providers.SendText(prompt, participant, sendOpts, function(envelope)
+            if not IsValid(participant) then
+                Dialog.EndDialog(dialog)
+                return
+            end
+            local text = envelope.ok and envelope.text or nil
+            if text then
+                chatter:Say(text, false, dialog.onlyWhenDead, function()
+                    dialog.currentLine = dialog.currentLine + 1
+                    dialog.waiting = false
+                end)
+            else
+                -- LLM failed — skip line silently
+                dialog.currentLine = dialog.currentLine + 1
+                dialog.waiting = false
+            end
+        end)
+        return dialog
+    end
+
     local translatedLine = TTTBots.Locale.GetLocalizedLine("Dialog" .. dline.line, participant,
         { lastBot = lastParticipantName, nextBot = nextParticipantName, bot = participant:Nick() })
 
@@ -123,12 +200,6 @@ function Dialog.ExecuteDialog(dialog)
         return dialog
     end
 
-    local chatter = participant:BotChatter()
-    if not chatter then
-        Dialog.EndDialog(dialog)
-        print("no chatter on bot`")
-        return dialog
-    end
     dialog.waiting = true
     dline.spoken = true
     chatter:Say(translatedLine, false, dialog.onlyWhenDead, function()
@@ -214,6 +285,25 @@ function Dialog.GetCurrentContext()
     return "generic"
 end
 
+--- Returns whether the current round is in a 'quiet/idle' phase:
+--- no kills recently and no active accusations/standoffs.
+---@return boolean
+function Dialog.IsIdleContext()
+    if not TTTBots.Match.RoundActive then return false end
+
+    -- Any corpses means we are in an active investigation context
+    if TTTBots.Match.Corpses and #TTTBots.Match.Corpses > 0 then return false end
+
+    -- Any recent accusation disqualifies idle context
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) and bot.accusedBy and IsValid(bot.accusedBy) then
+            if (CurTime() - (bot.accusedTime or 0)) < 45 then return false end
+        end
+    end
+
+    return true
+end
+
 --- Selects a dialog template weighted toward the current context.
 --- Context-matching templates get 3× weight; generic templates get 1× weight.
 ---@return Dialog|false dialog
@@ -223,7 +313,14 @@ function Dialog.NewFromContext()
     local weighted = {}
     for name, template in pairs(Dialog.Templates) do
         local tContext = template.context or "generic"
-        local weight   = (tContext == context) and 3 or 1
+        local weight
+        if tContext == context then
+            weight = 3  -- context-matched: high weight
+        elseif tContext == "idle" and Dialog.IsIdleContext() then
+            weight = 2  -- casual templates get extra weight during quiet rounds
+        else
+            weight = 1
+        end
         for _ = 1, weight do
             table.insert(weighted, template)
         end
@@ -248,6 +345,62 @@ timer.Create("TTTBots.Dialog.StartRandomDialogs", 60, 0, function()
     if not dialog then return end
     -- print("--- NEW ---")
     -- PrintTable(dialog)
+    currentDialog = dialog
+    Dialog.ExecuteUntilDone(dialog)
+end)
+
+-- ---------------------------------------------------------------------------
+-- Casual / idle dialog timer
+-- Fires more often during quiet rounds and when bots are bored.
+-- Runs every 30 seconds; chance scaled by average bot boredom.
+-- ---------------------------------------------------------------------------
+timer.Create("TTTBots.Dialog.CasualIdle", 30, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not Dialog.IsIdleContext() then return end
+    -- If the main dialog is mid-flow, don't interrupt it
+    if currentDialog and not currentDialog.isFinished then return end
+
+    -- Compute average boredom across bots to scale chance
+    local bots = TTTBots.Lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    local totalBoredom = 0
+    for _, bot in ipairs(bots) do
+        if IsValid(bot) and bot.components then
+            local pers = bot:BotPersonality()
+            if pers then totalBoredom = totalBoredom + (pers:GetBoredom() or 0) end
+        end
+    end
+    local avgBoredom = totalBoredom / #bots  -- 0.0 – 1.0
+
+    -- Base 20% chance, boosted up to 60% when boredom is high
+    local chance = 0.20 + (avgBoredom * 0.40)
+    if math.random() > chance then return end
+
+    -- Prefer casual/idle templates; fall back to NewFromContext if none available
+    local idleTemplates = {}
+    for name, template in pairs(Dialog.Templates) do
+        if (template.context or "generic") == "idle" then
+            table.insert(idleTemplates, template)
+        end
+    end
+
+    local chosen
+    if #idleTemplates > 0 then
+        chosen = idleTemplates[math.random(1, #idleTemplates)]
+    else
+        local dialog = Dialog.NewFromContext()
+        if dialog then
+            currentDialog = dialog
+            Dialog.ExecuteUntilDone(dialog)
+        end
+        return
+    end
+
+    local participants = Dialog.SelectParticipants(chosen)
+    if not participants then return end
+    local dialog = Dialog.New(chosen.name, participants)
+    if not dialog then return end
     currentDialog = dialog
     Dialog.ExecuteUntilDone(dialog)
 end)

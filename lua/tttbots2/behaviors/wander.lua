@@ -89,7 +89,9 @@ function Wander.HasExpired(bot)
     if not wander then return true end
     local ctime = CurTime()
     local DIST_CLOSE_THRESH = 100
-    local closeEnough = (ctime > wander.timeEndClose) and (bot:GetPos():Distance(wander.targetPos))
+    -- Distance() returns a number, not a bool — compare it properly so the bot
+    -- only counts as "done" when it's actually near the target AND the close timer ran out.
+    local closeEnough = (ctime > wander.timeEndClose) and (bot:GetPos():Distance(wander.targetPos) < DIST_CLOSE_THRESH)
     return closeEnough or (wander.timeEndFar < ctime)
 end
 

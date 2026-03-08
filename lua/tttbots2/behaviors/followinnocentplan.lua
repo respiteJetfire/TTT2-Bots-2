@@ -76,19 +76,25 @@ end
 -- Per-action handlers
 -- ─────────────────────────────────────────────────────────────────────────────
 
---- BUDDY_UP: path toward the assigned buddy and stay within 300 units.
+--- BUDDY_UP: path toward the assigned buddy and stay within 200 units.
+--- Keeps running rather than succeeding so the bot doesn't go jobless.
 local function runBuddyUp(bot, job)
     local buddy = job.TargetObj
     if not (IsValid(buddy) and lib.IsPlayerAlive(buddy)) then
         return STATUS.FAILURE
     end
     local dist = bot:GetPos():Distance(buddy:GetPos())
-    if dist <= 300 then
-        -- Close enough — briefly register as travel companion
+
+    -- Register as travel companion when nearby
+    if dist <= 250 then
         local evidence = bot.components and bot.components.evidence
-        if evidence then evidence:AddTravelCompanion(buddy) end
-        return STATUS.SUCCESS
+        if evidence and evidence.AddTravelCompanion then
+            evidence:AddTravelCompanion(buddy)
+        end
+        -- Don't return SUCCESS — let the job expire naturally so the bot keeps following
+        return STATUS.RUNNING
     end
+
     local loco = bot:BotLocomotor()
     if loco then
         loco:SetGoal(buddy:GetPos())
@@ -97,18 +103,35 @@ local function runBuddyUp(bot, job)
     return STATUS.RUNNING
 end
 
---- PATROL_ZONE: wander near the assigned zone centre, regenerating a wander pos every 5 ticks.
+--- PATROL_ZONE: wander near the assigned zone centre.
+--- Picks a new wander position every ~4s or once the bot gets close to the current one.
 local function runPatrolZone(bot, job)
     local origin = job.TargetObj
     if not origin then return STATUS.FAILURE end
 
-    lib.CallEveryNTicks(bot, function()
-        local visible = lib.VisibleNavsInRange(origin, 900)
-        if #visible > 0 then
-            local nav = table.Random(visible)
+    local botPos = bot:GetPos()
+
+    -- Re-roll wander position if we've arrived or don't have one yet
+    local needsNewPos = not job._wanderPos
+    if job._wanderPos then
+        local distToWander = botPos:Distance(job._wanderPos)
+        needsNewPos = distToWander < 80
+    end
+
+    if needsNewPos then
+        -- Pick a random nav area within 600 units of the zone centre
+        local searchRadius = 600
+        local nav = navmesh.GetNearestNavArea(origin + Vector(
+            math.random(-searchRadius, searchRadius),
+            math.random(-searchRadius, searchRadius),
+            0
+        ))
+        if nav then
             job._wanderPos = nav:GetRandomPoint()
+        else
+            job._wanderPos = origin
         end
-    end, TTTBots.Tickrate * 5)
+    end
 
     local goal = job._wanderPos or origin
     local loco = bot:BotLocomotor()

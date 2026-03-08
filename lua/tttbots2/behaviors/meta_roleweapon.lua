@@ -159,6 +159,12 @@ function TTTBots.Behaviors.RegisterRoleWeapon(config)
         if config.validateStartBothConditions then
             return ValidateTarget(bot) and chancePass
         end
+        -- If this behavior uses a findTargetFn and alwaysStart is set, only validate when
+        -- a real target exists -- otherwise the bot spins in a None→Behavior→Failure loop
+        -- every tick when no eligible target is nearby (e.g. medic with no low-HP players).
+        if config.alwaysStart and config.findTargetFn then
+            return ValidateTarget(bot) or (chancePass and config.findTargetFn(bot) ~= nil)
+        end
         return ValidateTarget(bot) or (chancePass and TTTBots.Match.IsRoundActive())
     end
 

@@ -53,14 +53,22 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, pl
     local promptMessage = text
     local promptEnd = "]"
 
-    -- Add last messages from bot's memory
-    local lastMessages = bot:BotMemory():GetLastMessages() or {}
-    if #lastMessages > 0 then
+    -- Inject game-state context (9.1)
+    local gameCtx = TTTBots.PromptContext and TTTBots.PromptContext.BuildGameStateContext(bot) or ""
+    if gameCtx ~= "" then
+        promptPremessage = gameCtx .. " " .. promptPremessage
+    end
+
+    -- Add recent conversation history (9.2): last 10 messages within 60 seconds
+    local recentMessages = bot:BotMemory():GetRecentMessages(60, 10) or {}
+    if #recentMessages > 0 then
         local lastMessagesStr = {}
-        for _, msg in ipairs(lastMessages) do
-            table.insert(lastMessagesStr, tostring(msg.message) .. " (from " .. tostring(msg.bot) .. ")")
+        for _, msg in ipairs(recentMessages) do
+            local senderName = (IsValid(msg.ply) and msg.ply:Nick()) or "Unknown"
+            local age = math.floor(CurTime() - (msg.time or 0))
+            table.insert(lastMessagesStr, string.format("%s (%ds ago): %s", senderName, age, tostring(msg.message)))
         end
-        promptPremessage = promptPremessage .. " The last chat/voice messages in the bot's memory are: " .. table.concat(lastMessagesStr, ", ") .. "."
+        promptPremessage = promptPremessage .. " Recent chat: " .. table.concat(lastMessagesStr, ", ") .. "."
     end
 
     local prompt = promptIntro .. promptName .. promptGame .. promptGameDesc .. promptRole .. promptPersonality .. promptArchetype .. promptReply .. promptBehavior .. promptDirective .. promptTeam .. promptInnocent .. promptMessagerInfo .. promptSus .. teamOnlyPrompt .. promptPremessage .. promptMessage .. promptEnd
@@ -101,14 +109,22 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, bot, params, teamOn
         prompt = prompt .. " an example of a response to this message is: " .. line
     end
 
-    -- Add last messages from bot's memory
-    local lastMessages = bot:BotMemory():GetLastMessages() or {}
-    if #lastMessages > 0 then
+    -- Inject game-state context (9.1)
+    local gameCtx = TTTBots.PromptContext and TTTBots.PromptContext.BuildGameStateContext(bot) or ""
+    if gameCtx ~= "" then
+        prompt = prompt .. " " .. gameCtx
+    end
+
+    -- Add recent conversation history (9.2): last 10 messages within 60 seconds
+    local recentMessages = bot:BotMemory():GetRecentMessages(60, 10) or {}
+    if #recentMessages > 0 then
         local lastMessagesStr = {}
-        for _, msg in ipairs(lastMessages) do
-            table.insert(lastMessagesStr, tostring(msg.message) .. " (from " .. tostring(msg.bot) .. ")")
+        for _, msg in ipairs(recentMessages) do
+            local senderName = (IsValid(msg.ply) and msg.ply:Nick()) or "Unknown"
+            local age = math.floor(CurTime() - (msg.time or 0))
+            table.insert(lastMessagesStr, string.format("%s (%ds ago): %s", senderName, age, tostring(msg.message)))
         end
-        prompt = prompt .. " The last chat/voice messages in the bot's memory are: " .. table.concat(lastMessagesStr, ", ") .. "."
+        prompt = prompt .. " Recent chat: " .. table.concat(lastMessagesStr, ", ") .. "."
     end
 
     prompt = prompt .. " The response must be less than 7 words long and should just be the text of the message with no Emojis or paranthesis. Do not make up any player names that are not provided in the prompt."

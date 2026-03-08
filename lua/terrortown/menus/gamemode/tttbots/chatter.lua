@@ -90,4 +90,23 @@ function CLGAMEMODESUBMENU:Populate(parent)
         decimal = 1,
     })
 
+    local form4 = vgui.CreateTTT2Form(parent, "header_tttbots_chatter_casual")
+
+    form4:MakeHelp({
+        label = "help_tttbots_chatter_casual",
+    })
+
+    form4:MakeCheckBox({
+        serverConvar = "ttt_bot_chatter_casual_llm",
+        label = "label_tttbots_chatter_casual_llm",
+    })
+
+    form4:MakeSlider({
+        serverConvar = "ttt_bot_chatter_casual_llm_chance",
+        label = "label_tttbots_chatter_casual_llm_chance",
+        min = 0,
+        max = 1,
+        decimal = 2,
+    })
+
 end

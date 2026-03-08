@@ -37,11 +37,14 @@ local supportedLangs = { "en" }
 for _, lang in pairs(supportedLangs) do
     local directory = f("tttbots2/locale/%s/", lang)
     local chatPath = f("%ssh_chats.lua", directory)
+    local casualChatPath = f("%ssh_casual_chats.lua", directory)
     local stringsPath = f("%ssh_strings.lua", directory)
 
     AddCSLuaFile(chatPath)
+    AddCSLuaFile(casualChatPath)
     AddCSLuaFile(stringsPath)
     include(chatPath)
+    include(casualChatPath)
     include(stringsPath)
 end
 
@@ -88,6 +91,9 @@ end
 ---@return table The archetype-specific lines from the localized table
 local function getArchetypalLines(bot, localizedTbl, forceDefault)
     local archetypeLocalized = {}
+    if not bot or not bot.components then
+        return archetypeLocalized
+    end
     local personality = bot.components.personality ---@type CPersonality
 
     -- Iterate through the localized table entries

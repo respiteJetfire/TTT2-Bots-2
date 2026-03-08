@@ -176,11 +176,80 @@ function AccusePlayer.OnStart(bot)
     local eventName, args = buildAccusationChat(bot, suspect, state.weight)
     local chatter = bot:BotChatter()
     if chatter and chatter.On then
-        chatter:On(eventName, args, false, 0)
-        -- Strong evidence: also fire the KOS pipeline
-        local kosThreshold = lib.GetConVarInt("evidence_kos_threshold") or 14
-        if state.weight >= kosThreshold then
-            TTTBots.Match.CallKOS(bot, suspect)
+
+        -- 9.3: LLM-driven accusation if provider is enabled and master toggle is on
+        local llmEnabled = TTTBots.Providers and lib.GetConVarBool("llm_enabled") and (lib.GetConVarInt("chatter_api_provider") ~= 0 or lib.GetConVarBool("chatter_llm_enable"))
+        local usedLLM    = false
+
+        if llmEnabled and TTTBots.PromptContext then
+            local evidence = bot:BotEvidence()
+            local evidenceSummary = evidence and evidence:FormatEvidenceSummary(suspect) or "no evidence"
+
+            -- Determine strength label to pass to the prompt builder
+            local kosThresholdForPrompt = lib.GetConVarInt("evidence_kos_threshold") or 14
+            local accThreshold          = lib.GetConVarInt("evidence_accuse_threshold") or 7
+            local strengthLabel
+            if state.weight >= kosThresholdForPrompt then
+                strengthLabel = "KOS"
+            elseif state.weight >= accThreshold then
+                strengthLabel = "medium"
+            else
+                strengthLabel = "soft"
+            end
+
+            local providerInt = lib.GetConVarInt("chatter_api_provider")
+            local prompt, opts
+
+            -- Choose prompt format based on provider
+            if providerInt == 4 then
+                -- Ollama / local — use Llama prompt format
+                local promptData = TTTBots.PromptContext.GetAccusationPromptLlama(bot, suspect, evidenceSummary, strengthLabel)
+                prompt = promptData.prompt
+                opts   = { system = promptData.system, replyText = nil, accusation = true }
+            else
+                prompt = TTTBots.PromptContext.GetAccusationPrompt(bot, suspect, evidenceSummary, strengthLabel)
+                opts   = { accusation = true }
+            end
+
+            -- Send with a 4-second timeout; fall back to locale on failure
+            local timedOut = false
+            local callbackFired = false
+            timer.Simple(4, function()
+                if not callbackFired then
+                    timedOut = true
+                end
+            end)
+
+            TTTBots.Providers.SendText(prompt, bot, opts, function(envelope)
+                callbackFired = true
+                if timedOut then return end -- response arrived too late
+
+                if envelope.ok and envelope.text and envelope.text ~= "" then
+                    local text = TTTBots.Providers.SanitizeText(envelope.text)
+                    if not TTTBots.Providers.IsDuplicateResponse(text, prompt) then
+                        chatter:Say(text, false, false)
+                        usedLLM = true
+                    end
+                end
+
+                -- Fall back to locale-template chatter event if LLM gave nothing useful
+                if not usedLLM then
+                    chatter:On(eventName, args, false, 0)
+                end
+
+                -- KOS pipeline regardless of message source
+                local kosThreshold = lib.GetConVarInt("evidence_kos_threshold") or 14
+                if state.weight >= kosThreshold then
+                    TTTBots.Match.CallKOS(bot, suspect)
+                end
+            end)
+        else
+            -- LLM disabled — use locale-template path as before
+            chatter:On(eventName, args, false, 0)
+            local kosThreshold = lib.GetConVarInt("evidence_kos_threshold") or 14
+            if state.weight >= kosThreshold then
+                TTTBots.Match.CallKOS(bot, suspect)
+            end
         end
     end
 

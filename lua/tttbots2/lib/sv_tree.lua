@@ -170,9 +170,9 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.FightBack,
         _prior.SelfDefense,
         _prior.Grenades,
+        _prior.Requests,   -- Moved up: detective should use/place role checker early
         _prior.Accuse,
         _bh.FollowInnocentPlan,
-        _prior.Requests,
         _prior.Support,
         _prior.DNAScanner,
         _prior.Convert,

@@ -102,6 +102,9 @@ function CaptureAnkh.OnRunning(bot)
     if not CaptureAnkh.ValidateAnkh(bot.targetAnkh) then
         return STATUS.FAILURE
     end
+    if bot.attackTarget ~= nil then
+        return STATUS.FAILURE
+    end
 
     local ankh = bot.targetAnkh
     local locomotor = bot:BotLocomotor()
@@ -135,6 +138,8 @@ end
 timer.Create("TTTBots.Behaviors.CaptureAnkh.UseNearbyAnkhs", 5, 0, function()
     for i, bot in pairs(TTTBots.Bots) do
         if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
+        -- Don't interfere while the bot is actively attacking a target
+        if bot.attackTarget ~= nil then continue end
         local ankh = bot.targetAnkh
         if not (ankh and CaptureAnkh.ValidateAnkh(ankh)) then continue end
         local distToAnkh = bot:GetPos():Distance(ankh:GetPos())

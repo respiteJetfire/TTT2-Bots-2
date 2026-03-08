@@ -150,43 +150,30 @@ end
 ---@return string strategyName one of IC.STRATEGIES
 function IC.SelectStrategy()
     local S = IC.STRATEGIES
-    local alive = TTTBots.Match.AlivePlayers
-    local nAlive = #alive
     local nParticipants = IC.GetParticipantCount()
-    local phase = TTTBots.Components.RoundAwareness and
-        TTTBots.Components.RoundAwareness.GetPhaseStatic and
-        TTTBots.Components.RoundAwareness.GetPhaseStatic() or "EARLY"
 
-    -- Last Stand: innocents are critically outnumbered
-    -- Trigger when coordinator-eligible count <= 2 or <= traitor estimate
+    -- Last Stand: only when critically outnumbered — 1 innocent remaining, or
+    -- 2 innocents vs at least 2 estimated traitors. Avoids freezing mid-round.
     local nExpectedTraitors = TTTBots.Match.GetExpectedRemainingTraitors
         and TTTBots.Match.GetExpectedRemainingTraitors() or 0
-    if nParticipants <= 2 or (nExpectedTraitors > 0 and nParticipants <= nExpectedTraitors) then
+    if nParticipants <= 1
+        or (nParticipants <= 2 and nExpectedTraitors >= 2)
+    then
         return S.LAST_STAND
     end
 
-    -- Body Recovery: a body was recently found (within 20 seconds)
-    if IC.PerimeterTarget and (CurTime() - (IC.PerimeterActivatedAt or 0)) < 20 then
+    -- Body Recovery: a body was recently found (within 15 seconds)
+    if IC.PerimeterTarget and (CurTime() - (IC.PerimeterActivatedAt or 0)) < 15 then
         return S.BODY_RECOVERY
     end
 
-    -- Deploy Checker: detective bot has a role-checker weapon and hasn't deployed it yet
-    if IC.GetDetectiveBotWithChecker() ~= nil then
-        return S.TESTER_QUEUE  -- reuse TESTER_QUEUE strategy; detective will get a DEPLOY_CHECKER job
-    end
-
-    -- Tester Queue: mid/late game, a tester exists on the map, detective or many untested bots
-    local testerExists = IC._FindTesterPos() ~= nil
-    if testerExists and (phase == "MID" or phase == "LATE") then
-        return S.TESTER_QUEUE
-    end
-
-    -- Patrol Routes: early-mid game, spread out for coverage
-    if nParticipants >= 4 and (phase == "EARLY" or phase == "MID") then
+    -- Patrol Routes: primary active strategy — keeps bots moving around the map.
+    -- Used whenever there are enough participants to spread out (3+).
+    if nParticipants >= 3 then
         return S.PATROL_ROUTES
     end
 
-    -- Default: buddy up
+    -- Default fallback for very small innocent teams: pair up and move together
     return S.BUDDY_SYSTEM
 end
 
@@ -300,37 +287,44 @@ end
 IC._patrolZones = {}  -- [bot] = { center = Vector, radius = number }
 
 --- Divide the map into N zones and assign one to each bot.
---- Uses popular + unpopular nav areas interleaved so bots cover the whole map.
+--- Each bot gets a zone reasonably close to itself so it actually reaches its patrol point.
 ---@param bots table<Bot>
 function IC._AssignPatrolZones(bots)
     IC._patrolZones = {}
     local n = #bots
     if n == 0 then return end
 
-    -- Gather candidate zone centres from popular navs (high-traffic) and
-    -- unpopular navs (low-traffic) interleaved so coverage is even.
-    local popular   = TTTBots.Lib.GetTopNPopularNavs(math.ceil(n / 2))
-    local unpopular = TTTBots.Lib.GetTopNUnpopularNavs(math.floor(n / 2) + 1)
+    -- Build a pool of candidate nav centres from the whole nav mesh.
+    -- We mix popular (high-traffic) and random navs so coverage varies.
+    local popular = TTTBots.Lib.GetTopNPopularNavs and TTTBots.Lib.GetTopNPopularNavs(math.min(n * 2, 20)) or {}
     local centres = {}
-
     for _, entry in ipairs(popular) do
         local nav = navmesh.GetNavAreaByID(entry[1])
         if nav then table.insert(centres, nav:GetCenter()) end
     end
-    for _, entry in ipairs(unpopular) do
-        local nav = navmesh.GetNavAreaByID(entry[1])
+
+    -- Pad with random nav areas so every bot can always get an assignment
+    local allNavs = navmesh.GetAllNavAreas and navmesh.GetAllNavAreas() or {}
+    for i = 1, math.min(#allNavs, 40) do
+        local nav = allNavs[math.random(#allNavs)]
         if nav then table.insert(centres, nav:GetCenter()) end
     end
 
-    -- Shuffle for variety
-    for i = #centres, 2, -1 do
-        local j = math.random(i)
-        centres[i], centres[j] = centres[j], centres[i]
-    end
-
-    for i, bot in ipairs(bots) do
-        local centre = centres[i] or centres[#centres] or bot:GetPos()
-        IC._patrolZones[bot] = { center = centre, radius = 900 }
+    -- For each bot, pick the candidate closest to it (greedy, remove once used)
+    local used = {}
+    for _, bot in ipairs(bots) do
+        local best, bestDist = nil, math.huge
+        for i, centre in ipairs(centres) do
+            if used[i] then continue end
+            local d = bot:GetPos():Distance(centre)
+            if d < bestDist then
+                bestDist = d
+                best = i
+            end
+        end
+        local centre = best and centres[best] or bot:GetPos()
+        if best then used[best] = true end
+        IC._patrolZones[bot] = { center = centre, radius = 800 }
     end
 end
 
@@ -569,7 +563,7 @@ function IC._MakePatrolJob(bot, now)
         Action     = IC.ACTIONS.PATROL_ZONE,
         TargetObj  = center,
         AssignTime = now,
-        ExpiryTime = now + math.random(20, 50),
+        ExpiryTime = now + math.random(12, 25), -- Shorter window so bots re-roll destinations often
         State      = IC.BOTSTATES.IDLE,
         _wanderPos = nil,
     }

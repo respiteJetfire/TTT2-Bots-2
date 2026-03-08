@@ -91,9 +91,39 @@ function Attack.Seek(bot, targetPos)
                 math.ceil(TTTBots.Tickrate * 2)
             )
         else
-            -- Path to last known position immediately — no delay.
-            loco:SetGoal(lastKnownPos)
-            loco:LookAt(lastKnownPos + Vector(0, 0, 40)) -- around hip/abdomen level
+            -- Path to last known position.
+            -- If locomotor signalled cantReachGoal (truly impossible nav pair), evict the
+            -- cache entry so the pathfinder retries, and walk toward an adjacent nav instead.
+            local isImpossible = loco.cantReachGoal
+            if isImpossible then
+                lib.CallEveryNTicks(
+                    bot,
+                    function()
+                        -- Evict the impossible-path entry so the pathfinder retries.
+                        local startArea  = navmesh.GetNearestNavArea(bot:GetPos())
+                        local finishArea = navmesh.GetNearestNavArea(lastKnownPos)
+                        if startArea and finishArea then
+                            local pathID = startArea:GetID() .. "to" .. finishArea:GetID()
+                            TTTBots.PathManager.impossiblePaths[pathID] = nil
+                            TTTBots.PathManager.cachedPaths[pathID]     = nil
+                        end
+                        -- Meanwhile walk toward an adjacent nav area near the target.
+                        local targetArea = finishArea or navmesh.GetNearestNavArea(lastKnownPos)
+                        if not IsValid(targetArea) then return end
+                        local adj = targetArea:GetAdjacentAreas()
+                        if adj and #adj > 0 then
+                            local candidate = adj[math.random(1, #adj)]
+                            if IsValid(candidate) then
+                                loco:SetGoal(candidate:GetCenter())
+                            end
+                        end
+                    end,
+                    math.ceil(TTTBots.Tickrate * 5) -- retry every 5 s
+                )
+            else
+                loco:SetGoal(lastKnownPos)
+                loco:LookAt(lastKnownPos + Vector(0, 0, 40)) -- around hip/abdomen level
+            end
         end
     else
         -- No known position at all — wander to find them.

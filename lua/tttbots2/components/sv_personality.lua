@@ -730,6 +730,39 @@ function BotPersonality:GetPressure() return PRESSURE_ENABLED and self.pressure 
 --- Returns the bot's boredom, if enabled, else 0.
 function BotPersonality:GetBoredom() return BOREDOM_ENABLED and self.boredom or 0 end
 
+--- Returns a chat frequency multiplier (0.5 – 2.0) for casual/idle events,
+--- driven by the bot's current mood stats and talkative/silent traits.
+---
+--- • High boredom  → more likely to start casual chatter (up to ×2.0)
+--- • High pressure → suppresses casual chatter (down to ×0.3)
+--- • High rage     → suppresses casual chatter slightly (down to ×0.6)
+--- • talkative trait → base boost ×1.5
+--- • silent trait    → base suppression ×0.0 (returns 0 immediately)
+---
+---@return number multiplier in range [0.0, 2.0]
+function BotPersonality:GetChatMoodMultiplier()
+    -- Hard stop for silent bots
+    if self:HasTrait("silent") then return 0.0 end
+
+    local boredom  = self:GetBoredom()   -- 0-1
+    local pressure = self:GetPressure()  -- 0-1
+    local rage     = self:GetRage()      -- 0-1
+
+    -- Base: boredom boosts casual chat linearly 1.0 → 2.0
+    local mult = 1.0 + boredom
+
+    -- Pressure and rage suppress it
+    mult = mult * (1.0 - pressure * 0.7)
+    mult = mult * (1.0 - rage     * 0.4)
+
+    -- Trait bonuses / penalties
+    if self:HasTrait("talkative") then mult = mult * 1.5 end
+    if self:HasTrait("veryTalkative") then mult = mult * 2.0 end  -- future-proof
+    if self:HasTrait("quiet")     then mult = mult * 0.5 end
+
+    return math.max(0.0, math.min(2.0, mult))
+end
+
 --- Increment the given statistic and return the new value.
 ---@param x number
 ---@return number

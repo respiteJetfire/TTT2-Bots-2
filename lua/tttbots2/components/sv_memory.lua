@@ -112,14 +112,25 @@ local function shouldUseRadar()
     return false
 end
 
+-- Maximum number of chat messages to retain in the conversation buffer.
+Memory.MAX_MESSAGES = 30
+-- Maximum number of recent witness events to retain (ring buffer for LLM context).
+Memory.MAX_WITNESS_EVENTS = 5
+
 function Memory:ResetMemory()
     self.playerKnownPositions = {}   -- List of where this bot last saw each player and how long ago
     self.PlayerLifeStates = {}       -- List of what this bot understands each bot's current life state to be
     self.UseRadar = shouldUseRadar() -- Whether or not this bot should use radar
-    self.messages = {}               -- List of messages this bot has received
+    self.messages = {}               -- List of messages this bot has received (capped, timestamped)
 
     self.m_genericmemory = { game = {}, round = {} }
     self.visitedNavAreas = {}  -- [navID] = CurTime() timestamp of last visit
+
+    -- Ring buffer of recent notable in-game events for LLM context (9.1)
+    self.recentWitnessEvents = {}
+    -- Per-bot conversation state for multi-turn memory (9.2)
+    self.conversationPartner = nil
+    self.lastConversationTime = 0
 end
 
 hook.Add("TTTEndRound", "TTTBots.Memory.ClearRoundMemory", function()
@@ -172,16 +183,82 @@ function Memory:UpdateRadar(ply)
 end
 
 --- Updates messages in the bot's memory with the given message, and sender if applicable.
+--- Stores a timestamp and caps the buffer at Memory.MAX_MESSAGES (FIFO eviction).
 ---@param message string The message to add to the bot's memory.
----@param sender Player|nil The player that sent the message, if applicable.
-function Memory:UpdateMessages(message, sender)
-    table.insert(self.messages, { message = message, sender = sender })
+---@param ply Player|nil The player that sent the message, if applicable.
+function Memory:UpdateMessages(message, ply)
+    -- Update conversation-partner tracking (9.2)
+    if IsValid(ply) and ply ~= self.bot then
+        self.conversationPartner   = ply
+        self.lastConversationTime  = CurTime()
+    end
+
+    table.insert(self.messages, {
+        message = message,
+        ply     = ply,          -- canonical field name used by prompt formatters
+        time    = CurTime(),    -- absolute timestamp for recency filtering
+    })
+
+    -- Enforce FIFO cap
+    while #self.messages > Memory.MAX_MESSAGES do
+        table.remove(self.messages, 1)
+    end
 end
 
---- Returns the last messages in the bot's memory.
+--- Returns all messages in the bot's memory (may be up to MAX_MESSAGES long).
 ---@return table<table> messages
 function Memory:GetLastMessages()
     return self.messages
+end
+
+--- Returns messages received within the last `maxAge` seconds (default 60),
+--- limited to the most recent `maxCount` entries (default 10).
+--- Used by LLM prompt builders to inject a concise conversation history (9.2).
+---@param maxAge number|nil  Seconds of recency window (default 60)
+---@param maxCount number|nil Maximum entries to return (default 10)
+---@return table<table> messages
+function Memory:GetRecentMessages(maxAge, maxCount)
+    maxAge   = maxAge   or 60
+    maxCount = maxCount or 10
+    local cutoff = CurTime() - maxAge
+    local result = {}
+    for i = #self.messages, 1, -1 do
+        local m = self.messages[i]
+        if m.time and m.time < cutoff then break end
+        table.insert(result, 1, m)
+        if #result >= maxCount then break end
+    end
+    return result
+end
+
+--- Returns true if the conversation with the current partner has gone stale
+--- (no messages for more than `timeout` seconds, default 60).
+---@param timeout number|nil
+---@return boolean
+function Memory:IsConversationStale(timeout)
+    timeout = timeout or 60
+    return (CurTime() - self.lastConversationTime) > timeout
+end
+
+--- Record a recent witness event (kill, KOS call, body found) for LLM context.
+--- Maintains a capped ring buffer of the last Memory.MAX_WITNESS_EVENTS entries.
+---@param eventType string  Short label, e.g. "kill", "kos", "body"
+---@param description string  Human-readable summary, e.g. "Alice killed Bob"
+function Memory:AddWitnessEvent(eventType, description)
+    table.insert(self.recentWitnessEvents, {
+        eventType   = eventType,
+        description = description,
+        time        = CurTime(),
+    })
+    while #self.recentWitnessEvents > Memory.MAX_WITNESS_EVENTS do
+        table.remove(self.recentWitnessEvents, 1)
+    end
+end
+
+--- Returns the recent witness event list, most-recent last.
+---@return table<table>
+function Memory:GetRecentWitnessEvents()
+    return self.recentWitnessEvents or {}
 end
 
 function Memory:HandleUnseenPlayer(ply)

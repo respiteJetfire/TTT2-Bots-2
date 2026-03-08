@@ -76,8 +76,6 @@ end
 
 --- Validate the behavior
 function InvestigateCorpse.Validate(bot)
-    if not InvestigateCorpse.GetShouldInvestigateCorpses(bot) then return false end
-
     -- Prevent traitors (and other post-kill cooldown cases) from immediately self-reporting.
     -- Exception: innocent-side bots should confirm bodies they killed in self-defense right away
     -- so they don't look suspicious standing next to an unidentified corpse they just made.
@@ -86,10 +84,14 @@ function InvestigateCorpse.Validate(bot)
 
     local curCorpse = bot.corpseTarget
     if InvestigateCorpse.CorpseValid(curCorpse) then
-        -- Allow confirming the current target if it's a self-defense kill (even right after)
+        -- If we already have a valid target in progress, skip the random dice roll so we
+        -- don't get interrupted mid-walk and loop endlessly without ever reaching the body.
         if killedRecently and not isOwnSelfDefenseKill(bot, curCorpse) then return false end
         return true
     end
+
+    -- Only roll the dice when picking a *new* target (not while already walking to one)
+    if not InvestigateCorpse.GetShouldInvestigateCorpses(bot) then return false end
 
     if killedRecently then
         -- Check if any visible unidentified body is one this innocent bot killed in self-defense
@@ -153,11 +155,12 @@ function InvestigateCorpse.OnRunning(bot)
         local evidence = bot:BotEvidence()
         if evidence then
             local corpse = bot.corpseTarget
-            -- Killer identity from corpse data
-            local killerEnt = CORPSE.GetPlayer(corpse, "killer")
+            -- Killer identity: TTT2 corpses do NOT store the killer — we tag it
+            -- ourselves via the PlayerDeath hook (see sv_morality_suspicion.lua).
+            local killerEnt = corpse.tttbots_killedBy
             local victimEnt = CORPSE.GetPlayer(corpse)
+            local weaponClass = corpse.dmgwep or "unknown weapon"
             if IsValid(killerEnt) and killerEnt:IsPlayer() and killerEnt ~= bot then
-                local weaponClass = CORPSE.GetPlayerNick(corpse, "weapon") or "unknown weapon"
                 evidence:AddEvidence({
                     type   = "WITNESSED_KILL",
                     subject = killerEnt,

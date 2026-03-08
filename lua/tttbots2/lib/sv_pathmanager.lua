@@ -402,7 +402,10 @@ function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
             coroutine.yield(cn)
         end
         if cn > maxNodes then -- configurable via ttt_bot_pathfinding_max_nodes
-            return false
+            -- Yield instead of return so the coroutine stays alive and resumes
+            -- next Tick with its full open/closed sets intact (progressive A*).
+            coroutine.yield("timeout")
+            cn = 0 -- reset budget counter for the next slice
         end
         ---------------------------------- end coroutine stuff
         local current = openSet[1]
@@ -1093,7 +1096,12 @@ hook.Add("Tick", "TTTBots.PathManager.PathCoroutine", function()
         { queuedPath.owner })
 
     if not noErrs then print("Had errors generating;", result) end
-    if (type(result) == "boolean" or type(result) == "table") then
+    -- "timeout" means A* yielded after exhausting its per-tick node budget.
+    -- The coroutine is still alive — leave the queue entry in place so it
+    -- resumes from the same open/closed sets on the very next Tick.
+    if result == "timeout" then
+        -- Do nothing: entry stays at the front of the queue, coroutine resumes next Tick.
+    elseif (type(result) == "boolean" or type(result) == "table") then
         local path = result
         local pathID = queuedPath.pathID
         local owner = queuedPath.owner
@@ -1111,7 +1119,7 @@ hook.Add("Tick", "TTTBots.PathManager.PathCoroutine", function()
         }
 
         if not path or not processedPath or #processedPath == 0 then
-            -- path is impossible add it to impossiblePaths
+            -- path is truly impossible (open set exhausted with no route found)
             TTTBots.PathManager.impossiblePaths[pathID] = true
             -- print("Found impossible path, " .. pathID)
         end

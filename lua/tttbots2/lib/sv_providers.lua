@@ -75,6 +75,7 @@ TTTBots.Providers.TextAdapters = {
     [2] = "DeepSeek",
     -- [3] = mixed mode — resolved dynamically via bot personality
     [4] = "Ollama",
+    [5] = "OpenRouter",
 }
 
 --- Maps voice type strings to adapter names.
@@ -132,6 +133,16 @@ end
 ---@param callback function
 function TTTBots.Providers.SendText(prompt, bot, opts, callback)
     opts = opts or {}
+
+    -- Master LLM kill-switch: when disabled, immediately call back with an error
+    -- so all callers fall through to their locale-string / fallback paths.
+    if not lib.GetConVarBool("llm_enabled") then
+        if callback then
+            callback(TTTBots.Providers.MakeError("SendText", 0, "LLM is disabled (ttt_bot_llm_enabled = 0)", nil))
+        end
+        return
+    end
+
     local providerInt = opts.provider
     if providerInt == nil then
         providerInt = lib.GetConVarInt("chatter_api_provider")
@@ -146,6 +157,8 @@ function TTTBots.Providers.SendText(prompt, bot, opts, callback)
         adapter = TTTBots.DeepSeek
     elseif adapterName == "Ollama" then
         adapter = TTTBots.Ollama
+    elseif adapterName == "OpenRouter" then
+        adapter = TTTBots.OpenRouter
     else
         adapter = TTTBots.ChatGPT
     end

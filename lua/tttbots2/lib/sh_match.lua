@@ -358,9 +358,14 @@ hook.Add("TTTPrepareRound", "TTTBots.Match.PrepareRound", function()
 end)
 
 if SERVER then
-    hook.Add("TTTOnCorpseCreated", "TTTBots.Match.OnCorpseCreated", function(corpse)
+    hook.Add("TTTOnCorpseCreated", "TTTBots.Match.OnCorpseCreated", function(corpse, deadply)
         if not Match.RoundActive then return end
         table.insert(Match.Corpses, corpse)
+        -- Tag the ragdoll with the attacker so body-inspection code can read it.
+        -- deadply.tttbots_killedBy is written by the PlayerDeath hook in sv_morality_suspicion.
+        if IsValid(deadply) and IsValid(deadply.tttbots_killedBy) then
+            corpse.tttbots_killedBy = deadply.tttbots_killedBy
+        end
     end)
 
     hook.Add("TTTBodyFound", "TTTBots.Match.BodyFound", function(discoverer, deceased, ragdoll)

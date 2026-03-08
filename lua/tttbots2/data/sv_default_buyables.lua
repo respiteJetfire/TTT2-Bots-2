@@ -263,10 +263,17 @@ Registry.RoleChecker = {
     Name = "Role Checker",
     Class = "weapon_ttt_traitorchecker",
     Price = 1,
-    Priority = 3,
-    RandomChance = 1,
-    CanBuy = function(ply)
-        return testPlyHasTrait(ply, "tester", 8)
+    Priority = 5, -- highest priority; detective must always deploy the role checker
+    RandomChance = 1, -- always attempt purchase
+    -- No CanBuy gate — detectives should always buy and deploy the role checker
+    SituationalScore = function(bot)
+        -- Return a very high score so this always wins the buy-order sort,
+        -- ensuring the detective gets the role-checker before any other equipment.
+        local role = TTTBots.Roles and TTTBots.Roles.GetRoleFor and TTTBots.Roles.GetRoleFor(bot)
+        if role and role.GetAppearsPolice and role:GetAppearsPolice() then
+            return 100
+        end
+        return 5
     end,
     ShouldAnnounce = false,
     AnnounceTeam = false,
