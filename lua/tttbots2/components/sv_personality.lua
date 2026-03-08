@@ -496,6 +496,7 @@ function BotPersonality:Initialize(bot)
     bot.components.personality = self
 
     self.componentID = string.format("Personality (%s)", lib.GenerateID()) -- Component ID, used for debugging
+    self.ThinkRate = 5 -- Run every 5th tick (1Hz)
     self.gender = (math.random(1, 100) < 50 and "male") or "female"
     self.HIM = (self.gender == "male" and "him") or "her"
     self.HIS = (self.gender == "male" and "his") or "hers"
@@ -626,6 +627,15 @@ function BotPersonality:Initialize(bot)
     --- How bored the bot is. Affects how long until they voluntarily leave the server (and get replaced)
     self.boredom = 0
 
+    -- -----------------------------------------------------------------------
+    -- Mutable mood modifiers (float on top of the immutable base traits)
+    -- Values range from -1 to 1; 0 = no shift from baseline.
+    -- -----------------------------------------------------------------------
+    self.mood = {
+        confidence    = 0,  -- +1 = more confident in accusations / engaging fights
+        groupAffinity = 0,  -- +1 = strongly prefers staying near others
+        calloutTrust  = 0,  -- -1 = very sceptical of KOS callouts by others
+    }
 
     self.bot = bot
 end
@@ -741,6 +751,36 @@ function BotPersonality:AddPressure(x)
     return self.pressure
 end
 
+-- -------------------------------------------------------------------------
+-- Mood shift helpers (personality evolution)
+-- -------------------------------------------------------------------------
+
+--- Shift a mutable mood modifier by delta, clamped to [-1, 1].
+---@param key string  "confidence" | "groupAffinity" | "calloutTrust"
+---@param delta number
+function BotPersonality:ShiftMood(key, delta)
+    if not self.mood then self.mood = { confidence = 0, groupAffinity = 0, calloutTrust = 0 } end
+    self.mood[key] = clamp((self.mood[key] or 0) + delta, -1, 1)
+end
+
+--- Returns the current value of a mood key (0 if not found).
+---@param key string
+---@return number
+function BotPersonality:GetMood(key)
+    if not self.mood then return 0 end
+    return self.mood[key] or 0
+end
+
+--- Returns an effective aggression multiplier combining base traits and current mood.
+--- Used by behaviors and morality when deciding whether to engage.
+---@return number
+function BotPersonality:GetEffectiveAggressionMult()
+    local base       = self:GetTraitMult("aggressiveness") or 1.0
+    local confidence = self:GetMood("confidence")
+    -- confidence shifts aggression by up to ±40 %
+    return clamp(base * (1.0 + confidence * 0.4), 0.2, 3.0)
+end
+
 local pressureEvents = { --- The amount that is added to our pressure when an event (the keys) happens.
     KillEnemy = -0.3,    --- When we kill an enemy
     Hurt = 0.1,          --- When we are hurt
@@ -755,6 +795,19 @@ function BotPersonality:OnPressureEvent(event_name)
     local pressure = pressureEvents[event_name]
     if pressure then
         self:AddPressure(pressure)
+    end
+
+    -- Pressure-driven personality shift: high pressure makes cautious bots temporarily
+    -- more aggressive (fight-or-flight response).
+    if TTTBots.Lib.GetConVarBool("personality_evolution") then
+        local currentPressure = self:GetPressure()
+        if currentPressure > 0.65 then
+            local isCautious = self:HasTrait("cautious")
+            if isCautious then
+                -- Temporarily boost confidence so they engage rather than flee
+                self:ShiftMood("confidence", 0.05)
+            end
+        end
     end
 end
 
@@ -1062,6 +1115,118 @@ hook.Add("PlayerDeath", "TTTBots.Personality.PlayerDeath", function(bot, inflict
     end
 end)
 
+-- -------------------------------------------------------------------------
+-- Experience Adaptation (personality evolution)
+-- -------------------------------------------------------------------------
+
+hook.Add("PlayerDeath", "TTTBots.Personality.ExperienceAdaptation", function(victim, inflictor, attacker)
+    if not TTTBots.Lib.GetConVarBool("personality_evolution") then return end
+
+    -- Record what killed the victim so mood adaptation can reference it
+    if IsValid(attacker) and attacker:IsPlayer() and attacker:IsBot() then
+        -- attacker.attackSource is set by SetAttackTarget; copy it to victim
+        if IsValid(victim) and victim:IsBot() then
+            victim.lastDeathSource = attacker.attackSource or ""
+        end
+    end
+
+    -- Momentum: killer gains confidence, victim loses confidence next-round
+    if IsValid(attacker) and attacker:IsPlayer() and attacker:IsBot() then
+        local p = attacker.components and attacker.components.personality
+        if p then p:ShiftMood("confidence", 0.1) end
+    end
+    if IsValid(victim) and victim:IsBot() then
+        local p = victim.components and victim.components.personality
+        if not p then return end
+
+        -- Adapt based on how we died:
+        -- Killed by a stalker → become more group-oriented next round
+        local deathSource = victim.lastDeathSource or ""
+        if deathSource == "STALK_ATTACK" then
+            -- Store adaptation for next round
+            p:ShiftMood("groupAffinity",  0.25)
+        end
+
+        -- Was this bot false-KOS'd? (accusedBy is set when KOS is called)
+        if victim.accusedBy and IsValid(victim.accusedBy) then
+            local accuserRole = TTTBots.Roles.GetRoleFor(victim.accusedBy)
+            local accuserIsTraitor = accuserRole and accuserRole:GetTeam() == TEAM_TRAITOR
+            if accuserIsTraitor then
+                -- We were KOS'd by a traitor — become more sceptical of callouts
+                p:ShiftMood("calloutTrust", -0.2)
+            end
+        end
+
+        -- Mood modifiers decay slowly between rounds — handled in TTTEndRound below
+        -- Store for cross-round persistence
+        local memory = victim:BotMemory()
+        if memory then
+            memory:SetMemory("game", "savedMood", table.Copy(p.mood))
+        end
+    end
+end)
+
+-- -------------------------------------------------------------------------
+-- Social feedback: wrong accusations reduce confidence
+-- -------------------------------------------------------------------------
+
+hook.Add("TTTBots.AccusePlayer", "TTTBots.Personality.SocialFeedback", function(accuser, target)
+    if not TTTBots.Lib.GetConVarBool("personality_evolution") then return end
+    if not (IsValid(accuser) and accuser:IsBot()) then return end
+
+    -- We record pending accusations; validate them at round end
+    accuser.pendingAccusations = accuser.pendingAccusations or {}
+    table.insert(accuser.pendingAccusations, { target = target, time = CurTime() })
+end)
+
+hook.Add("TTTEndRound", "TTTBots.Personality.AccuracyFeedback", function(result)
+    if not TTTBots.Lib.GetConVarBool("personality_evolution") then return end
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local p = bot.components.personality
+        if not p then continue end
+
+        local accusations = bot.pendingAccusations or {}
+        local correct, wrong = 0, 0
+        for _, acc in ipairs(accusations) do
+            if not IsValid(acc.target) then continue end
+            local targetRole = TTTBots.Roles.GetRoleFor(acc.target)
+            local wasTraitor  = targetRole and targetRole:GetTeam() == TEAM_TRAITOR
+            if wasTraitor then correct = correct + 1 else wrong = wrong + 1 end
+        end
+
+        -- Shift confidence based on accuracy
+        if wrong > correct and wrong > 1 then
+            p:ShiftMood("confidence", -0.15)  -- consistently wrong → less confident
+        elseif correct > 0 then
+            p:ShiftMood("confidence",  0.10)  -- right accusations → confidence boost
+        end
+
+        bot.pendingAccusations = nil
+
+        -- Decay mood modifiers toward 0 between rounds (partial reversion)
+        if p.mood then
+            for k, v in pairs(p.mood) do
+                p.mood[k] = v * 0.6  -- 40% decay each round
+            end
+        end
+
+        -- Cross-round memory: restore saved mood
+        if TTTBots.Lib.GetConVarBool("crossround_memory") then
+            local memory = bot:BotMemory()
+            if memory then
+                local savedMood = memory:GetMemory("game", "savedMood", nil)
+                if savedMood then
+                    for k, v in pairs(savedMood) do
+                        p.mood[k] = (p.mood[k] or 0) + v * 0.3  -- 30% bleed-over
+                    end
+                    memory:SetMemory("game", "savedMood", nil)
+                end
+            end
+        end
+    end
+end)
+
 local LOSE_RAGE_BASE = 0.1         -- Increase rage by this amount when losing a round
 local LOSE_PRESSURE_BASE = 0.1     -- Increase pressure by this amount when losing a round
 local LOSE_BOREDOM_BASE = 0.05     -- Increase boredom by this amount when losing a round
@@ -1097,8 +1262,56 @@ hook.Add("TTTEndRound", "TTTBots.Personality.EndRound", function(result)
     updateBotAttributes(result)
 end)
 
-local RDM_RAGE_MIN = 0.7
+-- -------------------------------------------------------------------------
+-- Cross-round memory: record who was a traitor for "metagame" awareness
+-- -------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Personality.CrossRoundMemory", function(result)
+    if not TTTBots.Lib.GetConVarBool("crossround_memory") then return end
+
+    -- Build a list of confirmed-traitor steam IDs from this round
+    local traitorList = {}
+    for _, ply in ipairs(player.GetAll()) do
+        if not IsValid(ply) then continue end
+        local roleData = TTTBots.Roles.GetRoleFor(ply)
+        if roleData and roleData:GetTeam() == TEAM_TRAITOR then
+            traitorList[ply:SteamID()] = true
+        end
+    end
+
+    -- Store in each bot's "game" memory
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local memory = bot:BotMemory()
+        if not memory then continue end
+        local history = memory:GetMemory("game", "recentTraitors", {})
+        -- Rotate: keep last 3 rounds
+        table.insert(history, 1, traitorList)
+        while #history > 3 do table.remove(history) end
+        memory:SetMemory("game", "recentTraitors", history)
+    end
+end)
+
+--- Returns true if the given player was a traitor in any of the last N rounds
+--- according to this bot's cross-round memory. Only meaningful when
+--- tttbots_crossround_memory is enabled.
+---@param bot Bot
+---@param ply Player
+---@return boolean
+function BotPersonality:WasRecentTraitor(ply)
+    if not TTTBots.Lib.GetConVarBool("crossround_memory") then return false end
+    if not IsValid(ply) then return false end
+    local memory = self.bot:BotMemory()
+    if not memory then return false end
+    local history = memory:GetMemory("game", "recentTraitors", {})
+    local sid = ply:SteamID()
+    for _, roundList in ipairs(history) do
+        if roundList[sid] then return true end
+    end
+    return false
+end
 local RDM_BOREDOM_MIN = 0.7
+local RDM_RAGE_MIN = 0.7
 local RDM_PCT_CHANCE = 20 -- 10% chance to rdm every 2.5 seconds if criteria are met
 timer.Create("TTTBots.Personality.RDM", 2.5, 0, function()
     if not TTTBots.Match.IsRoundActive() then return end
@@ -1115,7 +1328,7 @@ timer.Create("TTTBots.Personality.RDM", 2.5, 0, function()
         local isRdmer = personality:GetTraitBool("rdmer")
         local chanceTest = math.random(1, 100) <= RDM_PCT_CHANCE
 
-        if chanceTest and isRdmer or (boredom > RDM_BOREDOM_MIN) or (rage > RDM_RAGE_MIN) then
+        if chanceTest and (isRdmer or (boredom > RDM_BOREDOM_MIN) or (rage > RDM_RAGE_MIN)) then
             local targets = lib.GetAllWitnessesBasic(bot:GetPos(), TTTBots.Match.AlivePlayers, bot)
             local grudge = (IsValid(bot.grudge) and lib.IsPlayerAlive(bot.grudge) and bot.grudge)
             local randomTarget = grudge or table.Random(targets)

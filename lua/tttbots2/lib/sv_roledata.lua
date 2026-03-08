@@ -43,6 +43,10 @@ function TTTBots.RoleData.New(rolename, roleteam)
     --- Can/do we coordinate with other traitors?
     newRole.GetCanCoordinate, newRole.SetCanCoordinate = getSet("canCoordinate", false)
 
+    --- Can this role participate in innocent-side coordination (InnocentCoordinator)?
+    --- Set true for InnocentLike and DetectiveLike roles.
+    newRole.GetCanCoordinateInnocent, newRole.SetCanCoordinateInnocent = getSet("canCoordinateInnocent", false)
+
     --- Do we kill players that aren't on our team? Essentially, this disables/enables if the bot will
     --- "randomly" shoot at nearby non-allies. Particularly useful for traitors.
     newRole.GetStartsFights, newRole.SetStartsFights = getSet("killsNonAllies", false)

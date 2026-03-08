@@ -152,7 +152,7 @@ function Retreat.OnRunning(bot)
     -- Call for help via chatter every ~4 seconds.
     lib.CallEveryNTicks(bot, function()
         local chatter = bot:BotChatter()
-        if chatter and IsValid(attacker) then
+        if chatter and chatter.On and IsValid(attacker) then
             chatter:On("CallHelp", { player = attacker:Nick() }, false, 1)
         end
     end, math.ceil(TTTBots.Tickrate * 4))

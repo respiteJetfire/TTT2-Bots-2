@@ -43,7 +43,7 @@ end
 function GetPirateContract.PickUpContract(bot, contract)
     local chatter = bot:BotChatter()
     contract:Use(bot)
-    chatter:On("ContractAccepted")
+    if chatter and chatter.On then chatter:On("ContractAccepted") end
 end
 
 --- Validate the behavior

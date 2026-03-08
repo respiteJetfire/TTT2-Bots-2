@@ -30,7 +30,8 @@ end
 
 --- Called when the behavior is started
 function Attack.OnStart(bot)
-    bot.wasPathing = true -- set this to true here for the first tick, despite the nam being misleading
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
+    state.wasPathing = true -- set this to true here for the first tick, despite the name being misleading
     return STATUS.RUNNING
 end
 
@@ -55,14 +56,47 @@ function Attack.Seek(bot, targetPos)
         return
     end
 
-    if lastKnownPos and secsSince > 4 and secsSince < 46 then
-        loco:SetGoal(lastKnownPos)
-        loco:LookAt(lastKnownPos + Vector(0, 0, 40)) -- around hip/abdomen level
-    elseif secsSince > 45 then
-        -- If we have not seen the target in 30 seconds, call off the attack.
+    if secsSince > 45 then
+        -- If we have not seen the target in 45 seconds, call off the attack.
         bot:SetAttackTarget(nil, "BEHAVIOR_END")
+    elseif lastKnownPos then
+        local distToKnown = bot:GetPos():Distance(lastKnownPos)
+        if distToKnown <= 200 then
+            -- We have arrived at (or are very near) the last-known position but
+            -- the target isn't visible. Sweep nearby nav areas to flush them out
+            -- rather than jumping to a random wander destination.
+            lib.CallEveryNTicks(
+                bot,
+                function()
+                    local currentArea = navmesh.GetNearestNavArea(bot:GetPos())
+                    local nearbyAreas = currentArea and currentArea:GetAdjacentAreas() or {}
+                    -- Filter to areas that the bot hasn't visited recently
+                    local candidates = {}
+                    for _, area in ipairs(nearbyAreas) do
+                        if IsValid(area) then
+                            table.insert(candidates, area)
+                        end
+                    end
+                    if #candidates > 0 then
+                        local sweepArea = candidates[math.random(1, #candidates)]
+                        loco:SetGoal(sweepArea:GetCenter())
+                    else
+                        -- Fall back to any random nav if no adjacents available
+                        local wanderArea = TTTBots.Behaviors.Wander.GetAnyRandomNav(bot)
+                        if IsValid(wanderArea) then
+                            loco:SetGoal(wanderArea:GetCenter())
+                        end
+                    end
+                end,
+                math.ceil(TTTBots.Tickrate * 2)
+            )
+        else
+            -- Path to last known position immediately — no delay.
+            loco:SetGoal(lastKnownPos)
+            loco:LookAt(lastKnownPos + Vector(0, 0, 40)) -- around hip/abdomen level
+        end
     else
-        -- We have not heard nor seen the target in a while, so we will wander around.
+        -- No known position at all — wander to find them.
         lib.CallEveryNTicks(
             bot,
             function()
@@ -74,7 +108,8 @@ function Attack.Seek(bot, targetPos)
         )
     end
 
-    bot.wasPathing = true --- Used to one-time stop loco when we start engaging
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
+    state.wasPathing = true --- Used to one-time stop loco when we start engaging
 end
 
 function Attack.GetTargetHeadPos(targetPly)
@@ -125,7 +160,8 @@ end
 ---@param weapon WeaponInfo
 ---@param loco CLocomotor
 function Attack.StrafeIfNecessary(bot, weapon, loco)
-    if bot.canStrafe == false then return false end
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
+    if state.canStrafe == false then return false end
     if not (bot.attackTarget and bot.attackTarget.GetPos) then return false end
     if weapon.is_melee then return false end
 
@@ -203,10 +239,13 @@ end
 ---@param bot Bot
 ---@param target Player
 function Attack.CheckCoverConditions(bot, target)
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
     -- Hothead never seeks cover.
     if bot.HasTrait and bot:HasTrait("hothead") then return end
-    -- Already in cover-seeking mode.
+    -- Already in cover-seeking mode — signal is on bot so SeekCover can read it cross-behavior.
     if IsValid(bot.coverTarget) then return end
+    -- Respect post-cover cooldown to prevent instant re-triggering after SeekCover ends.
+    if (bot.seekCoverCooldownUntil or 0) > CurTime() then return end
 
     local hp = bot:Health()
     local lowHealth = hp < 60
@@ -251,20 +290,21 @@ function Attack.Engage(bot, targetPos)
     local usingMelee = not weapon.is_gun
     local loco = bot:BotLocomotor() ---@type CLocomotor
     loco.stopLookingAround = true
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
 
     local tooFarToAttack = false --- Used to prevent attacking when we are using a melee weapon and are too far away
     local distToTarget = bot:GetPos():Distance(target:GetPos())
-    if bot.wasPathing and not usingMelee then
+    if state.wasPathing and not usingMelee then
         loco:StopMoving()
-        bot.wasPathing = false
+        state.wasPathing = false
     elseif usingMelee then
         tooFarToAttack = distToTarget > 160
         if distToTarget < 70 then
             loco:StopMoving()
-            bot.wasPathing = false
+            state.wasPathing = false
         else
             loco:SetGoal(targetPos)
-            bot.wasPathing = true
+            state.wasPathing = true
         end
     end
 
@@ -352,7 +392,7 @@ function Attack.CalculateInaccuracy(bot, origin, target)
         (bot:GetRoleStringRaw() == "traitor" and lib.GetConVarBool("cheat_traitor_accuracy"))
         and 0.5 or 1
 
-    local focus_factor = (1 - (bot.attackFocus or 0.01)) * 1.5
+    local focus_factor = (1 - (TTTBots.Behaviors.GetState(bot, "AttackTarget").attackFocus or 0.01)) * 1.5
 
     local targetMoveFactor = 1
     local selfMoveFactor = bot:GetVelocity():LengthSqr() > 100 and 1.25 or 0.75
@@ -509,7 +549,8 @@ function Attack.ValidateTarget(bot)
     if not (checkPassed or NPCPass) then
         print(bot:Nick() .. " failed to validate attack target behavior.")
         bot:SetAttackTarget(nil, "BEHAVIOR_END")
-        if bot.attackBehaviorMode == ATTACKMODE.Engaging then
+        local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
+        if state.attackBehaviorMode == ATTACKMODE.Engaging then
             bot:BotLocomotor():StopAttack()
         end
         if bot.attackTarget then
@@ -550,7 +591,7 @@ function Attack.OnRunning(bot)
     end -- Target is not a player or NPC
 
     local attack = Attack.RunningAttackLogic(bot)
-    bot.attackBehaviorMode = attack
+    TTTBots.Behaviors.GetState(bot, "AttackTarget").attackBehaviorMode = attack
 
     return STATUS.RUNNING
 end
@@ -568,15 +609,17 @@ function Attack.OnEnd(bot)
     bot:SetAttackTarget(nil, "BEHAVIOR_END")
     bot:BotLocomotor().stopLookingAround = false
     bot:BotLocomotor():StopAttack()
+    TTTBots.Behaviors.ClearState(bot, "AttackTarget")
 end
 
 local FOCUS_DECAY = 0.02
 function Attack.UpdateFocus(bot)
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
     local factor = -FOCUS_DECAY
     factor = factor * (bot.attackTarget ~= nil and -2.5 or 1)
     factor = factor * (bot:GetTraitMult("focus") or 1)
-    bot.attackFocus = (bot.attackFocus or 0.1) + factor
-    bot.attackFocus = math.Clamp(bot.attackFocus, 0.1, 1)
+    state.attackFocus = (state.attackFocus or 0.1) + factor
+    state.attackFocus = math.Clamp(state.attackFocus, 0.1, 1)
 end
 
 timer.Create("TTTBots_AttackFocus", 1 / TTTBots.Tickrate, 0, function()

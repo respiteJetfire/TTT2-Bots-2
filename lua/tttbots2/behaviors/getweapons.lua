@@ -93,6 +93,24 @@ function GetWeapons.OnRunning(bot)
     end
 
     local loco = bot:BotLocomotor()
+    local dist = bot:GetPos():Distance(target:GetPos())
+
+    -- Close enough — pick up directly server-side.
+    if dist <= 80 then
+        loco:StopMoving()
+        loco:SetUse(true)
+        local class = target:GetClass()
+        if class ~= "" then
+            local given = bot:Give(class)
+            if IsValid(given) then
+                target:Remove()
+            end
+        end
+        bot.botTargetWeapon = nil
+        return STATUS.SUCCESS
+    end
+
+    loco:SetUse(false)
     loco:SetGoal(target:GetPos())
 
     return STATUS.RUNNING

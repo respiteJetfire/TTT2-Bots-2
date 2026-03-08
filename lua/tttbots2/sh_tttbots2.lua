@@ -39,6 +39,7 @@ local function includeServer()
     include("tttbots2/lib/sv_ollama.lua")
     include("tttbots2/lib/sv_spots.lua")
     include("tttbots2/lib/sv_plancoordinator.lua")
+    include("tttbots2/lib/sv_innocentcoordinator.lua")
     include("tttbots2/commands/sv_chatcommands.lua")
     include("tttbots2/lib/sv_dialog.lua")
     include("tttbots2/lib/sv_tree.lua")
@@ -71,6 +72,7 @@ end
 ---Include the shared files
 ---@param isReload? boolean = false
 local function includeShared(isReload)
+    includeSharedFile("tttbots2/lib/sh_events.lua", isReload)   -- Event bus — loaded first so all other modules can subscribe
     includeSharedFile("tttbots2/lib/sh_botlib.lua", isReload)
     includeSharedFile("tttbots2/commands/sh_cvars.lua", isReload)
     includeSharedFile("tttbots2/commands/sh_concommands.lua", isReload)
@@ -117,6 +119,7 @@ function TTTBots.Reload()
             TTTBots.Match.Tick()
             TTTBots.Behaviors.RunTreeOnBots()
             TTTBots.PlanCoordinator.Tick()
+            TTTBots.InnocentCoordinator.Tick()
             local bots = TTTBots.Bots
             for i, bot in pairs(bots) do
                 -- TTTBots.DebugServer.RenderDebugFor(bot, { "all" })
@@ -127,7 +130,11 @@ function TTTBots.Reload()
                         print("No think")
                         continue
                     end
-                    component:Think()
+                    -- ThinkRate throttling: ThinkRate=1 runs every tick, 2=every other tick, etc.
+                    local rate = component.ThinkRate or 1
+                    if rate <= 1 or (bot.tick % rate == 0) then
+                        component:Think()
+                    end
                 end
 
                 bot.tick = bot:BotLocomotor().tick

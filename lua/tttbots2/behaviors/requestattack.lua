@@ -28,7 +28,9 @@ end
 function BehaviorRequestAttack.OnStart(bot)
     print(bot:Nick() .. " is now attacking.")
     local chatter = bot:BotChatter()
-    chatter:On("AttackStart", { target = bot.attackTarget:Nick() }, false, math.random(1, 4))
+    if chatter and chatter.On then
+        chatter:On("AttackStart", { target = bot.attackTarget:Nick() }, false, math.random(1, 4))
+    end
     return STATUS.RUNNING
 end
 
@@ -68,7 +70,9 @@ function BehaviorRequestAttack.OnEnd(bot)
     loco:SetHalt(false)
     loco:PauseRepel()
     local chatter = bot:BotChatter()
-    chatter:On("AttackEnd", { target = bot.attackRequester:Nick() }, false, math.random(1, 4))
+    if chatter and chatter.On then
+        chatter:On("AttackEnd", { target = bot.attackRequester:Nick() }, false, math.random(1, 4))
+    end
     bot.attackRequester = nil
 end
 
@@ -80,6 +84,7 @@ function BehaviorRequestAttack.RequestAttack(bot, player, target, teamOnly)
     local playerIsPolice = TTTBots.Roles.GetRoleFor(player):GetAppearsPolice() or player:GetBaseRole() == ROLE_DETECTIVE
     local roleDisablesSuspicion = not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
     local chatter = bot:BotChatter()
+    if not chatter or not chatter.On then return end
     local Morality = bot:BotMorality()
     local playerSus = Morality:GetSuspicion(player) or 0
     local targetSus = Morality:GetSuspicion(target) or 0

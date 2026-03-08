@@ -62,17 +62,48 @@ function InvestigateCorpse.CorpseValid(rag)
     return true, "valid"
 end
 
+--- Returns true if the given corpse belongs to a player this innocent bot killed in self-defense.
+---@param bot Bot
+---@param corpse Entity
+---@return boolean
+local function isOwnSelfDefenseKill(bot, corpse)
+    if bot:GetTeam() ~= TEAM_INNOCENT then return false end
+    local sdKills = bot.selfDefenseKills
+    if not sdKills then return false end
+    local victim = CORPSE.GetPlayer(corpse)
+    return IsValid(victim) and sdKills[victim] ~= nil
+end
+
 --- Validate the behavior
 function InvestigateCorpse.Validate(bot)
     if not InvestigateCorpse.GetShouldInvestigateCorpses(bot) then return false end
 
-    -- First, let's prevent traitors from immediately self-reporting.
+    -- Prevent traitors (and other post-kill cooldown cases) from immediately self-reporting.
+    -- Exception: innocent-side bots should confirm bodies they killed in self-defense right away
+    -- so they don't look suspicious standing next to an unidentified corpse they just made.
     local lastKillTime = bot.lastKillTime or 0
     local killedRecently = (CurTime() - lastKillTime) < 7 -- killed someone within X seconds
-    if killedRecently then return false end
 
     local curCorpse = bot.corpseTarget
     if InvestigateCorpse.CorpseValid(curCorpse) then
+        -- Allow confirming the current target if it's a self-defense kill (even right after)
+        if killedRecently and not isOwnSelfDefenseKill(bot, curCorpse) then return false end
+        return true
+    end
+
+    if killedRecently then
+        -- Check if any visible unidentified body is one this innocent bot killed in self-defense
+        local options = InvestigateCorpse.GetVisibleUnidentified(bot)
+        if not options or #options == 0 then return false end
+        local selfDefenseTarget = nil
+        for _, corpse in ipairs(options) do
+            if isOwnSelfDefenseKill(bot, corpse) then
+                selfDefenseTarget = corpse
+                break
+            end
+        end
+        if not selfDefenseTarget then return false end
+        bot.corpseTarget = selfDefenseTarget
         return true
     end
 
@@ -95,7 +126,10 @@ end
 --- Called when the behavior is started
 function InvestigateCorpse.OnStart(bot)
     local name = CORPSE.GetPlayerNick(bot.corpseTarget)
-    bot.components.chatter:On("InvestigateCorpse", { corpse = name })
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On then
+        chatter:On("InvestigateCorpse", { corpse = name })
+    end
     return STATUS.RUNNING
 end
 
@@ -132,12 +166,39 @@ function InvestigateCorpse.OnRunning(bot)
                     weight  = 8, -- slightly lower than direct witness
                 })
                 local chatter = bot:BotChatter()
-                if chatter then
+                if chatter and chatter.On then
                     chatter:On("BodyEvidenceFound", {
                         killer = killerEnt:Nick(),
                         killerEnt = killerEnt,
                         victim = IsValid(victimEnt) and victimEnt:Nick() or CORPSE.GetPlayerNick(corpse) or "unknown",
                     })
+                end
+            end
+
+            -- FindFriendBody — emotional reaction when a trusted player's body is found
+            if lib.GetConVarBool("emotional_chatter") then
+                local victimEnt = CORPSE.GetPlayer(bot.corpseTarget)
+                if IsValid(victimEnt) then
+                    local wasTrusted = false
+                    local companions = evidence.travelCompanions or {}
+                    for _, companion in ipairs(companions) do
+                        if companion == victimEnt then wasTrusted = true; break end
+                    end
+                    if not wasTrusted then
+                        local ci = evidence.confirmedInnocents or {}
+                        for _, innocent in ipairs(ci) do
+                            if innocent == victimEnt then wasTrusted = true; break end
+                        end
+                    end
+                    if wasTrusted then
+                        local chatter = bot:BotChatter()
+                        if chatter and chatter.On then
+                            chatter:On("FindFriendBody", {
+                                victim    = victimEnt:Nick(),
+                                victimEnt = victimEnt,
+                            }, false, 0.5)
+                        end
+                    end
                 end
             end
         end

@@ -193,10 +193,14 @@ function Match.ResetStats(roundActive)
             v.coverTarget = nil
             v.seekCoverPos = nil
             v.seekCoverPeeking = false
+            v.seekCoverStartTime = nil
+            v.seekCoverCooldownUntil = nil
             -- Clear loot attempt history so bots don't inherit stale cooldowns.
             v.lootAttempted = nil
             v.lootTarget = nil
             v.lootStartTime = nil
+            -- Clear self-defense kill tracking so it doesn't bleed into the next round.
+            v.selfDefenseKills = nil
         end
     end
 end
@@ -267,7 +271,7 @@ end
 function Match.OnBotSpotC4(bot, c4)
     local chatter = bot:BotChatter()
     local locomotor = bot:BotLocomotor()
-    if not chatter then return end
+    if not chatter or not chatter.On then return end
     chatter:On("SpottedC4", {}, false)
     locomotor:LookAt(c4:GetPos())
 end

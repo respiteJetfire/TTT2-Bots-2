@@ -81,7 +81,7 @@ function Defuse.OnStart(bot)
     bot.defuseTarget = Defuse.GetVisibleC4(bot)
 
     local chatter = bot:BotChatter()
-    if not chatter then return end
+    if not chatter or not chatter.On then return STATUS.RUNNING end
     chatter:On("DefusingC4")
 
     return STATUS.RUNNING
@@ -116,7 +116,7 @@ function Defuse.DefuseC4(bot, c4, isSuccess)
             c4:Disarm(bot)
 
             local chatter = bot:BotChatter()
-            if not chatter then return end
+            if not chatter or not chatter.On then return end
             chatter:On("DefusingSuccessful")
             Defuse.DestroyC4(c4)
         else

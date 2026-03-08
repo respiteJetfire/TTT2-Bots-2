@@ -193,6 +193,18 @@ function CLGAMEMODESUBMENU:Populate(parent)
         label = "label_tttbots_pathfinding_cpf_scaling",
     })
 
+    form6:MakeHelp({
+        label = "help_tttbots_pathfinding_max_nodes",
+    })
+
+    form6:MakeSlider({
+        serverConvar = "ttt_bot_pathfinding_max_nodes",
+        label = "label_tttbots_pathfinding_max_nodes",
+        min = 100,
+        max = 2000,
+        decimal = 0,
+    })
+
     -- Cheat abilities
     local form7 = vgui.CreateTTT2Form(parent, "header_tttbots_cheats")
 

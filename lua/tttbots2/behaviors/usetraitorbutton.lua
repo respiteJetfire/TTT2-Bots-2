@@ -171,7 +171,7 @@ function UseTraitorButton.OnRunning(bot)
 			bot.lastTraitorButtonAttempt = CurTime()
 
 			local chatter = bot:BotChatter()
-			if chatter then
+			if chatter and chatter.On then
 				chatter:On("UseTraitorButton", {}, true)
 			end
 

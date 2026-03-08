@@ -76,4 +76,37 @@ function CLGAMEMODESUBMENU:Populate(parent)
         serverConvar = "ttt_bot_allow_leaving",
         label = "label_tttbots_allow_leaving",
     })
+
+    -- Tier 6 — Personality & Immersion
+    local form5 = vgui.CreateTTT2Form(parent, "header_tttbots_personality_immersion")
+
+    form5:MakeHelp({
+        label = "help_tttbots_personality_immersion",
+    })
+
+    form5:MakeCheckBox({
+        serverConvar = "ttt_bot_deception_enabled",
+        label = "label_tttbots_deception_enabled",
+    })
+
+    local enbEvolution = form5:MakeCheckBox({
+        serverConvar = "ttt_bot_personality_evolution",
+        label = "label_tttbots_personality_evolution",
+    })
+
+    form5:MakeCheckBox({
+        serverConvar = "ttt_bot_crossround_memory",
+        label = "label_tttbots_crossround_memory",
+        master = enbEvolution,
+    })
+
+    form5:MakeCheckBox({
+        serverConvar = "ttt_bot_semantic_animations",
+        label = "label_tttbots_semantic_animations",
+    })
+
+    form5:MakeCheckBox({
+        serverConvar = "ttt_bot_emotional_chatter",
+        label = "label_tttbots_emotional_chatter",
+    })
 end

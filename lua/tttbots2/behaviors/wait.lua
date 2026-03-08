@@ -38,7 +38,7 @@ function BehaviorWait.OnStart(bot)
     end
     --- if the bot is the same team as a non innocent we will use the teamOnly parameter to accept the request
     local teamOnly = (bot:GetTeam() == bot.waitRequester:GetTeam() and bot:GetTeam() ~= TEAM_INNOCENT) or false
-    chatter:On("WaitStart", { target = bot.waitRequester:Nick() }, teamOnly, math.random(1, 4))
+    if chatter and chatter.On then chatter:On("WaitStart", { target = bot.waitRequester:Nick() }, teamOnly, math.random(1, 4)) end
     return STATUS.RUNNING
 end
 
@@ -79,7 +79,9 @@ function BehaviorWait.OnEnd(bot)
     loco:SetHalt(false)
     loco:ResumeRepel()
     local chatter = bot:BotChatter()
-    chatter:On("WaitEnd", { target = bot.waitRequester:Nick() }, false, math.random(1, 4))
+    if chatter and chatter.On then
+        chatter:On("WaitEnd", { target = bot.waitRequester:Nick() }, false, math.random(1, 4))
+    end
     bot.waitRequester = nil
 end
 
@@ -111,7 +113,7 @@ function BehaviorWait.RequestWait(bot, player, teamOnly)
     end
     if math.random() > chance * 100 then
         print(bot:Nick() .. " refused to wait for " .. player:Nick())
-        chatter:On("WaitRefuse", { target = player:Nick() }, teamOnly, math.random(1, 4))
+        if chatter and chatter.On then chatter:On("WaitRefuse", { target = player:Nick() }, teamOnly, math.random(1, 4)) end
         return
     end
     bot.waitEndTime = CurTime() + time

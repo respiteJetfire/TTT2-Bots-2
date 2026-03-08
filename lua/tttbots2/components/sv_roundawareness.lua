@@ -38,6 +38,7 @@ function BotRoundAwareness:New(bot)
 end
 
 function BotRoundAwareness:Initialize(bot)
+    self.ThinkRate = 3 -- Run every 3rd tick (~1.7Hz)
     self.bot = bot or self.bot
     self:ClearRoundState()
 end
@@ -225,11 +226,7 @@ end
 -- Think
 ---------------------------------------------------------------------------
 
-local RUNRATE = 3
-
 function BotRoundAwareness:Think()
-    self.tick = self.bot.tick or 0
-    if not (self.tick % RUNRATE == 0) then return end
     if not TTTBots.Match.RoundActive then return end
 
     self:UpdatePhase()

@@ -3103,7 +3103,411 @@ local LoadLang = function()
 
     Line("Just {count} traitor left! We can do this!", A.Nice)
     Line("Only {count} more! Stay together and we've got this!", A.Nice)
+
+    -- ===========================================================================
+    -- Tier 6 — Personality & Immersion: Emotional Reactions & Deception Chatter
+    -- ===========================================================================
+
+    -- -------------------------------------------------------------------------
+    -- WitnessKill — Bot witnessed someone get murdered and panics
+    -- -------------------------------------------------------------------------
+    RegisterCategory("WitnessKill", P.CRITICAL, "Bot witnessed a kill happening in front of them")
+    Line("OH GOD! {{killer}} just killed {{victim}}!", A.Default)
+    Line("{{killer}} just murdered {{victim}}! Run!", A.Default)
+    Line("I just watched {{killer}} shoot {{victim}}! HELP!", A.Default)
+
+    Line("OH MY GOD {{killer}} JUST KILLED {{victim}} RUN RUN RUN", A.Hothead)
+    Line("WHAT THE HELL {{killer}} JUST MURDERED {{victim}}", A.Hothead)
+
+    Line("omg omg {{killer}} just killed {{victim}}!!", A.Casual)
+    Line("yo {{killer}} just clapped {{victim}} wtf", A.Casual)
+    Line("DUDE {{killer}} just shot {{victim}} im freaking out", A.Casual)
+
+    Line("{{killer}} eliminated {{victim}}. Taking cover.", A.Stoic)
+    Line("{{victim}} is down. {{killer}} is hostile. Evading.", A.Stoic)
+
+    Line("wait did {{killer}} just... oh no {{victim}} is dead", A.Dumb)
+    Line("{{killer}} just did a murder!! on {{victim}}!!", A.Dumb)
+
+    Line("Oh no! {{killer}} just killed {{victim}}! Someone help!", A.Nice)
+    Line("I can't believe it — {{killer}} just shot {{victim}}!", A.Nice)
+
+    Line("{{killer}} just took out {{victim}}. I saw everything.", A.Tryhard)
+    Line("Confirmed kill: {{killer}} on {{victim}}. Everyone note this.", A.Tryhard)
+
+    Line("{{victim}} gone... by {{killer}}'s hand... just like that.", A.Sus)
+
+    -- -------------------------------------------------------------------------
+    -- BeingShotAt — Bot is being shot at, before combat system activates
+    -- -------------------------------------------------------------------------
+    RegisterCategory("BeingShotAt", P.IMPORTANT, "Bot is being shot at and reacts before fighting back")
+    Line("Hey! Who's shooting at me?!", A.Default)
+    Line("Stop shooting! Who is that?!", A.Default)
+    Line("I'm getting shot! Show yourself!", A.Default)
+
+    Line("WHO THE HELL IS SHOOTING AT ME", A.Hothead)
+    Line("STOP IT! I WILL KILL YOU!", A.Hothead)
+
+    Line("ayo who's shooting lmao", A.Casual)
+    Line("yo stop shooting at me bro wtf", A.Casual)
+
+    Line("Hostile fire detected. Identifying shooter.", A.Stoic)
+    Line("Taking fire. Assessing threat.", A.Stoic)
+
+    Line("ow!! stop that!! who's doing that!!", A.Dumb)
+    Line("hey that hurts!! cut it out!!", A.Dumb)
+
+    Line("Please stop shooting! I'm innocent!", A.Nice)
+    Line("Hey, easy! I haven't done anything!", A.Nice)
+
+    Line("You're shooting at the wrong person.", A.Tryhard)
+    Line("Wasting ammo on me? Bold move.", A.Tryhard)
+
+    -- -------------------------------------------------------------------------
+    -- FindFriendBody — Bot finds the body of a player they trusted
+    -- -------------------------------------------------------------------------
+    RegisterCategory("FindFriendBody", P.IMPORTANT, "Bot finds the body of a player they trusted/vouched for")
+    Line("No... {{victim}} is dead. Who did this?", A.Default)
+    Line("{{victim}}... They killed {{victim}}. This ends now.", A.Default)
+    Line("I can't believe it — {{victim}} is gone.", A.Default)
+
+    Line("{{victim}}!! NO!! WHOEVER DID THIS IS DEAD", A.Hothead)
+    Line("THEY KILLED {{victim}}!! I'M GOING TO FIND YOU", A.Hothead)
+
+    Line("rip {{victim}} :( who did that", A.Casual)
+    Line("noooo not {{victim}}... :(", A.Casual)
+
+    Line("{{victim}} is dead. Whoever did this will be found.", A.Stoic)
+    Line("{{victim}} eliminated. Motive unclear. Proceeding.", A.Stoic)
+
+    Line("oh no... {{victim}} went bye-bye... that's sad", A.Dumb)
+    Line("{{victim}} is dead?? but we were friends!!", A.Dumb)
+
+    Line("Oh, {{victim}}... I'm so sorry. We'll find who did this.", A.Nice)
+    Line("{{victim}}... Rest in peace. I'll get justice for you.", A.Nice)
+
+    Line("{{victim}} is gone. Cross-referencing suspects.", A.Tryhard)
+
+    Line("{{victim}}... gone. just like that.", A.Sus)
+
+    -- -------------------------------------------------------------------------
+    -- RoundStart — Bot comments at the beginning of a round
+    -- -------------------------------------------------------------------------
+    RegisterCategory("RoundStart", P.NORMAL, "Bot says something at the start of the round")
+    Line("Alright, let's figure this out.", A.Default)
+    Line("New round. Stay sharp.", A.Default)
+    Line("Here we go. Watch each other's backs.", A.Default)
+
+    Line("HERE WE GO BOYS LET'S GET IT", A.Hothead)
+    Line("ROUND START! TIME TO FIND THE TRAITORS!", A.Hothead)
+
+    Line("alright let's goooo", A.Casual)
+    Line("round starting, gl hf i guess", A.Casual)
+    Line("let's figure this one out lol", A.Casual)
+
+    Line("Round initiated. Proceeding.", A.Stoic)
+    Line("Commencing round. Maintaining vigilance.", A.Stoic)
+
+    Line("oooh it started!! what do i do", A.Dumb)
+    Line("round! round!! yay new round!!", A.Dumb)
+
+    Line("Good luck everyone! Let's work together!", A.Nice)
+    Line("New round! I hope we all do well!", A.Nice)
+
+    Line("Prioritizing targets. Beginning strategy.", A.Tryhard)
+    Line("Round start. Optimal play begins now.", A.Tryhard)
+
+    Line("new round... same game... same lies...", A.Sus)
+
+    -- -------------------------------------------------------------------------
+    -- OvertimeHaste — Bot panics as overtime/haste activates
+    -- -------------------------------------------------------------------------
+    RegisterCategory("OvertimeHaste", P.IMPORTANT, "Bot reacts to overtime/haste mode activating")
+    Line("We're running out of time! Find the traitor!", A.Default)
+    Line("Hurry up! We need to end this NOW!", A.Default)
+    Line("Clock's ticking! Someone make a decision!", A.Default)
+
+    Line("TIME IS RUNNING OUT! EVERYONE TEST NOW!", A.Hothead)
+    Line("OVERTIME! STOP WASTING TIME AND FIGHT!", A.Hothead)
+
+    Line("omg overtime already??? hurry up guys", A.Casual)
+    Line("we're literally running out of time lmao panic panic", A.Casual)
+
+    Line("Haste mode active. Escalating protocol.", A.Stoic)
+    Line("Time constraint detected. Forcing resolution.", A.Stoic)
+
+    Line("wait are we running out of time?? uh oh", A.Dumb)
+    Line("the clock is going really fast!! what do we do!!", A.Dumb)
+
+    Line("We're almost out of time! Please, let's work together!", A.Nice)
+    Line("Overtime! We need to figure this out quickly!", A.Nice)
+
+    Line("Time pressure. Adjusting aggression threshold.", A.Tryhard)
+    Line("Overtime. Suboptimal. But winnable.", A.Tryhard)
+
+    -- -------------------------------------------------------------------------
+    -- LastInnocent — Bot realizes they are the last innocent alive
+    -- -------------------------------------------------------------------------
+    RegisterCategory("LastInnocent", P.CRITICAL, "Bot realizes they are the last innocent standing")
+    Line("It's just me left. One of you is the traitor.", A.Default)
+    Line("I'm the last innocent. {{suspect}} has to be it.", A.Default)
+    Line("Everyone's dead. It has to be {{suspect}}.", A.Default)
+
+    Line("I'M THE LAST ONE?! {{suspect}} YOU'RE DEAD MEAT!", A.Hothead)
+    Line("IT'S JUST ME VS {{suspect}}. BRING IT ON.", A.Hothead)
+
+    Line("oh no... i'm the last one... uh... {{suspect}} is sus", A.Casual)
+    Line("wait i'm literally the last innocent lol ok {{suspect}} u r done", A.Casual)
+
+    Line("I am the last innocent. {{suspect}} is the traitor. Engaging.", A.Stoic)
+    Line("Final innocent standing. Target: {{suspect}}.", A.Stoic)
+
+    Line("wait everyone is dead?? just me and {{suspect}}?? oh no", A.Dumb)
+    Line("umm i'm the only one left... is {{suspect}} bad?", A.Dumb)
+
+    Line("I'm the last innocent... {{suspect}}, please don't do this.", A.Nice)
+    Line("Oh gosh, everyone's gone. {{suspect}}, I know it's you.", A.Nice)
+
+    Line("Process of elimination complete. {{suspect}}. It was always you.", A.Tryhard)
+    Line("Last innocent. Confirmed traitor: {{suspect}}. Engaging.", A.Tryhard)
+
+    Line("...just me and {{suspect}}. felt this coming.", A.Sus)
+
+    -- -------------------------------------------------------------------------
+    -- TraitorVictory — Traitor gloats after winning (team-only)
+    -- -------------------------------------------------------------------------
+    RegisterCategory("TraitorVictory", P.NORMAL, "Traitor bot gloats after the traitors win (team chat)")
+    Line("Too easy. You never suspected a thing.", A.Default)
+    Line("Perfect round. They didn't stand a chance.", A.Default)
+    Line("That's how you do it.", A.Default)
+
+    Line("WE DOMINATED. THAT WAS INSANE.", A.Hothead)
+    Line("LETS GOOO. TRAITORS WIN BABY.", A.Hothead)
+
+    Line("lmaooo they had no idea", A.Casual)
+    Line("gg ez we cooked them", A.Casual)
+    Line("too easy ngl", A.Casual)
+
+    Line("Objective complete. Satisfactory.", A.Stoic)
+    Line("Round concluded. Traitor victory. As expected.", A.Stoic)
+
+    Line("we won?? yay!! i helped!!", A.Dumb)
+    Line("we did it!! i didn't even get caught!!", A.Dumb)
+
+    Line("We did it! Great teamwork everyone!", A.Nice)
+    Line("We won! Sorry innocents... you played well though!", A.Nice)
+
+    Line("Efficient. Clean. Undetected.", A.Tryhard)
+    Line("Optimal traitor play. GG.", A.Tryhard)
+
+    Line("they never figured it out. we were ghosts.", A.Sus)
+
+    -- -------------------------------------------------------------------------
+    -- Deception chatter: AlibiBuilding, FakeInvestigate, FalseKOS, PlausibleIgnorance
+    -- -------------------------------------------------------------------------
+    RegisterCategory("AlibiBuilding", P.NORMAL, "Traitor makes small talk to be seen near innocents (alibi)")
+    Line("Hey, staying close. Safety in numbers.", A.Default)
+    Line("Sticking with the group. Smart move.", A.Default)
+    Line("Good idea keeping together like this.", A.Default)
+
+    Line("yo good idea staying as a group", A.Casual)
+    Line("staying with you guys, safer that way", A.Casual)
+
+    Line("Agreed. Group movement minimizes exposure.", A.Stoic)
+
+    Line("yeah buddy system!!", A.Dumb)
+    Line("i like being near people!! more fun!!", A.Dumb)
+
+    Line("Glad we're sticking together. Better safe than sorry.", A.Nice)
+    Line("There's strength in numbers. Good call staying together.", A.Nice)
+
+    RegisterCategory("FakeInvestigateApproach", P.NORMAL, "Traitor announces they are going to check a body (deceptive)")
+    Line("I'll go check that body.", A.Default)
+    Line("Someone should look at that corpse. I'll do it.", A.Default)
+    Line("Give me a second, I'm going to investigate.", A.Default)
+
+    Line("lemme go check that body real quick", A.Casual)
+    Line("i got this, gonna look at the body", A.Casual)
+
+    Line("Investigating the corpse. Stand by.", A.Stoic)
+
+    Line("oooh a body! i'll go look at it!", A.Dumb)
+
+    Line("I'll check it out! Be right back.", A.Nice)
+
+    RegisterCategory("FakeInvestigateReport", P.IMPORTANT, "Traitor reports fake findings after visiting a body they killed")
+    Line("No DNA on {{player}}'s body. Whoever did this was careful.", A.Default)
+    Line("Checked {{player}}. No leads on the killer. Be careful out there.", A.Default)
+    Line("{{player}}'s body — no useful evidence. Someone covered their tracks.", A.Default)
+
+    Line("{{player}} has no dna wtf... sneaky traitor", A.Casual)
+    Line("checked {{player}}, nothing. whoever did it is good", A.Casual)
+
+    Line("{{player}}: no forensic evidence. Perpetrator was thorough.", A.Stoic)
+    Line("Body of {{player}} yields no usable evidence. Exercise caution.", A.Stoic)
+
+    Line("i checked {{player}} and there was nothing!! spooky!!", A.Dumb)
+
+    Line("Oh no, no DNA on {{player}}. Stay safe everyone!", A.Nice)
+
+    RegisterCategory("FalseKOS", P.IMPORTANT, "Traitor calls a false KOS on an innocent")
+    Line("KOS {{player}}! I saw them near a body with a traitor weapon.", A.Default)
+    Line("KOS {{player}}! Acting super suspicious.", A.Default)
+    Line("KOS {{player}} — I don't trust them at all.", A.Default)
+
+    Line("KOS {{player}} RIGHT NOW i swear its them", A.Casual)
+    Line("kos {{player}} trust me bro", A.Casual)
+
+    Line("KOS {{player}}. Behavioral analysis confirms suspicion.", A.Stoic)
+    Line("Declaring KOS on {{player}}. Evidence: suspicious pattern.", A.Stoic)
+
+    Line("KOS {{player}}!! they look weird!!", A.Dumb)
+
+    Line("I'm sorry, but KOS {{player}}. Something's off about them.", A.Nice)
+
+    Line("KOS {{player}} — watched them for a while. It's them.", A.Tryhard)
+
+    Line("KOS {{player}}. ...do with that what you will.", A.Sus)
+
+    RegisterCategory("PlausibleIgnorance", P.IMPORTANT, "Traitor excuses their presence near a fresh kill")
+    Line("I just got here! I heard gunshots and came to check.", A.Default)
+    Line("Don't look at me — I literally just walked in.", A.Default)
+    Line("I heard shots and came running. I don't know what happened.", A.Default)
+
+    Line("yo i JUST got here i swear i heard something", A.Casual)
+    Line("bro i literally just walked up wtf", A.Casual)
+
+    Line("I arrived after the incident. I have no information.", A.Stoic)
+    Line("I was in the adjacent area. Heard gunfire. Investigated.", A.Stoic)
+
+    Line("i just got here!! i heard bang bang and ran over!!", A.Dumb)
+    Line("what happened?? i just walked up here!!", A.Dumb)
+
+    Line("I just arrived, I promise! I heard the shots and came to help.", A.Nice)
+    Line("Oh gosh, I just got here! What happened?", A.Nice)
+
+    Line("Convenient timing, I know. I assure you — coincidence.", A.Tryhard)
+    Line("I was elsewhere. Came when I heard it.", A.Sus)
+
+    -- -------------------------------------------------------------------------
+    -- Dialog locale lines (used by sv_dialog.lua via "Dialog" prefix)
+    -- -------------------------------------------------------------------------
+
+    -- The Investigation
+    RegisterCategory("DialogInvestigationAsk", P.NORMAL, "Dialog: Bot A asks about a victim")
+    Line("Did anyone see {{bot}} before they died?", A.Default)
+    Line("Does anyone know what happened to {{bot}}?", A.Default)
+    Line("Who saw {{bot}} last?", A.Default)
+    Line("did anyone see {{bot}} before they got killed?", A.Casual)
+
+    RegisterCategory("DialogInvestigationWitness", P.NORMAL, "Dialog: Bot B claims to have seen the victim")
+    Line("I think I saw them heading toward the far side of the map.", A.Default)
+    Line("Last I saw {{bot}}, they were near {{lastBot}}.", A.Default)
+    Line("They went off alone, which was weird.", A.Default)
+    Line("yeah i saw them heading away from the group", A.Casual)
+
+    RegisterCategory("DialogInvestigationSuspect", P.NORMAL, "Dialog: Bot C brings up a suspect")
+    Line("{{nextBot}} was over there too, if I remember right.", A.Default)
+    Line("Actually, I think {{nextBot}} was in that area.", A.Default)
+    Line("Come to think of it... {{nextBot}} was around there.", A.Default)
+    Line("wait wasn't {{nextBot}} over there too?", A.Casual)
+
+    RegisterCategory("DialogInvestigationChallenge", P.NORMAL, "Dialog: Bot A challenges the suspect")
+    Line("That's suspicious. {{nextBot}}, where were you?", A.Default)
+    Line("Hmm. {{nextBot}}, can you explain that?", A.Default)
+    Line("Interesting. {{nextBot}}, care to elaborate?", A.Default)
+    Line("sooo {{nextBot}} wanna explain yourself lol", A.Casual)
+
+    -- The Accusation
+    RegisterCategory("DialogAccusationClaim", P.NORMAL, "Dialog: Bot A makes an accusation")
+    Line("I'm calling it — {{nextBot}} is the traitor.", A.Default)
+    Line("I've made up my mind. {{nextBot}} is sus.", A.Default)
+    Line("Alright, I'll say it: {{nextBot}} is the traitor.", A.Default)
+    Line("ok so i'm pretty sure {{nextBot}} is the traitor ngl", A.Casual)
+
+    RegisterCategory("DialogAccusationChallenge", P.NORMAL, "Dialog: Bot B questions the accusation")
+    Line("What's your evidence?", A.Default)
+    Line("That's a bold claim. What makes you say that?", A.Default)
+    Line("On what basis?", A.Default)
+    Line("wait why tho?", A.Casual)
+
+    RegisterCategory("DialogAccusationEvidence", P.NORMAL, "Dialog: Bot A presents their evidence")
+    Line("I saw them near the last body with a suspicious weapon.", A.Default)
+    Line("Their story doesn't add up. Too many inconsistencies.", A.Default)
+    Line("They were never with the group when people died.", A.Default)
+    Line("just vibes honestly but also they were acting mega sus", A.Casual)
+
+    RegisterCategory("DialogAccusationVerdict", P.NORMAL, "Dialog: Bot B reacts to the evidence")
+    Line("Alright, that's good enough for me. I'm with you.", A.Default)
+    Line("Hmm. Possible, but I'm not fully convinced yet.", A.Default)
+    Line("That's not much to go on. I was near there too.", A.Default)
+    Line("fair enough i guess", A.Casual)
+    Line("idk man that's kinda weak evidence", A.Casual)
+
+    -- The Defense
+    RegisterCategory("DialogDefenseProtest", P.NORMAL, "Dialog: Accused bot defends themselves")
+    Line("I'm not the traitor! I was with {{nextBot}} the whole time!", A.Default)
+    Line("This is ridiculous. I've done nothing wrong.", A.Default)
+    Line("Are you serious right now? I'm on your side!", A.Default)
+    Line("bro i SWEAR i'm not the traitor what the heck", A.Casual)
+
+    RegisterCategory("DialogDefenseConfront", P.NORMAL, "Dialog: Accuser challenges the defense")
+    Line("Then how do you explain your behavior?", A.Default)
+    Line("Your alibi sounds convenient.", A.Default)
+    Line("You were near the body. Explain that.", A.Default)
+    Line("ok but like... you were def sus tho", A.Casual)
+
+    RegisterCategory("DialogDefenseDeny", P.NORMAL, "Dialog: Accused doubles down")
+    Line("I don't know what you want from me. Test me if you don't believe me.", A.Default)
+    Line("I can't explain it, but it wasn't me. Check someone else.", A.Default)
+    Line("Fine. I'll let my record speak for itself.", A.Default)
+    Line("then TEST me dude oh my god", A.Casual)
+
+    -- The Standoff
+    RegisterCategory("DialogStandoffObserve", P.NORMAL, "Dialog: Bot A opens the standoff")
+    Line("It's just the two of us. One of us is the traitor.", A.Default)
+    Line("Here we are. Last two standing.", A.Default)
+    Line("So. It comes down to this.", A.Default)
+    Line("lol just us two. one of us is the traitor.", A.Casual)
+
+    RegisterCategory("DialogStandoffDeny", P.NORMAL, "Dialog: Bot B denies being the traitor")
+    Line("Well, it's not me. I can tell you that.", A.Default)
+    Line("Not me. And I'm sure you'll say the same.", A.Default)
+    Line("I've been innocent this whole time.", A.Default)
+    Line("it's literally not me though lmao", A.Casual)
+
+    RegisterCategory("DialogStandoffDrop", P.NORMAL, "Dialog: Bot A makes a demand")
+    Line("Drop your weapon. Prove you're not hostile.", A.Default)
+    Line("Then put the gun down.", A.Default)
+    Line("If you're innocent, you won't need that.", A.Default)
+    Line("ok then put the gun down", A.Casual)
+
+    RegisterCategory("DialogStandoffCounter", P.NORMAL, "Dialog: Bot B counters the demand")
+    Line("You first.", A.Default)
+    Line("Why would I disarm when you're still armed?", A.Default)
+    Line("That's exactly what a traitor would ask.", A.Default)
+    Line("lmaooo you first", A.Casual)
+
+    -- Post-Round Banter
+    RegisterCategory("DialogPostRoundWinner", P.NORMAL, "Dialog: Winner of the round gloats (dead bots)")
+    Line("GG. I knew {{nextBot}} was the traitor from the start.", A.Default)
+    Line("Called it. Never had a doubt.", A.Default)
+    Line("Saw that coming from a mile away.", A.Default)
+    Line("GG i literally called it at the start lol", A.Casual)
+
+    RegisterCategory("DialogPostRoundLoser", P.NORMAL, "Dialog: Loser reacts to the outcome")
+    Line("How did you know?", A.Default)
+    Line("Ugh. I should have listened.", A.Default)
+    Line("I had no idea. When did you figure it out?", A.Default)
+    Line("wait how did you know omg", A.Casual)
+
+    RegisterCategory("DialogPostRoundExplain", P.NORMAL, "Dialog: Winner explains their deduction")
+    Line("You were acting way too suspicious near the bodies.", A.Default)
+    Line("The weapon was a giveaway. Nobody else had it.", A.Default)
+    Line("You kept separating from the group at the worst times.", A.Default)
+    Line("honestly you were just being super sus the whole time lol", A.Casual)
 end
+
 
 local DEPENDENCIES = { "Plans" }
 local function loadModule_Deferred()

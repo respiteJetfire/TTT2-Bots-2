@@ -65,6 +65,7 @@ L.help_tttbots_quota_dynamic = "Dynamic quota fluctuates the bot count between a
 L.help_tttbots_cheats = "These options give bots special knowledge they would not normally have. They can make bots feel smarter but are technically unfair advantages."
 L.help_tttbots_reaction_speed = "Reaction speed scales inversely with difficulty. Lower values mean faster reactions."
 L.help_tttbots_pathfinding_cpf = "Advanced setting. Controls pathfinding CPU budget. Only change if you experience performance issues."
+L.help_tttbots_pathfinding_max_nodes = "Advanced setting. Maximum A* nodes explored before the pathfinder gives up. Higher values allow finding paths through complex maps at the cost of more CPU per frame."
 L.help_tttbots_ai_keys = "API keys are server-only and never sent to clients. Required for AI-generated chat."
 L.help_tttbots_voice_provider = "Selects how bots produce voice audio. Free TTS requires no API key."
 L.help_tttbots_stt = "STT sends voice chat audio to a local service for transcription so bots can reply to players speaking."
@@ -118,6 +119,7 @@ L.label_tttbots_noise_investigate_chance = "Investigation Chance (%)"
 L.label_tttbots_noise_investigate_mtb = "Min Time Between Investigations (sec)"
 L.label_tttbots_pathfinding_cpf = "Pathfinding Calcs Per Frame"
 L.label_tttbots_pathfinding_cpf_scaling = "Scale CPF by Bot Count"
+L.label_tttbots_pathfinding_max_nodes = "Max Pathfinding Nodes"
 
 -- Cheat labels
 L.label_tttbots_cheat_know_shooter = "Bots Know Who Shot First"
@@ -217,6 +219,15 @@ L.label_evidence_prune_time = "Evidence Prune Time (seconds)"
 L.label_evidence_accuse_cooldown = "Accusation Cooldown (seconds)"
 L.label_evidence_companion_min_time = "Min Companion Travel Time (seconds)"
 L.label_evidence_trust_decay_time = "Trust Network Decay Time (seconds)"
+
+-- Tier 6 — Personality & Immersion labels
+L.header_tttbots_personality_immersion = "Immersion (Tier 6)"
+L.help_tttbots_personality_immersion = "Tier 6 immersion features add deception behaviors, mood-driven personality shifts, contextual animations, and emotional reactions to events."
+L.label_tttbots_deception_enabled = "Enable Traitor Deception Behaviors"
+L.label_tttbots_personality_evolution = "Enable Dynamic Personality Evolution"
+L.label_tttbots_crossround_memory = "Enable Cross-Round Traitor Memory"
+L.label_tttbots_semantic_animations = "Enable Contextual Semantic Animations"
+L.label_tttbots_emotional_chatter = "Enable Emotional Reaction Chatter"
 
 -- Evidence & Social Deduction help text
 L.help_tttbots_evidence_thresholds = "Controls the evidence weight thresholds that trigger different levels of bot accusations. Higher thresholds = bots accuse less readily."

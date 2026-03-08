@@ -78,6 +78,7 @@ function BotEvidence:Initialize(bot)
     bot.components.evidence = self
 
     self.componentID = string.format("Evidence (%s)", lib.GenerateID())
+    self.ThinkRate   = 3 -- Run every 3rd tick (~1.7Hz)
     self.bot         = bot ---@type Bot
 
     self:ClearRoundEvidence()
@@ -337,7 +338,7 @@ function BotEvidence:BreakTrust(target, reason)
     end
     if changed then
         local chatter = self.bot:BotChatter()
-        if chatter then
+        if chatter and chatter.On then
             chatter:On("BreakTrust", { player = target:Nick() })
         end
     end

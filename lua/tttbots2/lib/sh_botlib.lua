@@ -1392,7 +1392,7 @@ if SERVER then
         timer.Simple(math.pi, function()
             if not (bot and IsValid(bot) and bot:IsBot()) then return end
             local chatter = bot:BotChatter()
-            if not chatter then return end
+            if not chatter or not chatter.On then return end
             chatter:On("ServerConnected", { player = bot:Nick() })
         end)
     end)
@@ -1505,7 +1505,7 @@ function TTTBots.Lib.VoluntaryDisconnect(bot, reason)
     if bot.disconnecting then return true end -- already disconnecting
     bot.disconnecting = true
     local chatter = bot and bot.components and bot.components.chatter
-    if not chatter then return true end
+    if not chatter or not chatter.On then return true end
 
     chatter:On("Disconnect" .. reason, { bot = bot, name = bot:Nick() })
     timer.Simple(math.random(1, 3), function()

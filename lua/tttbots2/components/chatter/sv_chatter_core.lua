@@ -42,6 +42,7 @@ function BotChatter:Initialize(bot)
     bot.components.chatter = self
 
     self.componentID = string.format("Chatter (%s)", lib.GenerateID())
+    self.ThinkRate   = 2 -- Run every 2nd tick (~2.5Hz)
     self.tick        = 0
     self.bot         = bot
     self.rateLimitTbl = {}
@@ -112,9 +113,6 @@ function BotChatter:Say(text, teamOnly, ignoreDeath, callback)
     text = string.gsub(text, "%[BOT%] ", "")
     text = string.gsub(text, "%[bot%] ", "")
     text = self:TypoText(text)
-
-    local locomotor = self.bot.components.locomotor
-    if locomotor then locomotor:StopMoving() end
 
     timer.Simple(delay, function()
         if self.bot == NULL or not IsValid(self.bot) then return end

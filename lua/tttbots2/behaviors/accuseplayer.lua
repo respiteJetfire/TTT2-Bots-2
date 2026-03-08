@@ -54,12 +54,14 @@ local function pickBestSuspect(bot, threshold)
     local suspects = evidence:GetSuspects(threshold)
     if not suspects or #suspects == 0 then return nil end
 
-    -- Filter: only accuse players who are alive, not our ally, not ourselves
+    -- Filter: only accuse players who are alive, not our ally, not ourselves, and not a public role
     local valid = {}
     for _, s in ipairs(suspects) do
         if not (IsValid(s) and lib.IsPlayerAlive(s)) then continue end
         if s == bot then continue end
         if TTTBots.Roles.IsAllies(bot, s) and bot:GetTeam() ~= TEAM_INNOCENT then continue end
+        -- Never accuse a detective / police role — their role is publicly known
+        if TTTBots.Roles.GetRoleFor(s):GetAppearsPolice() then continue end
         table.insert(valid, s)
     end
 
@@ -173,7 +175,7 @@ function AccusePlayer.OnStart(bot)
 
     local eventName, args = buildAccusationChat(bot, suspect, state.weight)
     local chatter = bot:BotChatter()
-    if chatter then
+    if chatter and chatter.On then
         chatter:On(eventName, args, false, 0)
         -- Strong evidence: also fire the KOS pipeline
         local kosThreshold = lib.GetConVarInt("evidence_kos_threshold") or 14
@@ -206,7 +208,7 @@ function AccusePlayer.OnRunning(bot)
     if tn.confirmedInnocent[suspect] then
         -- Retract accusation
         local chatter = bot:BotChatter()
-        if chatter then
+        if chatter and chatter.On then
             chatter:On("AccuseRetract", { player = suspect:Nick() }, false, 0)
         end
         local morality = bot:BotMorality()
@@ -222,7 +224,7 @@ function AccusePlayer.OnRunning(bot)
     if newWeight > state.weight + 5 and state.weight < kosThreshold then
         state.weight = newWeight
         local chatter = bot:BotChatter()
-        if chatter and newWeight >= kosThreshold then
+        if chatter and chatter.On and newWeight >= kosThreshold then
             TTTBots.Match.CallKOS(bot, suspect)
             chatter:On("AccuseKOS", { player = suspect:Nick(), playerEnt = suspect }, false, 0)
         end
@@ -233,7 +235,7 @@ function AccusePlayer.OnRunning(bot)
         local dist = bot:GetPos():Distance(suspect:GetPos())
         if dist < 500 then
             local chatter = bot:BotChatter()
-            if chatter then
+            if chatter and chatter.On then
                 chatter:On("RequestRoleCheck", { player = suspect:Nick() }, false, 0)
             end
             state.requestedTest = true

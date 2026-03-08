@@ -56,7 +56,7 @@ function VouchForPlayer.OnStart(bot)
     if not (IsValid(target) and lib.IsPlayerAlive(target)) then return STATUS.FAILURE end
 
     local chatter = bot:BotChatter()
-    if chatter then
+    if chatter and chatter.On then
         chatter:On("VouchChat", { player = target:Nick(), playerEnt = target }, false, 0)
     end
 

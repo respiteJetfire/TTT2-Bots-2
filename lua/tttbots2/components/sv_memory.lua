@@ -150,7 +150,7 @@ function Memory:Initialize(bot)
     bot.components = bot.components or {}
     bot.components.memory = self
 
-
+    self.ThinkRate = 2 -- Run every 2nd tick (~2.5Hz)
     self.bot = bot
     self.tick = 0
     ---@type table<table>
@@ -281,7 +281,17 @@ function Memory:UpdateKnownPositionFor(ply, pos)
         -- Get the corresponding known position of the player
         local pKP = self.playerKnownPositions[ply:IsPlayer() and ply:Nick() or ply]
 
-        -- Return whether the elapsed time is greater than the forget time
+        -- If this player is our active attack target, only forget by time —
+        -- never by VisibleVec. Arriving at their last-known corner and seeing
+        -- the empty spot should NOT wipe the entry; the target likely just
+        -- ducked around the next corner, and we need to keep chasing.
+        local isAttackTarget = IsValid(ply) and (self.bot.attackTarget == ply)
+        if isAttackTarget then
+            return ts > pKP.forgetTime
+        end
+
+        -- Return whether the elapsed time is greater than the forget time,
+        -- OR we can see the remembered position (meaning the target isn't there).
         return (ts > pKP.forgetTime) or (pKP and self.bot:VisibleVec(pKP.pos))
     end
 
@@ -420,8 +430,6 @@ end
 
 function Memory:Think()
     self.tick = self.tick + 1
-    local RUNRATE = 3
-    if not (self.tick % RUNRATE == 0) then return end
 
     self:UpdateKnownPositions()
     self:UpdatePlayerLifeStates()

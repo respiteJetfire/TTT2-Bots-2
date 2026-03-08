@@ -89,7 +89,7 @@ function UseRoleChecker.OnStart(bot)
     local checker = UseRoleChecker.GetNearestChecker(bot)
     bot.targetChecker = checker
     local chatter = bot:BotChatter()
-    chatter:On("UsingRoleChecker")
+    if chatter and chatter.On then chatter:On("UsingRoleChecker") end
     return STATUS.RUNNING
 end
 

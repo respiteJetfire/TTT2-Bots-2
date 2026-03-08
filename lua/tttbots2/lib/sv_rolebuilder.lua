@@ -30,6 +30,7 @@ function TTTBots.RoleBuilder.InnocentLike(name)
     role:SetCanHide(true)
     role:SetCanSnipe(true)
     role:SetKOSUnknown(false)
+    role:SetCanCoordinateInnocent(true)
     return role
 end
 
@@ -46,6 +47,7 @@ function TTTBots.RoleBuilder.DetectiveLike(name)
     role:SetCanHaveRadar(true)
     role:SetAppearsPolice(true)
     role:SetUsesSuspicion(true)
+    role:SetCanCoordinateInnocent(true)
     return role
 end
 

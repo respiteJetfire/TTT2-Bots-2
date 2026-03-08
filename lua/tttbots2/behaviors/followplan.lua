@@ -31,7 +31,9 @@ function FollowPlan.ShouldIgnorePlans(bot)
     return false
 end
 
-function FollowPlan.GetBotJob(bot) return bot.Job end
+function FollowPlan.GetBotJob(bot)
+    return TTTBots.Behaviors.GetState(bot, "FollowPlan").Job
+end
 
 function FollowPlan.GetJobState(bot)
     local job = FollowPlan.GetBotJob(bot)
@@ -42,14 +44,15 @@ end
 ---@param bot Bot the bot to assign a job to
 ---@return boolean|table false if no job was assigned, otherwise the job
 function FollowPlan.AssignNextAvailableJob(bot)
-    bot.Job = nil
+    local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    state.Job = nil
     local job = TTTBots.PlanCoordinator.GetNextJob(true, bot)
     if not job then
         if FollowPlan.Debug then print("No jobs remaining for bot " .. bot:Nick()) end
         return false
     end
     job.State = TTTBots.Plans.BOTSTATES.IDLE
-    bot.Job = job
+    state.Job = job
     return job
 end
 
@@ -119,11 +122,11 @@ function FollowPlan.Validate(bot)
         if validate_debug then print(string.format("%s ignored plans due to round not being able to start", bot:Nick())) end
         return false
     end
-    if not TTTBots.Match.RoundActive and bot.Job then
-        bot.Job = nil
+    if not TTTBots.Match.RoundActive and FollowPlan.GetBotJob(bot) then
+        TTTBots.Behaviors.GetState(bot, "FollowPlan").Job = nil
         if validate_debug then print(string.format("%s cleared job due to round not being active", bot:Nick())) end
     end
-    if bot.Job then return true end
+    if FollowPlan.GetBotJob(bot) then return true end
     if FollowPlan.ShouldIgnorePlans(bot) then
         if validate_debug then print(string.format("%s ignored plans", bot:Nick())) end
         return false
@@ -142,13 +145,14 @@ local f = string.format
 
 --- Called when the behavior is started
 function FollowPlan.OnStart(bot)
-    if not bot.Job then
+    local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    if not state.Job then
         ErrorNoHaltWithStack("FollowPlan.OnStart called without a job assigned to the bot!")
         return STATUS.FAILURE
     end
     if FollowPlan.Debug then
         printf("FollowPlan. JOB '%s' assigned to bot %s (For plan %s)",
-            bot.Job.Action, bot:Nick(), TTTBots.Plans.GetName())
+            state.Job.Action, bot:Nick(), TTTBots.Plans.GetName())
     end
     return STATUS.RUNNING
 end
@@ -157,6 +161,7 @@ local function botChatterWhenJobStart(bot, job)
     if not lib.IsPlayerAlive(bot) then return end
     local chatter = bot.components.chatter
     if job.HasChatted then return end
+    if not chatter or not chatter.On then return end
     local tobj = job.TargetObj
     local plyName = IsValid(tobj) and tobj:IsPlayer() and tobj:Nick() or "<unresolved>"
     chatter:On(f("Plan.%s", job.Action), { target = job.TargetObj, player = plyName }, true)
@@ -201,18 +206,19 @@ local ACT_RUNNING_HASH = {
     [ACTIONS.GATHER] = function(bot, job)
         -- set the patch to the TargetObj (which is a vec3) and wander around there.
         local origin = job.TargetObj
-        bot.gatherWanderPos = bot.gatherWanderPos or origin
+        local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+        state.gatherWanderPos = state.gatherWanderPos or origin
 
         lib.CallEveryNTicks(bot, function()
-            -- bot.gatherWanderPos
+            -- state.gatherWanderPos
             local visible = lib.VisibleNavsInRange(origin, 1000)
             if #visible > 0 then
                 local randNav = table.Random(visible)
                 local randPos = randNav:GetRandomPoint()
-                bot.gatherWanderPos = randPos
+                state.gatherWanderPos = randPos
             end
         end, TTTBots.Tickrate * 4)
-        bot:BotLocomotor():SetGoal(bot.gatherWanderPos)
+        bot:BotLocomotor():SetGoal(state.gatherWanderPos)
         return STATUS.RUNNING
     end,
     [ACTIONS.IGNORE] = function(bot, job)
@@ -235,29 +241,29 @@ ACT_RUNNING_HASH[ACTIONS.ATTACK] = ACT_RUNNING_HASH[ACTIONS.ATTACKANY]
 --- Called when the behavior's last state is running
 function FollowPlan.OnRunning(bot)
     if TTTBots.Match.RoundActive == false then return STATUS.FAILURE end
-    if bot.Job == nil then return STATUS.FAILURE end
-    local status = ACT_RUNNING_HASH[bot.Job.Action](bot, bot.Job)
+    local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    if state.Job == nil then return STATUS.FAILURE end
+    local status = ACT_RUNNING_HASH[state.Job.Action](bot, state.Job)
     if status == STATUS.RUNNING then
-        botChatterWhenJobStart(bot, bot.Job)
+        botChatterWhenJobStart(bot, state.Job)
     end
-    -- printf("Running job %s for bot %s. Status is %s", bot.Job.Action, bot:Nick(), tostring(status))
+    -- printf("Running job %s for bot %s. Status is %s", state.Job.Action, bot:Nick(), tostring(status))
     return status
 end
 
 --- Called when the behavior returns a success state
 function FollowPlan.OnSuccess(bot)
-    -- print(string.format("%s completed job: %s", bot:Nick(), bot.Job))
+    -- print(string.format("%s completed job", bot:Nick()))
 end
 
 --- Called when the behavior returns a failure state
 function FollowPlan.OnFailure(bot)
-    -- print(string.format("%s failed job: %s", bot:Nick(), bot.Job))
+    -- print(string.format("%s failed job", bot:Nick()))
 end
 
 --- Called when the behavior ends
 function FollowPlan.OnEnd(bot)
-    bot.Job = nil
-    bot.gatherWanderPos = nil
+    TTTBots.Behaviors.ClearState(bot, "FollowPlan")
 end
 
 -- Hook for PlayerSay to force give ourselves a follow job if a teammate traitor says in team chat to "follow"
@@ -282,10 +288,13 @@ hook.Add("PlayerSay", "TTTBots_FollowPlan_PlayerSay", function(sender, text, tea
         MinDuration = 25,
         MaxDuration = 60
     }
-    bot.components.chatter:On("FollowRequest", { player = sender:Nick() }, true)
+    if bot.components.chatter and bot.components.chatter.On then
+        bot.components.chatter:On("FollowRequest", { player = sender:Nick() }, true)
+    end
 
-    bot.followTarget = sender
-    bot.followEndTime = CurTime() + math.random(25, 60)
-    bot.Job = newJob
+    local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    state.followTarget = sender
+    state.followEndTime = CurTime() + math.random(25, 60)
+    state.Job = newJob
     printf("Follow job assigned for %s -> %s", bot:Nick(), sender:Nick())
 end)

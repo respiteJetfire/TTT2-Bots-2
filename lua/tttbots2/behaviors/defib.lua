@@ -24,10 +24,8 @@ local function printf(...) print(string.format(...)) end
 function Defib.GetCorpse(bot, allyOnly)
     local closest, rag = TTTBots.Lib.GetClosestRevivable(bot, allyOnly, true, true, 2000)
     if not (closest and rag) then
-        closest, rag = TTTBots.Lib.GetClosestRevivable(bot, allyOnly or true, false, 1000)
-        -- if not rag then return end
-        -- local canSee = lib.CanSeeArc(bot, rag:GetPos() + Vector(0, 0, 16), 120)
-        -- if not canSee then return end
+        -- Note: don't use 'allyOnly or true' here — if allyOnly is false that expression is still true
+        closest, rag = TTTBots.Lib.GetClosestRevivable(bot, allyOnly, false, false, 1000)
     end
 
     -- local canSee = lib.CanSeeArc(bot, rag:GetPos() + Vector(0, 0, 16), 120)
@@ -156,6 +154,7 @@ end
 
 function Defib.OnStart(bot)
     local role = bot:GetSubRole()
+    bot.defibBehaviorStart = CurTime()
 
     if not (TTTBots.Match.MarkedForDefib[bot.defibTarget]) and bot.defibTarget ~= bot then
         TTTBots.Match.MarkedForDefib[bot.defibTarget] = bot
@@ -172,7 +171,9 @@ function Defib.OnStart(bot)
     end
 
     local chatter = bot:BotChatter()
-    chatter:On("RevivingPlayer", {player = bot.defibTarget:Nick()})
+    if chatter and chatter.On then
+        chatter:On("RevivingPlayer", {player = bot.defibTarget:Nick()})
+    end
 
     return STATUS.RUNNING
 end
@@ -218,11 +219,11 @@ function Defib.OnRunning(bot)
     -- end
 
     
-    -- if TTTBots.Match.MarkedForDefib[bot.defibTarget] and TTTBots.Match.MarkedForDefib[bot.defibTarget] ~= bot then
-    --     print("Defib.OnFailure: ", TTTBots.Match.MarkedForDefib[bot.defibTarget], bot)
-    --     return STATUS.FAILURE
-    -- end
-    if not (target and rag) and HasDefib then return STATUS.FAILURE end
+    -- Timeout: if we've been running for too long without success, give up
+    if bot.defibBehaviorStart and (CurTime() - bot.defibBehaviorStart) > 45 then
+        return STATUS.FAILURE
+    end
+    if not (target and rag) and not hasDefib then return STATUS.FAILURE end
     if not (IsValid(target) and IsValid(rag)) then return STATUS.FAILURE end
     local ragPos = Defib.GetSpinePos(rag)
 
@@ -288,6 +289,7 @@ function Defib.OnEnd(bot)
     end
     bot.defibTarget, bot.defibRag = nil, nil
     bot.defibStartTime = nil
+    bot.defibBehaviorStart = nil
     local inventory, loco = bot:BotInventory(), bot:BotLocomotor()
     if not (inventory and loco) then return end
     loco:ResumeAttackCompat()

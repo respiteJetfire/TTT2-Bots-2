@@ -115,6 +115,7 @@ function RequestUseRoleChecker.HandleRequest(bot, player)
     local botRole = bot:GetBaseRole()
     local botTeam = bot:GetTeam()
     local chatter = bot:BotChatter()
+    if not chatter or not chatter.On then return end
     local Morality = bot:BotMorality()
     local playerSus = Morality:GetSuspicion(player) or 0
     local botSus = Morality:GetSuspicion(bot) or 0

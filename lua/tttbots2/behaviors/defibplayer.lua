@@ -137,12 +137,14 @@ end
 
 function DefibPlayer.OnStart(bot)
     local role = bot:GetSubRole()
+    bot.defibBehaviorStart = CurTime()
     if role == ROLE_DOCTOR then
         bot.defibTarget, bot.defibRag = DefibPlayer.GetCorpse(bot, true)
     elseif role == ROLE_MEDIC then
         bot.defibTarget, bot.defibRag = DefibPlayer.GetCorpse(bot, false)
+    else
+        bot.defibTarget, bot.defibRag = DefibPlayer.GetCorpse(bot, true)
     end
-
 
     return STATUS.RUNNING
 end
@@ -174,6 +176,10 @@ function DefibPlayer.OnRunning(bot)
     local defib = DefibPlayer.GetDefibPlayer(bot)
     local target = bot.defibTarget
     local rag = bot.defibRag
+    -- Timeout: give up if running too long without completing
+    if bot.defibBehaviorStart and (CurTime() - bot.defibBehaviorStart) > 45 then
+        return STATUS.FAILURE
+    end
     if not (target and rag and defib) then return STATUS.FAILURE end
     if not (IsValid(target) and IsValid(rag) and IsValid(defib)) then return STATUS.FAILURE end
     local ragPos = DefibPlayer.GetSpinePos(rag)
@@ -222,6 +228,7 @@ end
 function DefibPlayer.OnEnd(bot)
     bot.defibTarget, bot.defibRag = nil, nil
     bot.defibStartTime = nil
+    bot.defibBehaviorStart = nil
     local inventory, loco = bot:BotInventory(), bot:BotLocomotor()
     if not (inventory and loco) then return end
 

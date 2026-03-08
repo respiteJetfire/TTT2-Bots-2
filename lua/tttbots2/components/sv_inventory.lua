@@ -26,6 +26,7 @@ function BotInventory:Initialize(bot)
     bot.components.Inventory = self
 
     self.componentID = string.format("inventory (%s)", lib.GenerateID()) -- Component ID, used for debugging
+    self.ThinkRate = 2 -- Run every 2nd tick (~2.5Hz)
 
     self.tick = 0
     self.disabled = false

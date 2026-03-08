@@ -26,6 +26,7 @@ function BotObstacleTracker:Initialize(bot)
     bot.components.obstacletracker = self
 
     self.componentID = string.format("obstacletracker (%s)", lib.GenerateID()) -- Component ID, used for debugging
+    self.ThinkRate = 3 -- Run every 3rd tick (~1.7Hz)
 
     self.tick = 0                                                              -- Tick counter
     self.bot = bot
@@ -118,9 +119,7 @@ function BotObstacleTracker:Think()
     if self.disabled then return end
     self.tick = self.tick + 1
 
-    if self.tick % 3 == 0 then
-        self.blocking = self:GetBlockingBreakable()
-    end
+    self.blocking = self:GetBlockingBreakable()
 end
 
 function BotObstacleTracker:IsPathBlocked()

@@ -94,6 +94,22 @@ local chancesOf100 = {
     TraitorCountDeduction      = 65,  -- "One traitor left, stay sharp" (innocent/detective)
     DNAMatch                   = 90,  -- DNA scanner found a match
     ScanningBody               = 40,  -- About to scan a body
+    -- -----------------------------------------------------------------------
+    -- Tier 6 — Personality & Immersion: Emotional Reactions
+    -- -----------------------------------------------------------------------
+    WitnessKill                = 85,  -- Bot witnessed a kill in front of them
+    BeingShotAt                = 60,  -- Bot is being shot at before combat kicks in
+    FindFriendBody             = 80,  -- Bot found the body of a trusted player
+    RoundStart                 = 35,  -- Bot comments at round start
+    OvertimeHaste              = 90,  -- Bot reacts to overtime/haste activating
+    LastInnocent               = 95,  -- Bot realizes they are the last innocent alive
+    TraitorVictory             = 70,  -- Traitor gloats after winning (team chat)
+    -- Deception chatter events
+    AlibiBuilding              = 40,  -- Traitor makes small talk to build alibi
+    FakeInvestigateApproach    = 75,  -- Traitor announces they'll check a body
+    FakeInvestigateReport      = 85,  -- Traitor reports fake findings from a body
+    FalseKOS                   = 80,  -- Traitor calls false KOS on an innocent
+    PlausibleIgnorance         = 80,  -- Traitor excuses presence near fresh kill
 }
 
 -- ---------------------------------------------------------------------------
@@ -458,4 +474,316 @@ timer.Create("TTTBots.Chatter.DangerZone", 8, 0, function()
         end
         break  -- only one bot warns per sweep
     end
+end)
+
+-- ===========================================================================
+-- Tier 6 — Personality & Immersion: Emotional Reaction Hooks
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- WitnessKill — bot witnesses a kill and panics
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBots.WitnessKill", "TTTBots.Chatter.WitnessKill", function(witness, killer, victim)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not (IsValid(witness) and witness:IsBot()) then return end
+    local chatter = witness:BotChatter()
+    if not chatter then return end
+
+    chatter:On("WitnessKill", {
+        killer    = IsValid(killer) and killer:Nick() or "someone",
+        killerEnt = killer,
+        victim    = IsValid(victim) and victim:Nick() or "someone",
+        victimEnt = victim,
+    }, false, 0.5)  -- slight delay so it doesn't overlap combat callout
+end)
+
+-- ---------------------------------------------------------------------------
+-- BeingShotAt — bot is taking damage before FightBack activates
+-- ---------------------------------------------------------------------------
+
+hook.Add("EntityTakeDamage", "TTTBots.Chatter.BeingShotAt", function(target, dmginfo)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not (IsValid(target) and target:IsPlayer() and target:IsBot()) then return end
+    if not TTTBots.Lib.IsPlayerAlive(target) then return end
+
+    -- Rate-limit: once every 8 seconds per bot (sufficient to prevent spam)
+    if (CurTime() - (target.lastBeingShotAtChatter or 0)) < 8 then return end
+    target.lastBeingShotAtChatter = CurTime()
+
+    local attacker = dmginfo:GetAttacker()
+    if not (IsValid(attacker) and attacker:IsPlayer()) then return end
+    if attacker == target then return end
+
+    local chatter = target:BotChatter()
+    if not chatter then return end
+
+    chatter:On("BeingShotAt", { player = attacker:Nick(), playerEnt = attacker }, false, 0)
+end)
+
+-- ---------------------------------------------------------------------------
+-- FindFriendBody — bot finds the body of a trusted player
+-- (fires from InvestigateCorpse behavior, supplemented here for human players)
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBodyFound", "TTTBots.Chatter.FindFriendBody", function(discoverer, deceased, ragdoll)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not (IsValid(discoverer) and discoverer:IsBot()) then return end
+    local chatter = discoverer:BotChatter()
+    if not chatter then return end
+
+    -- Check if the deceased was trusted (in evidence companion list)
+    local evidence = discoverer.BotEvidence and discoverer:BotEvidence()
+    local wasTrusted = false
+    if evidence then
+        local companions = evidence.travelCompanions or {}
+        for _, companion in ipairs(companions) do
+            if companion == deceased then wasTrusted = true; break end
+        end
+        if not wasTrusted then
+            -- Also check confirmed innocents list
+            local ci = evidence.confirmedInnocents or {}
+            for _, innocent in ipairs(ci) do
+                if innocent == deceased then wasTrusted = true; break end
+            end
+        end
+    end
+
+    if wasTrusted and math.random(1, 2) == 1 then
+        chatter:On("FindFriendBody", {
+            victim    = IsValid(deceased) and deceased:Nick() or "someone",
+            victimEnt = deceased,
+        }, false, 0)
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- RoundStart — bot comments at the very beginning of a round
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.RoundStart", function()
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    -- Use a short delay before sampling bots so the alive-state cache has time
+    -- to reflect the new round (TTTBeginRound can fire before :Alive() returns true).
+    timer.Simple(2, function()
+        local bots = TTTBots.Lib.GetAliveBots()
+        -- Fall back to all valid bots if the alive-cache is still empty.
+        if #bots == 0 then
+            for _, bot in ipairs(TTTBots.Bots) do
+                if IsValid(bot) and bot.components then
+                    table.insert(bots, bot)
+                end
+            end
+        end
+        if #bots == 0 then return end
+
+        -- Pick 1-2 random bots to comment
+        local speakers = math.random(1, math.min(2, #bots))
+        for i = 1, speakers do
+            local bot = bots[math.random(1, #bots)]
+            if not (IsValid(bot) and bot.components) then continue end
+            local chatter = bot:BotChatter()
+            if chatter then
+                -- Reset rate-limit for RoundStart so it always fires once per round.
+                if chatter.rateLimitTbl then
+                    chatter.rateLimitTbl["RoundStart"] = nil
+                end
+                timer.Simple(math.random(0, 3), function()
+                    if not IsValid(bot) then return end
+                    chatter:On("RoundStart", {}, false, 0)
+                end)
+            end
+        end
+    end)
+end)
+
+-- ---------------------------------------------------------------------------
+-- OvertimeHaste — bot reacts when overtime/haste activates
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTHaste", "TTTBots.Chatter.OvertimeHaste", function()
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    local bots = TTTBots.Lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    local bot = bots[math.random(1, #bots)]
+    if not (IsValid(bot) and bot.components) then return end
+    local chatter = bot:BotChatter()
+    if chatter then
+        chatter:On("OvertimeHaste", {}, false, 0)
+    end
+end)
+
+-- Also check via RoundAwareness timer in case TTTHaste doesn't fire
+timer.Create("TTTBots.Chatter.OvertimeCheck", 5, 0, function()
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TTTBots.Match.RoundActive then return end
+
+    local bots = TTTBots.Lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    local bot = bots[math.random(1, #bots)]
+    if not (IsValid(bot) and bot.components) then return end
+    local ra = bot:BotRoundAwareness()
+    if not ra then return end
+    local PHASE = TTTBots.Components.RoundAwareness.PHASE
+    if ra:GetPhase() ~= PHASE.OVERTIME then return end
+
+    -- Only fire once per overtime entry (track with flag)
+    if bot._overtimeChatFired then return end
+    bot._overtimeChatFired = true
+
+    local chatter = bot:BotChatter()
+    if chatter then chatter:On("OvertimeHaste", {}, false, 0) end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetOvertimeFlag", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then bot._overtimeChatFired = nil end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- LastInnocent — bot realizes they are the last innocent alive
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.LastInnocent", 3, 0, function()
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TTTBots.Match.RoundActive then return end
+
+    local alivePlayers = TTTBots.Match.AlivePlayers or {}
+    -- Need exactly 2 alive players to be the "last innocent" scenario
+    if #alivePlayers ~= 2 then return end
+
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and TTTBots.Lib.IsPlayerAlive(bot)) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetUsesSuspicion()) then continue end  -- must be innocent-side
+
+        -- Don't fire more than once
+        if bot._lastInnocentFired then continue end
+        bot._lastInnocentFired = true
+
+        -- Identify the other alive player as suspect
+        local suspect = nil
+        for _, ply in ipairs(alivePlayers) do
+            if ply ~= bot then suspect = ply; break end
+        end
+        if not IsValid(suspect) then continue end
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("LastInnocent", {
+                suspect    = suspect:Nick(),
+                suspectEnt = suspect,
+            }, false, 0)
+        end
+        break  -- only one bot fires this per sweep
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetLastInnocentFlag", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then bot._lastInnocentFired = nil end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- TraitorVictory — traitor gloats after winning (team chat, post-round)
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.TraitorVictory", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if result ~= TEAM_TRAITOR then return end
+
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetTeam() == TEAM_TRAITOR) then continue end
+
+        local chatter = bot:BotChatter()
+        if chatter and math.random(1, 3) == 1 then
+            timer.Simple(math.random(1, 3), function()
+                if not IsValid(bot) then return end
+                chatter:On("TraitorVictory", {}, true, 0)  -- team-only
+            end)
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- PostRoundBanter — bots react at the end of every round
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.PostRoundBanter", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TTTBots.Lib.GetConVarBool("chatter_dialogue") then return end
+
+    local allBots = TTTBots.Bots
+    if not allBots or #allBots == 0 then return end
+
+    -- Determine winning and losing teams from the round result
+    local winTeam = result  -- e.g. TEAM_INNOCENT, TEAM_TRAITOR
+
+    -- Collect winner and loser bots
+    local winners = {}
+    local losers  = {}
+    for _, bot in ipairs(allBots) do
+        if not IsValid(bot) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not role then continue end
+        if role:GetTeam() == winTeam then
+            table.insert(winners, bot)
+        else
+            table.insert(losers, bot)
+        end
+    end
+
+    if #winners == 0 and #losers == 0 then return end
+
+    -- Pick one winner and one loser (or just random bots if teams unbalanced)
+    local winner = #winners > 0 and winners[math.random(1, #winners)] or nil
+    local loser  = #losers  > 0 and losers[math.random(1, #losers)]   or nil
+
+    -- Fire a 2-line winner→loser post-round dialog with a short delay
+    timer.Simple(math.random(3, 7), function()
+        if winner and IsValid(winner) and winner.components then
+            local wChatter = winner:BotChatter()
+            if wChatter then
+                if wChatter.rateLimitTbl then
+                    wChatter.rateLimitTbl["DialogPostRoundWinner"] = nil
+                end
+                wChatter:On("DialogPostRoundWinner", {
+                    nextBot = loser and IsValid(loser) and loser:Nick() or "",
+                }, false, 0)
+            end
+        end
+
+        timer.Simple(4, function()
+            if loser and IsValid(loser) and loser.components then
+                local lChatter = loser:BotChatter()
+                if lChatter then
+                    if lChatter.rateLimitTbl then
+                        lChatter.rateLimitTbl["DialogPostRoundLoser"] = nil
+                    end
+                    lChatter:On("DialogPostRoundLoser", {
+                        lastBot = winner and IsValid(winner) and winner:Nick() or "",
+                    }, false, 0)
+                end
+            end
+
+            timer.Simple(4, function()
+                if winner and IsValid(winner) and winner.components then
+                    local wChatter = winner:BotChatter()
+                    if wChatter then
+                        if wChatter.rateLimitTbl then
+                            wChatter.rateLimitTbl["DialogPostRoundExplain"] = nil
+                        end
+                        wChatter:On("DialogPostRoundExplain", {}, false, 0)
+                    end
+                end
+            end)
+        end)
+    end)
 end)

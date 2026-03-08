@@ -33,6 +33,7 @@ function Component:Initialize(bot)
     bot.components.Base = self
     self.componentID = string.format("Base (%s)", lib.GenerateID()) -- Component ID, used for debugging
     self.bot = bot
+    self.ThinkRate = 1 -- How many ticks between Think() calls. 1 = every tick (5Hz), 2 = every 2nd tick (2.5Hz), etc.
 end
 
 --- Called every tick.

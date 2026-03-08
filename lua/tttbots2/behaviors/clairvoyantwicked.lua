@@ -90,7 +90,9 @@ function ClairvoyantWicked.OnRunning(bot)
     if not target then return STATUS.FAILURE end
     local targetName = target:Nick()
     local chatter = bot:BotChatter()
-    chatter:On("ClairvoyantReveal", {name = targetName})
+    if chatter and chatter.On then
+        chatter:On("ClairvoyantReveal", {name = targetName})
+    end
     bot.roleRevealCooldown = CurTime() + math.random(15, 60)
     return STATUS.SUCCESS
 end

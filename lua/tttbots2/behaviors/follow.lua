@@ -104,7 +104,9 @@ function Follow.OnStart(bot)
     bot.followEndTime = CurTime() + math.random(12, 24)
 
     local chatter = bot:BotChatter()
-    chatter:On("FollowStarted", { player = bot.followTarget:Nick() })
+    if chatter and chatter.On then
+        chatter:On("FollowStarted", { player = bot.followTarget:Nick() })
+    end
 
     return STATUS.RUNNING
 end

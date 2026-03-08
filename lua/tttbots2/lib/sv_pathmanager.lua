@@ -391,6 +391,7 @@ function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
     -- Coroutine
     local cpf = TTTBots.Lib.GetConVarInt("pathfinding_cpf") *
         (TTTBots.Lib.GetConVarBool("pathfinding_cpf_scaling") and (math.max(#TTTBots.Bots, 5) * 0.2) or 1)
+    local maxNodes = TTTBots.Lib.GetConVarInt("pathfinding_max_nodes")
     local cn = 0
 
     if start == goal then return false end
@@ -400,7 +401,7 @@ function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
         if (cn % cpf == 0) then
             coroutine.yield(cn)
         end
-        if cn > 600 then -- 600 is the max number of nodes that can be checked before the pathfinder gives up
+        if cn > maxNodes then -- configurable via ttt_bot_pathfinding_max_nodes
             return false
         end
         ---------------------------------- end coroutine stuff
@@ -458,11 +459,26 @@ function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
     return false
 end
 
---- Table of paths to calculate. First come, first served
+--- Table of paths to calculate. First come, first served, with optional priority ordering.
+--- Lower priority numbers are processed first (1 = highest priority).
 TTTBots.PathManager.cachedPaths = {}
 TTTBots.PathManager.queuedPaths = {}
 TTTBots.PathManager.impossiblePaths = {}
 TTTBots.PathManager.botPathCooldowns = {} -- table of bots on cooldowns, player obj as key, curtime as value
+
+--- Insert a path request into the priority queue, maintaining ascending priority order.
+--- @param entry table The path entry to insert
+local function insertQueued(entry)
+    local q = TTTBots.PathManager.queuedPaths
+    local p = entry.priority or 10
+    for i = 1, #q do
+        if (q[i].priority or 10) > p then
+            table.insert(q, i, entry)
+            return
+        end
+    end
+    table.insert(q, entry)
+end
 
 function TTTBots.PathManager.IsUnreachable(startArea, destinationArea)
     local ID = startArea:GetID() .. "to" .. destinationArea:GetID()
@@ -519,8 +535,9 @@ end
 ---@param startPos any Vector (or CNavArea if isAreas==true)
 ---@param finishPos any Vector (or CNavArea if isAreas==true)
 ---@param isAreas boolean
+---@param priority number|nil Priority for the queue (lower = higher priority, default 10). Use 1 for urgent replans.
 ---@return string pathID, boolean|PathInfo path, string status
-function TTTBots.PathManager.RequestPath(owner, startPos, finishPos, isAreas)
+function TTTBots.PathManager.RequestPath(owner, startPos, finishPos, isAreas, priority)
     if not startPos or not finishPos then
         error(
             "No startPos and/or finishPos, keep your functions safe from this error.")
@@ -548,6 +565,19 @@ function TTTBots.PathManager.RequestPath(owner, startPos, finishPos, isAreas)
 
     local pathID = startArea:GetID() .. "to" .. finishArea:GetID()
 
+    -- Region pre-check: if the two areas belong to different nav regions they are definitely
+    -- unreachable without a portal. Skip expensive A* entirely.
+    local startRegions = startArea:GetID() ~= finishArea:GetID() and navmesh.GetNavRegions and navmesh.GetNavRegions()
+    if startRegions then
+        local startReg = startArea:GetPlaceID and startArea:GetPlaceID()
+        local finishReg = finishArea:GetPlaceID and finishArea:GetPlaceID()
+        local hasPortal = #(startArea:GetPortals()) > 0 or #(finishArea:GetPortals()) > 0
+        if startReg and finishReg and startReg ~= 0 and finishReg ~= 0 and startReg ~= finishReg and not hasPortal then
+            TTTBots.PathManager.impossiblePaths[pathID] = true
+            return pathID, false, "impossible_region"
+        end
+    end
+
     local isImpossible = TTTBots.PathManager.impossiblePaths[pathID] ~= nil
     local existingPath = TTTBots.PathManager.cachedPaths[pathID]
     local queuedPath, pathNumber = getQueuedPathFor(owner)
@@ -562,23 +592,25 @@ function TTTBots.PathManager.RequestPath(owner, startPos, finishPos, isAreas)
 
     if queuedPath and queuedPath.pathID ~= pathID then
         table.remove(TTTBots.PathManager.queuedPaths, pathNumber)
-        table.insert(TTTBots.PathManager.queuedPaths, {
+        insertQueued({
             owner = owner,
             pathID = pathID,
             startArea = startArea,
             finishArea = finishArea,
             path = nil,
+            priority = priority or 10,
         })
         return pathID, true, "queue_replaced"
     end
 
     -- We can only reach this point if the path is not queued, not cached, and not impossible.
-    table.insert(TTTBots.PathManager.queuedPaths, {
+    insertQueued({
         owner = owner,
         pathID = pathID,
         startArea = startArea,
         finishArea = finishArea,
         path = nil,
+        priority = priority or 10,
     })
     return pathID, true, "queued_now"
 end
@@ -896,6 +928,33 @@ function TTTBots.PathManager.PathPostProcess(path)
                     addPointToPoints(points, closestLast, navArea, lastNavArea, nil)
                 end
                 addPointToPoints(points, navArea:GetCenter(), navArea, lastNavArea, nil)
+            end
+        end
+    end
+
+    -- Segment collision validation: trace each smoothed segment at bot-height.
+    -- If geometry blocks the direct path between two consecutive points, replace
+    -- the smoothed position with the raw navarea center so the bot can still navigate.
+    local EYE_Z = 32 -- approximate bot eye offset from floor
+    for i = 1, #points - 1 do
+        local a = points[i]
+        local b = points[i + 1]
+        -- Skip ladder segments — they are fine by definition.
+        if a.type == "ladder" or b.type == "ladder" then continue end
+
+        local from = Vector(a.pos.x, a.pos.y, a.pos.z + EYE_Z)
+        local to   = Vector(b.pos.x, b.pos.y, b.pos.z + EYE_Z)
+        local tr = util.TraceLine({
+            start  = from,
+            endpos = to,
+            mask   = MASK_SOLID_BRUSHONLY,
+        })
+
+        if tr.Hit then
+            -- Fall back to the raw navarea center for point b, which is guaranteed reachable
+            -- by the navmesh graph even if the smoothed shortcut passes through geometry.
+            if b.area and not b.area:IsLadder() then
+                b.pos = b.area:GetCenter()
             end
         end
     end

@@ -36,7 +36,7 @@ function Stalk.FindTarget(bot)
 end
 
 function Stalk.ClearTarget(bot)
-    bot.StalkTarget = nil
+    TTTBots.Behaviors.GetState(bot, "Stalk").StalkTarget = nil
 end
 
 ---Sets the target to target, or if target is nil, then it will find a new target. If you want to clear the target, then see Stalk.ClearTarget.
@@ -45,12 +45,13 @@ end
 ---@param target Player?
 ---@param isolationScore number?
 function Stalk.SetTarget(bot, target, isolationScore)
-    bot.StalkTarget = target or Stalk.FindTarget(bot)
-    bot.StalkScore = isolationScore or Stalk.RateIsolation(bot, bot.StalkTarget)
+    local state = TTTBots.Behaviors.GetState(bot, "Stalk")
+    state.StalkTarget = target or Stalk.FindTarget(bot)
+    state.StalkScore = isolationScore or Stalk.RateIsolation(bot, state.StalkTarget)
 end
 
 function Stalk.GetTarget(bot)
-    return bot.StalkTarget
+    return TTTBots.Behaviors.GetState(bot, "Stalk").StalkTarget
 end
 
 ---validate if we can attack the bot's target, or the given target if applicable.
@@ -74,7 +75,8 @@ end
 ---Since situations change quickly, we want to make sure we pick the best target for the situation when we can.
 ---@param bot Bot
 function Stalk.CheckForBetterTarget(bot)
-    local currentScore = bot.StalkScore or -math.huge
+    local state = TTTBots.Behaviors.GetState(bot, "Stalk")
+    local currentScore = state.StalkScore or -math.huge
     local alternative, altScore = Stalk.FindTarget(bot)
 
     if not alternative then return end
@@ -167,4 +169,5 @@ end
 ---@param bot Bot
 function Stalk.OnEnd(bot)
     Stalk.ClearTarget(bot)
+    TTTBots.Behaviors.ClearState(bot, "Stalk")
 end

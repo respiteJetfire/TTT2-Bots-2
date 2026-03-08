@@ -153,7 +153,9 @@ end
 function Roledefib.OnStart(bot)
     bot.roledefibTarget, bot.roledefibRag = Roledefib.GetCorpse(bot)
     local chatter = bot:BotChatter()
-    chatter:On("RoleDefibStart", { target = bot.roledefibTarget:Nick() }, true, math.random(1, 3))
+    if chatter and chatter.On then
+        chatter:On("RoleDefibStart", { target = bot.roledefibTarget:Nick() }, true, math.random(1, 3))
+    end
 
 
     return STATUS.RUNNING

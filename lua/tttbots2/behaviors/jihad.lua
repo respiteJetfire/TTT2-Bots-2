@@ -85,7 +85,9 @@ function BehaviorJihad.OnStart(bot)
     -- Equip the 'ttt_item'
     -- print("Jihad OnStart")
     local chatter = bot:BotChatter()
-    chatter:On("JihadBombWarn", {}, true)
+    if chatter and chatter.On then
+        chatter:On("JihadBombWarn", {}, true)
+    end
     return STATUS.RUNNING
 end
 
@@ -131,7 +133,7 @@ function BehaviorJihad.OnRunning(bot)
     loco:StartAttack()
     -- print("Jihad OnRunning, chance and value", chance, value)
     
-    chatter:On("JihadBombUse")
+    if chatter and chatter.On then chatter:On("JihadBombUse") end
 
     return STATUS.RUNNING
 end

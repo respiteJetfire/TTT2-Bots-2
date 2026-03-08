@@ -68,7 +68,7 @@ function ComeHere.InitiateFollow(bot, player, teamOnly)
     end
     if math.random(0, 100) > chance * 100 then
         print(bot:Nick() .. " refused to follow " .. player:Nick())
-        chatter:On("ComeHereRefuse", { target = player:Nick() }, teamOnly, math.random(1, 3))
+        if chatter and chatter.On then chatter:On("ComeHereRefuse", { target = player:Nick() }, teamOnly, math.random(1, 3)) end
         return
     end
     bot.followMeTarget = player
@@ -115,7 +115,9 @@ function ComeHere.OnStart(bot)
     print("ComeHere.OnStart: " .. bot:Nick() .. " following " .. bot.followMeTarget:Nick())
 
     local chatter = bot:BotChatter()
-    chatter:On("ComeHereStart", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    if chatter and chatter.On then
+        chatter:On("ComeHereStart", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    end
 
     return STATUS.RUNNING
 end
@@ -162,7 +164,9 @@ function ComeHere.OnEnd(bot)
     else
         local teamOnly = false
     end
-    chatter:On("ComeHereEnd", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    if chatter and chatter.On then
+        chatter:On("ComeHereEnd", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    end
     bot.followMeTarget = nil
     bot.botFollowPoint = nil
     bot:BotLocomotor():StopMoving()

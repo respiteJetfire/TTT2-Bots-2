@@ -52,7 +52,9 @@ function BehaviorDropContract.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "DropContract")
     local target = state.target or BehaviorDropContract.GetTarget(bot)
     local chatter = bot:BotChatter()
-    chatter:On("DroppingContract", {player = target:Nick()})
+    if chatter and chatter.On then
+        chatter:On("DroppingContract", {player = target:Nick()})
+    end
     return STATUS.RUNNING
 end
 
@@ -107,7 +109,7 @@ function BehaviorDropContract.OnRunning(bot)
     end
     if bot:GetTeam() ~= TEAM_PIRATE then
         local chatter = bot:BotChatter()
-        chatter:On("NewContract", {player = target:Nick()})
+        if chatter and chatter.On then chatter:On("NewContract", {player = target:Nick()}) end
         return STATUS.SUCCESS
     end
 end

@@ -89,6 +89,7 @@ end
 ---@return BStatus
 function ChatterHelp.OnRunning(bot)
     local chatter = bot:BotChatter()
+    if not chatter or not chatter.On then return STATUS.SUCCESS end
     local Morality = bot:BotMorality()
     local personality = bot:BotPersonality()
     local usesSuspicion = TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
@@ -138,13 +139,12 @@ hook.Add("PlayerHurt", "TTTBots_PlayerHurt", function(victim, attacker, healthRe
     local bot = victim
     local target = attacker
 
-    if not target:Nick() then return end
-
     if not IsValid(target) or not IsValid(bot) then return end
+    if not target:IsPlayer() then return end
 
     if healthRemaining <= 75 and IsValid(target) and target:IsPlayer() and math.random(1, 100) > 60 then
         local chatter = bot:BotChatter()
         print("Asking " .. target:Nick() .. " to cease fire.")
-        chatter:On("AskCeaseFire", { player = target:Nick() }, false, 0)
+        if chatter and chatter.On then chatter:On("AskCeaseFire", { player = target:Nick() }, false, 0) end
     end
 end)

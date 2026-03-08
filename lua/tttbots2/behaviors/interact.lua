@@ -1,5 +1,6 @@
 --- This is a more fluff-related module that make bots feel more alive.
 --- It lets them nod, shake their head, and do silly actions next to one another/humans.
+--- Enhanced with semantic animation selection (Tier 6 Personality & Immersion).
 
 
 
@@ -70,6 +71,20 @@ Interact.Animations = {
         { target = "head", minTime = 0.4,     maxTime = 6 },                  -- stop crouching for a sec
         { target = "head", action = "crouch", minTime = 0.3, maxTime = 0.4 }, -- crouch again
         { target = "head", minTime = 0.4,     maxTime = 6 },                  -- finish it off with a stare
+    },
+    -- Peek cautiously: crouch-approach gesture used near danger zones
+    CrouchPeek = {
+        { target = "head", action = "crouch", minTime = 0.5, maxTime = 0.8 },
+        { target = "head", direction = "forward", amount = 10, minTime = 0.4, maxTime = 0.6 },
+        { target = "head", action = "crouch", minTime = 0.4, maxTime = 0.6 },
+        { target = "head", minTime = 0.6, maxTime = 1.0 },
+    },
+    -- Look away: avert gaze (traitor deception)
+    LookAway = {
+        { target = "head", direction = "left",  amount = intensity, minTime = 0.5, maxTime = 0.8 },
+        { target = "head", direction = "down",  amount = intensity * 0.5, minTime = 0.4, maxTime = 0.6 },
+        { target = "head", direction = "left",  amount = intensity, minTime = 0.5, maxTime = 0.8 },
+        { target = "head", minTime = 0.8, maxTime = 1.5 },
     }
 }
 
@@ -204,6 +219,98 @@ function Interact.TestChance(_bot)
     return lib.TestPercent(Interact.BaseChancePct)
 end
 
+-- ---------------------------------------------------------------------------
+-- Semantic animation selection (Tier 6 — Personality & Immersion)
+-- ---------------------------------------------------------------------------
+
+--- Picks a contextually appropriate animation based on what's happening in the game.
+--- Falls back to random if semantic animations are disabled or no context matches.
+---@param bot Bot
+---@return table animation
+function Interact.PickSemanticAnimation(bot)
+    if not TTTBots.Lib.GetConVarBool("semantic_animations") then
+        return table.Random(Interact.Animations)
+    end
+
+    local role       = TTTBots.Roles.GetRoleFor(bot)
+    local isTraitor  = role and role:GetTeam() == TEAM_TRAITOR
+    local target     = bot.interactTarget
+
+    -- 1. Near a danger zone → CrouchPeek
+    local memory = bot:BotMemory()
+    if memory and memory:IsDangerZone(bot:GetPos()) then
+        return Interact.Animations.CrouchPeek
+    end
+
+    -- 2. Traitor doing deception chatter or near own kill → LookAway
+    if isTraitor and bot.lastKillPos then
+        local dist = bot:GetPos():Distance(bot.lastKillPos)
+        if dist < 500 and (CurTime() - (bot.lastKillTime or 0)) < 30 then
+            return Interact.Animations.LookAway
+        end
+    end
+
+    -- 3. Someone was recently KOS'd or accused — look toward the accused if nearby
+    local kosList = TTTBots.Match.KOSList
+    if kosList and IsValid(target) then
+        if kosList[target] and not table.IsEmpty(kosList[target]) then
+            -- The player we're interacting with was KOS'd — nod (agreement)
+            local evidence = bot.BotEvidence and bot:BotEvidence()
+            if evidence and evidence:EvidenceWeight(target) >= 5 then
+                return Interact.Animations.Nod
+            else
+                return Interact.Animations.Shake  -- disagree with the KOS
+            end
+        end
+    end
+
+    -- 4. Recent accusation context: nod if we agree with the accused's suspect, shake if not
+    if bot.recentAccusationTarget and IsValid(target) then
+        if bot.recentAccusationTarget == target then
+            return Interact.Animations.Nod
+        end
+    end
+
+    -- 5. Default: random (original behavior)
+    return table.Random(Interact.Animations)
+end
+
+--- Try to holster to melee/crowbar when near non-hostile players.
+--- Reverts when we leave Interact's max distance.
+---@param bot Bot
+function Interact.TryHolsterWeapon(bot)
+    if not TTTBots.Lib.GetConVarBool("semantic_animations") then return end
+    if bot.attackTarget and IsValid(bot.attackTarget) then return end  -- in combat, don't holster
+
+    -- Find melee weapon
+    local crowbar = bot:GetWeapon("weapon_crowbar")
+    if not IsValid(crowbar) then return end
+
+    local activeWep = bot:GetActiveWeapon()
+    if not IsValid(activeWep) then return end
+
+    -- Don't holster if already using crowbar
+    if activeWep:GetClass() == "weapon_crowbar" then return end
+
+    -- Record current weapon so we can restore it
+    if not bot.preHolsterWeapon then
+        bot.preHolsterWeapon = activeWep:GetClass()
+    end
+
+    bot:SelectWeapon("weapon_crowbar")
+end
+
+--- Restore the weapon we holstered when interact ends.
+---@param bot Bot
+function Interact.RestoreWeapon(bot)
+    if not bot.preHolsterWeapon then return end
+    local wep = bot:GetWeapon(bot.preHolsterWeapon)
+    if IsValid(wep) then
+        bot:SelectWeapon(bot.preHolsterWeapon)
+    end
+    bot.preHolsterWeapon = nil
+end
+
 --- Validate the behavior before we can start it (or continue running)
 --- Returning false when the behavior was just running will still call OnEnd.
 ---@param bot Bot
@@ -226,7 +333,14 @@ end
 ---@param bot Bot
 ---@return BStatus
 function Interact.OnStart(bot)
-    Interact.SetAnimation(bot, table.Random(Interact.Animations))
+    local animation = Interact.PickSemanticAnimation(bot)
+    Interact.SetAnimation(bot, animation)
+
+    -- Weapon holster: switch to melee when near friendly players (non-hostile)
+    if TTTBots.Lib.GetConVarBool("semantic_animations") then
+        Interact.TryHolsterWeapon(bot)
+    end
+
     return STATUS.RUNNING
 end
 
@@ -302,4 +416,44 @@ function Interact.OnEnd(bot)
     bot.lastInteractionTime = CurTime()
     local loco = bot:BotLocomotor()
     Interact.StopActions(loco)
+    Interact.RestoreWeapon(bot)
 end
+
+-- ---------------------------------------------------------------------------
+-- Flashlight toggle — cosmetic immersion in dark areas
+-- ---------------------------------------------------------------------------
+
+--- Returns true if the position is indoors / has no open sky above it.
+--- Uses a vertical sky-trace: if the ray reaches the skybox unobstructed the
+--- area is considered bright; if it hits solid geometry first it is dark.
+---@param pos Vector
+---@param bot Player
+---@return boolean
+local function IsDarkAt(pos, bot)
+    local traceUp = util.TraceLine({
+        start  = pos + Vector(0, 0, 16),
+        endpos = pos + Vector(0, 0, 8192),
+        filter = bot,
+        mask   = MASK_SOLID_BRUSHONLY,
+    })
+    -- Hit something solid before reaching the sky → indoors/dark.
+    return traceUp.Hit
+end
+
+timer.Create("TTTBots.Interact.Flashlight", 3, 0, function()
+    if not TTTBots.Lib.GetConVarBool("semantic_animations") then return end
+    if not TTTBots.Match.RoundActive then return end
+
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and TTTBots.Lib.IsPlayerAlive(bot)) then continue end
+
+        local isDark = IsDarkAt(bot:GetPos(), bot)
+
+        local flOn = bot:FlashlightIsOn()
+        if isDark and not flOn then
+            bot:Flashlight(true)
+        elseif not isDark and flOn then
+            bot:Flashlight(false)
+        end
+    end
+end)

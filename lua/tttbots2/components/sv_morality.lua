@@ -50,6 +50,7 @@ function BotMorality:Initialize(bot)
     bot.components.morality = self
 
     self.componentID = string.format("Morality (%s)", lib.GenerateID())
+    self.ThinkRate = 1 -- Run every tick (5Hz)
 
     self.tick = 0
     self.bot = bot ---@type Bot

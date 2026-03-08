@@ -103,7 +103,8 @@ function PlantBomb.FindPlantSpot(bot)
     end
 
     if not bestSpot then
-        bot.bombFailCounter = (bot.bombFailCounter or 0) + 1
+        local state = TTTBots.Behaviors.GetState(bot, "PlantBomb")
+        state.bombFailCounter = (state.bombFailCounter or 0) + 1
     end
 
     return bestSpot
@@ -119,13 +120,15 @@ function PlantBomb.OnStart(bot)
     local inventory = bot:BotInventory()
     inventory:PauseAutoSwitch()
 
-    bot.bombPlantSpot = spot
+    local state = TTTBots.Behaviors.GetState(bot, "PlantBomb")
+    state.bombPlantSpot = spot
     return STATUS.RUNNING
 end
 
 --- Called when the behavior's last state is running
 function PlantBomb.OnRunning(bot)
-    local spot = bot.bombPlantSpot
+    local state = TTTBots.Behaviors.GetState(bot, "PlantBomb")
+    local spot = state.bombPlantSpot
     if not spot then return STATUS.FAILURE end
 
     local distToSpot = bot:GetPos():Distance(spot)
@@ -134,7 +137,7 @@ function PlantBomb.OnRunning(bot)
 
     if locomotor.status == locomotor.PATH_STATUSES.IMPOSSIBLE then
         penalizedBombSpots[spot] = (penalizedBombSpots[spot] or 0) + 3
-        bot.bombFailCounter = (bot.bombFailCounter or 0) +
+        state.bombFailCounter = (state.bombFailCounter or 0) +
             2 -- Increment by 2 specifically to prevent the bot from trying to plant indefinitely.
         return STATUS.FAILURE
     end
@@ -147,9 +150,9 @@ function PlantBomb.OnRunning(bot)
     local currentTime = CurTime()
 
     if #witnesses > 0 then
-        bot.lastWitnessTime = currentTime
+        state.lastWitnessTime = currentTime
         return STATUS.RUNNING
-    elseif bot.lastWitnessTime and currentTime - bot.lastWitnessTime <= 3 then
+    elseif state.lastWitnessTime and currentTime - state.lastWitnessTime <= 3 then
         return STATUS.RUNNING
     end
 
@@ -185,7 +188,7 @@ function PlantBomb.ArmNearbyBomb(bot)
     if closestBomb and closestDist < PlantBomb.PLANT_RANGE then
         closestBomb:Arm(bot, 45)
         local chatter = bot:BotChatter()
-        chatter:On("BombArmed", {}, true)
+        if chatter and chatter.On then chatter:On("BombArmed", {}, true) end
         return true
     end
 
@@ -194,19 +197,20 @@ end
 
 --- Called when the behavior ends
 function PlantBomb.OnEnd(bot)
-    bot.bombPlantSpot = nil
     local locomotor = bot:BotLocomotor()
     local inventory = bot:BotInventory()
     inventory:ResumeAutoSwitch()
     locomotor:StopAttack()
     PlantBomb.ArmNearbyBomb(bot)
+    TTTBots.Behaviors.ClearState(bot, "PlantBomb")
 end
 
--- This part of the code is referencing preevnting a bot trying to plant indefinitely (and thus failing)
+-- This part of the code is referencing preventing a bot trying to plant indefinitely (and thus failing)
 -- Specifically, we decrement the 'bomb fail' counter on each bot once per 20 seconds as to not break the behavior.
 timer.Create("TTTBots.Behavior.PlantBomb.PreventInfinitePlants", 20, 0, function()
     for _, bot in pairs(TTTBots.Bots) do
         if not (IsValid(bot) and bot ~= NULL and bot.components) then continue end
-        bot.bombFailCounter = math.max(bot.bombFailCounter or 0, 0) - 1
+        local state = TTTBots.Behaviors.GetState(bot, "PlantBomb")
+        state.bombFailCounter = math.max(state.bombFailCounter or 0, 0) - 1
     end
 end)

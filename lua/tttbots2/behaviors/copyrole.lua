@@ -37,7 +37,9 @@ end
 function CopyRole.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "CopyRole")
     local chatter = bot:BotChatter()
-    chatter:On("CopyingRole", {player = state.target:Nick()})
+    if chatter and chatter.On then
+        chatter:On("CopyingRole", {player = state.target:Nick()})
+    end
     return STATUS.RUNNING
 end
 

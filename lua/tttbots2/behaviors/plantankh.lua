@@ -76,7 +76,7 @@ end
 --- Called when the behavior returns a success state
 function PlantAnkh.OnSuccess(bot)
     local chatter = bot:BotChatter()
-    chatter:On("PlacedAnkh")
+    if chatter and chatter.On then chatter:On("PlacedAnkh") end
 end
 
 --- Called when the behavior returns a failure state

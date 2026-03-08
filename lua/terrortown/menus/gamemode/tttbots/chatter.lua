@@ -90,11 +90,4 @@ function CLGAMEMODESUBMENU:Populate(parent)
         decimal = 1,
     })
 
-    form3:MakeSlider({
-        serverConvar = "ttt_bot_chatter_gpt_chance",
-        label = "label_tttbots_chatter_gpt_chance",
-        min = 0,
-        max = 5,
-        decimal = 1,
-    })
 end

@@ -49,7 +49,9 @@ end
 function SwapRole.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
     local chatter = bot:BotChatter()
-    chatter:On("SwappingRole", {player = state.target:Nick()})
+    if chatter and chatter.On then
+        chatter:On("SwappingRole", {player = state.target:Nick()})
+    end
     timer.Simple(1, function()
         return STATUS.RUNNING
     end)

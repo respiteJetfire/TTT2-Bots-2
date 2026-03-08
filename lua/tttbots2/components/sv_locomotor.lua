@@ -54,6 +54,7 @@ function BotLocomotor:Initialize(bot)
     bot.components.locomotor = self
 
     self.componentID = string.format("locomotor (%s)", lib.GenerateID()) -- Component ID, used for debugging
+    self.ThinkRate = 1 -- Run every tick (5Hz)
 
     self.tick = 0                                                        -- Tick counter
     self.bot = bot
@@ -1152,11 +1153,27 @@ function BotLocomotor:UpdatePathRequest()
             print(self.bot:Nick() .. " path is too far")
         end
     elseif hasPath and pathLength > 0 and endIsGoal then
-        return STAT.PATHINGCURRENTLY
+        -- Replan trigger: if the cached path's final waypoint has drifted >200 units from
+        -- the current goal (e.g. a moving target), discard the path and re-request at high priority.
+        local lastNode = pathRequest.pathInfo.processedPath and pathRequest.pathInfo.processedPath[#pathRequest.pathInfo.processedPath]
+        local lastPos  = lastNode and lastNode.pos
+        local replanCooldown = self.replanCooldown or 0
+        if lastPos and lastPos:Distance(goalPos) > 200 and CurTime() > replanCooldown then
+            self.pathRequest = nil
+            self.pathRequestWaiting = false
+            self.replanCooldown = CurTime() + 2 -- 2-second debounce to avoid thrashing
+            if lib.GetConVarBool("debug_pathfinding") then
+                print(self.bot:Nick() .. " replanning: goal drifted " .. math.Round(lastPos:Distance(goalPos)) .. " units")
+            end
+            -- Fall through to request a new path with elevated priority
+        else
+            return STAT.PATHINGCURRENTLY
+        end
     end
 
-    -- If we don't have a path, request one
-    local pathid, pathInfo, status = TTTBots.PathManager.RequestPath(self.bot, self.bot:GetPos(), goalPos, false)
+    -- If we don't have a path, request one. Use priority 1 (urgent) when we just invalidated a stale path.
+    local reqPriority = (self.replanCooldown and self.replanCooldown > CurTime()) and 1 or 10
+    local pathid, pathInfo, status = TTTBots.PathManager.RequestPath(self.bot, self.bot:GetPos(), goalPos, false, reqPriority)
 
     if not pathInfo then -- path is impossible
         self.cantReachGoal = true
@@ -1759,12 +1776,17 @@ function BotLocomotor:StartCommand(cmd) -- aka StartCmd
     )
     cmd:SetForwardMove(forwardDir)
 
-    --- 🚪 MANAGE BOT DOOR HANDLING
-    if self:GetUsing() and self:TestDoorTimer() then
-        if DVLPR_PATHFINDING then
-            TTTBots.DebugServer.DrawText(MYPOS, "Opening door", Color(255, 255, 255))
+    --- 🚪 MANAGE BOT DOOR HANDLING + USE KEY
+    if self:GetUsing() then
+        -- Always emit IN_USE so weapon pickups, buttons, etc. work.
+        cmd:SetButtons(cmd:GetButtons() + IN_USE)
+        -- Additionally handle door toggling (rate-limited separately).
+        if self:TestDoorTimer() then
+            if DVLPR_PATHFINDING then
+                TTTBots.DebugServer.DrawText(MYPOS, "Opening door", Color(255, 255, 255))
+            end
+            self:TryToggleDoor(cmd)
         end
-        self:TryToggleDoor(cmd)
     end
 
     --- 🔫 MANAGE ATTACKING OF THE BOT

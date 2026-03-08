@@ -75,7 +75,7 @@ function BehaviorCeaseFire.HandleRequest(bot, player, teamOnly)
     end
     if math.random() > chance * 100 then
         print(bot:Nick() .. " refused to cease fire for " .. player:Nick())
-        chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4))
+        if chatter and chatter.On then chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4)) end
         return
     end
     bot.ceaseFire = true

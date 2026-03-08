@@ -96,7 +96,7 @@ function TTTBots.Buyables.PurchaseBuyablesFor(bot)
         if option.OnBuy then option.OnBuy(bot) end
         if option.ShouldAnnounce then
             local chatter = bot:BotChatter()
-            if not chatter then continue end
+            if not chatter or not chatter.On then continue end
             chatter:On("Buy" .. option.Name, {}, option.AnnounceTeam or false)
         end
     end
@@ -129,7 +129,7 @@ function TTTBots.Buyables.TryDeferredBuy(bot, eventType)
         if option.OnBuy then option.OnBuy(bot) end
         if option.ShouldAnnounce then
             local chatter = bot:BotChatter()
-            if chatter then
+            if chatter and chatter.On then
                 chatter:On("Buy" .. option.Name, {}, option.AnnounceTeam or false)
             end
         end

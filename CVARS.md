@@ -245,6 +245,9 @@
 - **ttt_bot_pathfinding_cpf_scaling** (default: `0`)
   - Should we dynamically multiply the pathfinding calculations per frame by the number of bots?
 
+- **ttt_bot_pathfinding_max_nodes** (default: `600`)
+  - Maximum number of A* nodes the pathfinder will explore before giving up on a path. Higher values allow paths through complex maps at the cost of more CPU time per frame.
+
 - **ttt_bot_rdm** (default: `0`)
   - Enables RDM (random deathmatch).
 

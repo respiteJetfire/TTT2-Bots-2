@@ -7,6 +7,9 @@ TTTBots.STATUS = {
     FAILURE = 3,
 }
 
+-- Load meta files first so factories are available to individual behavior files
+include("tttbots2/behaviors/meta_base.lua")
+include("tttbots2/behaviors/meta_roleweapon.lua")
 TTTBots.Lib.IncludeDirectory("tttbots2/behaviors")
 
 ---@alias Tree table<BBase|Tree>
@@ -102,6 +105,13 @@ TTTBots.Behaviors.PriorityNodes = {
     DNAScanner = {
         _bh.UseDNAScanner,
     },
+    --- Traitor deception behaviors (alibi building, fake investigation, false KOS, excuses)
+    Deception = {
+        _bh.AlibiBuilding,
+        _bh.FakeInvestigate,
+        _bh.FalseKOS,
+        _bh.PlausibleIgnorance,
+    },
     Requests = {
         _bh.CeaseFire,
         _bh.Wait,
@@ -123,6 +133,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.SelfDefense,
         _prior.Grenades,
         _prior.Accuse,
+        _bh.FollowInnocentPlan,
         _prior.Support,
         _bh.Defuse,
         _prior.Restore,
@@ -148,6 +159,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _bh.InvestigateCorpse,
         _prior.Restore,
         _bh.FollowPlan,
+        _prior.Deception,
         _bh.Interact,
         _prior.Minge,
         _prior.Investigate,
@@ -159,6 +171,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.SelfDefense,
         _prior.Grenades,
         _prior.Accuse,
+        _bh.FollowInnocentPlan,
         _prior.Requests,
         _prior.Support,
         _prior.DNAScanner,

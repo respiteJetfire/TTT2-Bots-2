@@ -192,6 +192,8 @@ bot_sh_cvar("pathfinding_cpf", "240",
     "Don't change this unless you know what you are doing. How many pathfinding calculations to do per frame. Higher values = more CPU usage, but faster pathfinding.")
 bot_sh_cvar("pathfinding_cpf_scaling", "0",
     "Don't change this unless you know what you are doing. Should we dynamically multiply the pathfinding calculations per frame by the number of bots? (e.g. 50 cpf * 2 bots = 100 cpf)")
+bot_sh_cvar("pathfinding_max_nodes", "600",
+    "Maximum number of A* nodes the pathfinder will explore before giving up on a path. Higher values allow finding paths through complex maps at the cost of more CPU time per frame.")
 bot_sh_cvar("rdm", "0",
     "Enables RDM (random deathmatch). This isn't advised for most situations, but can offer some extra variety should you want it.")
 bot_sh_cvar("kos_enemies", "0",
@@ -271,3 +273,15 @@ bot_sh_cvar("evidence_companion_min_time", "20",
     "Seconds a bot must have traveled with another player before they can provide an alibi vouch.")
 bot_sh_cvar("evidence_trust_decay_time", "120",
     "Seconds before a player vouch entry expires if not refreshed.")
+
+-- Tier 6 — Personality & Immersion cvars
+bot_sh_cvar("deception_enabled", "1",
+    "Enables Tier 6 traitor deception behaviors: alibi building, fake investigating, false KOS calls, and plausible ignorance excuses.")
+bot_sh_cvar("personality_evolution", "1",
+    "Enables dynamic personality evolution: mood shifts from pressure and deaths, social accusation feedback, and confidence modulating aggression.")
+bot_sh_cvar("crossround_memory", "0",
+    "Enables cross-round traitor memory. Bots will remember who was a traitor in previous rounds, simulating metagame knowledge. Disabled by default.")
+bot_sh_cvar("semantic_animations", "1",
+    "Enables contextual semantic animations during interactions: CrouchPeek near danger, LookAway near kill zones, weapon holstering, and flashlight management.")
+bot_sh_cvar("emotional_chatter", "1",
+    "Enables emotional reaction chatter events: witness-kill panic, being shot at protests, friend-body grief, round-start comments, overtime haste, last-innocent dread, and traitor-victory gloating.")

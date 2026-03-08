@@ -14,7 +14,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form:MakeSlider({
-        serverConvar = "evidence_kos_threshold",
+        serverConvar = "ttt_bot_evidence_kos_threshold",
         label = "label_evidence_kos_threshold",
         min = 5,
         max = 25,
@@ -22,7 +22,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form:MakeSlider({
-        serverConvar = "evidence_accuse_threshold",
+        serverConvar = "ttt_bot_evidence_accuse_threshold",
         label = "label_evidence_accuse_threshold",
         min = 2,
         max = 15,
@@ -30,7 +30,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form:MakeSlider({
-        serverConvar = "evidence_soft_threshold",
+        serverConvar = "ttt_bot_evidence_soft_threshold",
         label = "label_evidence_soft_threshold",
         min = 1,
         max = 10,
@@ -45,7 +45,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form2:MakeSlider({
-        serverConvar = "evidence_decay_time",
+        serverConvar = "ttt_bot_evidence_decay_time",
         label = "label_evidence_decay_time",
         min = 30,
         max = 300,
@@ -53,7 +53,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form2:MakeSlider({
-        serverConvar = "evidence_prune_time",
+        serverConvar = "ttt_bot_evidence_prune_time",
         label = "label_evidence_prune_time",
         min = 60,
         max = 600,
@@ -61,7 +61,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form2:MakeSlider({
-        serverConvar = "evidence_accuse_cooldown",
+        serverConvar = "ttt_bot_evidence_accuse_cooldown",
         label = "label_evidence_accuse_cooldown",
         min = 10,
         max = 180,
@@ -76,7 +76,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form3:MakeSlider({
-        serverConvar = "evidence_companion_min_time",
+        serverConvar = "ttt_bot_evidence_companion_min_time",
         label = "label_evidence_companion_min_time",
         min = 5,
         max = 60,
@@ -84,7 +84,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
     })
 
     form3:MakeSlider({
-        serverConvar = "evidence_trust_decay_time",
+        serverConvar = "ttt_bot_evidence_trust_decay_time",
         label = "label_evidence_trust_decay_time",
         min = 30,
         max = 300,

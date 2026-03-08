@@ -164,21 +164,26 @@ function LootNearby.OnRunning(bot)
         return STATUS.RUNNING
     end
 
-    -- Close enough — hold +use for PICKUP_USE_TICKS ticks so the engine registers the pickup.
+    -- Close enough — pick up the weapon directly server-side (most reliable method).
+    -- Also hold IN_USE as a belt-and-suspenders for any TTT2 pickup hooks.
     loco:StopMoving()
-    loco:SetUse(true)
     loco:LookAt(target:GetPos())
-    bot.lootUseTicks = (bot.lootUseTicks or 0) + 1
+    loco:SetUse(true)
 
-    if bot.lootUseTicks >= PICKUP_USE_TICKS then
-        -- Record this attempt whether it succeeded or not, to prevent an immediate re-try
-        -- in case the weapon was not actually picked up (e.g. inventory full, engine quirk).
-        bot.lootAttempted = bot.lootAttempted or {}
-        bot.lootAttempted[target] = CurTime()
-        return STATUS.SUCCESS
+    -- Direct server-side give: the canonical reliable pickup path in GMod.
+    local class = target:GetClass()
+    if IsValid(target) and class ~= "" then
+        local given = bot:Give(class)
+        if IsValid(given) then
+            -- Successfully given; remove the world entity to avoid a duplicate.
+            target:Remove()
+        end
     end
 
-    return STATUS.RUNNING
+    -- Record attempt and finish regardless of Give result.
+    bot.lootAttempted = bot.lootAttempted or {}
+    bot.lootAttempted[target] = CurTime()
+    return STATUS.SUCCESS
 end
 
 function LootNearby.OnSuccess(bot)

@@ -171,6 +171,71 @@ function Dialog.NewFromRandom()
     return Dialog.New(template.name, participants)
 end
 
+-- ---------------------------------------------------------------------------
+-- Context-weighted template selection (Tier 6 — Personality & Immersion)
+-- ---------------------------------------------------------------------------
+
+--- Returns the current dialog context string based on round state.
+--- Used to weight which template is most appropriate right now.
+---@return string context
+function Dialog.GetCurrentContext()
+    if not TTTBots.Match.RoundActive then
+        return "postround"
+    end
+
+    -- Check standoff conditions (LATE/OVERTIME with ≤3 alive)
+    local alivePlayers = TTTBots.Match.AlivePlayers or {}
+    if #alivePlayers <= 3 then
+        local ra = TTTBots.Bots[1] and TTTBots.Bots[1]:BotRoundAwareness()
+        if ra then
+            local PHASE = TTTBots.Components.RoundAwareness.PHASE
+            local phase = ra:GetPhase()
+            if phase == PHASE.LATE or phase == PHASE.OVERTIME then
+                return "standoff"
+            end
+        end
+    end
+
+    -- Check if there are recent unprocessed corpses (body found in last 30s)
+    local corpsesExist = TTTBots.Match.Corpses and #TTTBots.Match.Corpses > 0
+    if corpsesExist then
+        return "corpse"
+    end
+
+    -- Check if anyone has been accused recently
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) and bot.accusedBy and IsValid(bot.accusedBy) then
+            if (CurTime() - (bot.accusedTime or 0)) < 45 then
+                return "accusation"
+            end
+        end
+    end
+
+    return "generic"
+end
+
+--- Selects a dialog template weighted toward the current context.
+--- Context-matching templates get 3× weight; generic templates get 1× weight.
+---@return Dialog|false dialog
+function Dialog.NewFromContext()
+    local context = Dialog.GetCurrentContext()
+
+    local weighted = {}
+    for name, template in pairs(Dialog.Templates) do
+        local tContext = template.context or "generic"
+        local weight   = (tContext == context) and 3 or 1
+        for _ = 1, weight do
+            table.insert(weighted, template)
+        end
+    end
+
+    if #weighted == 0 then return false end
+    local chosen     = weighted[math.random(1, #weighted)]
+    local participants = Dialog.SelectParticipants(chosen)
+    if not participants then return false end
+    return Dialog.New(chosen.name, participants)
+end
+
 include("tttbots2/data/sv_dialogtemplates.lua")
 
 local currentDialog = nil ---@type Dialog|nil
@@ -179,7 +244,7 @@ timer.Create("TTTBots.Dialog.StartRandomDialogs", 60, 0, function()
     if (currentDialog and not Dialog.VerifyLifeStates(currentDialog)) then currentDialog = nil end
     -- if (currentDialog) then PrintTable(currentDialog) end
     if (currentDialog and not currentDialog.isFinished) then return end
-    local dialog = Dialog.NewFromRandom()
+    local dialog = Dialog.NewFromContext()  -- context-weighted selection
     if not dialog then return end
     -- print("--- NEW ---")
     -- PrintTable(dialog)

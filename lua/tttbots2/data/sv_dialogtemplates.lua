@@ -81,3 +81,75 @@ Dialog.NewTemplate(
     },
     false
 )
+
+-- ===========================================================================
+-- Tier 6 — Personality & Immersion: New dialog templates
+-- ===========================================================================
+
+-- "The Investigation" — 3 bots discuss a recent death and suspects
+Dialog.NewTemplate(
+    "TheInvestigation",
+    3,
+    {
+        Dialog.NewLine("InvestigationAsk",     1),
+        Dialog.NewLine("InvestigationWitness", 2),
+        Dialog.NewLine("InvestigationSuspect", 3),
+        Dialog.NewLine("InvestigationChallenge", 1),
+    },
+    false
+)
+Dialog.Templates["TheInvestigation"].context = "corpse"  -- prefer after a body is found
+
+-- "The Accusation" — 2 bots call and challenge a KOS
+Dialog.NewTemplate(
+    "TheAccusation",
+    2,
+    {
+        Dialog.NewLine("AccusationClaim",       1),
+        Dialog.NewLine("AccusationChallenge",   2),
+        Dialog.NewLine("AccusationEvidence",    1),
+        Dialog.NewLine("AccusationVerdict",     2),
+    },
+    false
+)
+Dialog.Templates["TheAccusation"].context = "accusation"
+
+-- "The Defense" — 2 bots: accused defends themselves
+Dialog.NewTemplate(
+    "TheDefense",
+    2,
+    {
+        Dialog.NewLine("DefenseProtest",   1),
+        Dialog.NewLine("DefenseConfront",  2),
+        Dialog.NewLine("DefenseDeny",      1),
+    },
+    false
+)
+Dialog.Templates["TheDefense"].context = "accusation"
+
+-- "The Standoff" — 2 bots, late game only (gated externally in sv_dialog.lua)
+Dialog.NewTemplate(
+    "TheStandoff",
+    2,
+    {
+        Dialog.NewLine("StandoffObserve",  1),
+        Dialog.NewLine("StandoffDeny",     2),
+        Dialog.NewLine("StandoffDrop",     1),
+        Dialog.NewLine("StandoffCounter",  2),
+    },
+    false
+)
+Dialog.Templates["TheStandoff"].context = "standoff"  -- only fires in LATE/OVERTIME with ≤3 alive
+
+-- "Post-Round Banter" — 2-4 bots celebrating or lamenting, only when dead
+Dialog.NewTemplate(
+    "PostRoundBanter",
+    2,
+    {
+        Dialog.NewLine("PostRoundWinner",   1),
+        Dialog.NewLine("PostRoundLoser",    2),
+        Dialog.NewLine("PostRoundExplain",  1),
+    },
+    true  -- onlyWhenDead = true
+)
+Dialog.Templates["PostRoundBanter"].context = "postround"

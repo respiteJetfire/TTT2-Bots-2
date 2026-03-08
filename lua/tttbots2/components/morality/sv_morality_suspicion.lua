@@ -151,7 +151,7 @@ function BotMorality:AnnounceIfThreshold(target)
 
     local sus = self:GetSuspicion(target)
     local chatter = self.bot:BotChatter()
-    if not chatter then return end
+    if not chatter or not chatter.On then return end
     local KOSThresh = self.Thresholds.KOS
     local SusThresh = self.Thresholds.Sus
     local TrustThresh = self.Thresholds.Trust
@@ -205,7 +205,7 @@ function BotMorality:GuessRole(target)
     if self.roleGuesses[target] and self.roleGuesses[target]:GetTeam() ~= TEAM_INNOCENT then
         if math.random(1, 100) > 25 then
             local chatter = self.bot:BotChatter()
-            if chatter then
+            if chatter and chatter.On then
                 chatter:On("RoleGuess", { player = target:Nick(), playerEnt = target, role = self.roleGuesses[target]:GetName() })
             end
         end
@@ -345,7 +345,7 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
     end
 
     local chatter = self.bot:BotChatter()
-    if not chatter then return end
+    if not chatter or not chatter.On then return end
     if TTTBots.Roles.IsAllies(self.bot, attacker) and self.bot:GetTeam() ~= TEAM_INNOCENT then return end
     -- Use the richer WitnessCallout event; fall back to Kill for backwards compat
     local weaponName = (weapon and IsValid(weapon) and weapon.GetPrintName) and weapon:GetPrintName() or nil
@@ -480,6 +480,12 @@ hook.Add("PlayerDeath", "TTTBots.Components.Morality.PlayerDeath", function(vict
     local timestamp = CurTime()
     if attacker:IsBot() then
         attacker.lastKillTime = timestamp
+        -- Track self-defense kills for innocent-side bots so InvestigateCorpse can
+        -- confirm the body without the normal post-kill suppression delay.
+        if attacker:GetTeam() == TEAM_INNOCENT then
+            attacker.selfDefenseKills = attacker.selfDefenseKills or {}
+            attacker.selfDefenseKills[victim] = timestamp
+        end
     end
     if victim:IsBot() then
         victim.components.morality:OnKilled(attacker)
@@ -633,11 +639,11 @@ timer.Create("TTTBots.Components.Morality.DisguisedPlayerDetection", 1, 0, funct
                 if not IsValid(bot) then continue end
                 if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then continue end
                 local chatter = bot:BotChatter()
-                if not chatter then continue end
+                if not chatter or not chatter.On then continue end
                 if bot.attackTarget == nil then
                     Arb.RequestAttackTarget(bot, ply, "DISGUISED_PLAYER", PRI.ROLE_HOSTILITY)
                 end
-                bot:BotChatter():On("DisguisedPlayer")
+                chatter:On("DisguisedPlayer")
             end
         end
     end

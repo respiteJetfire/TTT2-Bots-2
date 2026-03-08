@@ -104,7 +104,9 @@ function Oracle.OnRunning(bot)
     local teamString = team.GetName and team:GetName() or tostring(team)
     teamString = teamString:lower():gsub("^team_", "")
     local chatter = bot:BotChatter()
-    chatter:On("OracleReveal", {name1 = target1:Nick(), name2 = target2:Nick(), team = teamString})
+    if chatter and chatter.On then
+        chatter:On("OracleReveal", {name1 = target1:Nick(), name2 = target2:Nick(), team = teamString})
+    end
     -- print("Oracle.OnStart revealed", target1:Nick(), target2:Nick(), "are on team", teamString)
     bot.roleRevealCooldown = CurTime() + math.random(20, 35)
     -- print("Oracle.OnRunning", bot.roleRevealCooldown)

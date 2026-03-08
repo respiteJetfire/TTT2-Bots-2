@@ -97,6 +97,14 @@ end
 function DefendSelf.Validate(bot)
     if not lib.IsPlayerAlive(bot) then return false end
 
+    -- Don't re-enter immediately after the behavior just ended (prevents tight re-trigger loops).
+    if (bot.defendSelfCooldown or 0) > CurTime() then return false end
+
+    -- Public/police roles (detective etc.) are known to all — accusations against them
+    -- are always baseless, so DefendSelf is unnecessary and just creates loops.
+    local role = TTTBots.Roles.GetRoleFor(bot)
+    if role and role:GetAppearsPolice() then return false end
+
     local isKosed, kosCaller = isKOSed(bot)
     local isAcced, accCaller = isAccused(bot)
 
@@ -105,11 +113,17 @@ function DefendSelf.Validate(bot)
     -- If we're already in active combat, FightBack takes priority; skip
     if bot.attackTarget and IsValid(bot.attackTarget) then return false end
 
-    local state   = TTTBots.Behaviors.GetState(bot, "DefendSelf")
-    state.accuser = kosCaller or accCaller
-    state.isKOS   = isKosed
-    state.phase   = "respond"
-    state.startTime = state.startTime or CurTime()
+    -- Only seed the state when there is no active run yet.
+    -- Do NOT overwrite state.phase/state.accuser here — Validate is called every
+    -- tick while the behavior is running, and overwriting would reset the phase
+    -- that OnStart/OnRunning have already progressed to.
+    local state = TTTBots.Behaviors.GetState(bot, "DefendSelf")
+    if not state.running then
+        state.accuser   = kosCaller or accCaller
+        state.isKOS     = isKosed
+        state.phase     = "respond"
+        state.startTime = CurTime()
+    end
 
     return true
 end
@@ -118,7 +132,12 @@ function DefendSelf.OnStart(bot)
     local state   = TTTBots.Behaviors.GetState(bot, "DefendSelf")
     local accuser = state.accuser
     local chatter = bot:BotChatter()
-    if not chatter then return STATUS.FAILURE end
+
+    -- Mark the behavior as actively running so Validate stops re-seeding state.
+    state.running   = true
+    state.startTime = CurTime()
+
+    if not (chatter and chatter.On) then return STATUS.RUNNING end
 
     local personality = bot:BotPersonality()
     local archetype   = personality and personality:GetClosestArchetype() or "Default"
@@ -195,7 +214,7 @@ function DefendSelf.OnRunning(bot)
             -- If no one believes us after a few seconds, counter-accuse
             if (CurTime() - state.startTime) > 5 then
                 local counter = pickCounterSuspect(bot, accuser)
-                if counter and chatter then
+                if counter and chatter and chatter.On then
                     chatter:On("DefendCounterAccuse", {
                         player    = accuser and accuser:Nick() or "them",
                         counter   = counter:Nick(),
@@ -207,7 +226,9 @@ function DefendSelf.OnRunning(bot)
         elseif state.phase == "alibi" and not state.escalated then
             -- Appeal to group
             if (CurTime() - state.startTime) > 5 then
-                chatter:On("DefendAppealGroup", {}, false, 0)
+                if chatter and chatter.On then
+                    chatter:On("DefendAppealGroup", {}, false, 0)
+                end
                 state.escalated = true
             end
         end
@@ -244,7 +265,7 @@ function DefendSelf.OnRunning(bot)
                             weight  = 4,
                         })
                     end
-                    if chatter then
+                    if chatter and chatter.On then
                         chatter:On("DefendFrameOther", {
                             player    = counter:Nick(),
                             playerEnt = counter,
@@ -261,7 +282,7 @@ function DefendSelf.OnRunning(bot)
             local dist      = bot:GetPos():Distance(accuser:GetPos())
             if isolation > 0.7 and dist < 400 then
                 Arb.RequestAttackTarget(bot, accuser, "SILENCE_WITNESS", Arb.PRIORITY.SELF_DEFENSE)
-                if chatter then
+                if chatter and chatter.On then
                     chatter:On("DefendAssassinate", { player = accuser:Nick() }, bot:GetTeam() ~= TEAM_INNOCENT, 0)
                 end
                 return STATUS.SUCCESS
@@ -291,6 +312,11 @@ end
 
 function DefendSelf.OnEnd(bot)
     TTTBots.Behaviors.ClearState(bot, "DefendSelf")
+    -- Clear accusation state and impose a short cooldown so Validate can't re-trigger
+    -- on the very next tick (accusedBy/accusedTime persist for 45s otherwise).
+    bot.accusedBy        = nil
+    bot.accusedTime      = nil
+    bot.defendSelfCooldown = CurTime() + 15
 end
 
 -- ===========================================================================

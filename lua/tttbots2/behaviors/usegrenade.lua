@@ -242,7 +242,7 @@ function UseGrenade.OnRunning(bot)
 
 		-- Fire chatter event (no-op if the event doesn't exist yet).
 		local chatter = bot:BotChatter()
-		if chatter then
+		if chatter and chatter.On then
 			chatter:On("ThrowGrenade", {}, false)
 		end
 

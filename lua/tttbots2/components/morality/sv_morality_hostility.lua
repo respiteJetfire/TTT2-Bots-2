@@ -223,7 +223,7 @@ local function personalSpace(bot)
 
         if (bot.personalSpaceTbl[other] or 0) >= PS_INTERVAL then
             bot:BotMorality():ChangeSuspicion(other, "PersonalSpace")
-            bot:BotChatter():On("PersonalSpace")
+            local _c = bot:BotChatter(); if _c and _c.On then _c:On("PersonalSpace") end
             -- Evidence: suspicious proximity behavior
             local evidence = bot:BotEvidence()
             if evidence then
@@ -260,7 +260,7 @@ local function noticeTraitorWeapons(bot)
 
     if not firstEnemy then return end
     Arb.RequestAttackTarget(bot, firstEnemy, "TRAITOR_WEAPON", PRI.ROLE_HOSTILITY)
-    bot:BotChatter():On("HoldingTraitorWeapon", { player = firstEnemy:Nick() })
+    local _c = bot:BotChatter(); if _c and _c.On then _c:On("HoldingTraitorWeapon", { player = firstEnemy:Nick() }) end
     -- Evidence: witnessed holding a traitor weapon
     local evidence = bot:BotEvidence()
     if evidence then

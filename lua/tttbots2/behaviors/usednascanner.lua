@@ -132,7 +132,7 @@ function UseDNAScanner.OnRunning(bot)
 				end
 
 				local chatter = bot:BotChatter()
-				if chatter then
+				if chatter and chatter.On then
 					chatter:On("DNAMatch", {
 						suspect    = killerEnt:Nick(),
 						victim     = victimName,

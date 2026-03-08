@@ -30,7 +30,7 @@ end
 
 --- Called when the behavior's last state is running
 function Wander.OnRunning(bot)
-    if not bot.wander then return Wander.OnStart() end -- force reboot :P
+    if not bot.wander then return Wander.OnStart(bot) end -- force reboot :P
 
     local hasExpired = Wander.HasExpired(bot)
     if hasExpired then return STATUS.SUCCESS end

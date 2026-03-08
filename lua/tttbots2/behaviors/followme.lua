@@ -74,7 +74,7 @@ function FollowMe.InitiateFollow(bot, player, teamOnly)
     end
     if math.random(0, 100) > chance * 100 then
         print(bot:Nick() .. " refused to follow " .. player:Nick())
-        chatter:On("FollowMeRefuse", { target = player:Nick() }, teamOnly, math.random(1, 4))
+        if chatter and chatter.On then chatter:On("FollowMeRefuse", { target = player:Nick() }, teamOnly, math.random(1, 3)) end
         return
     end
     bot.followMeTarget = player
@@ -118,7 +118,9 @@ function FollowMe.OnStart(bot)
     print("FollowMe.OnStart: " .. bot:Nick() .. " following " .. bot.followMeTarget:Nick())
 
     local chatter = bot:BotChatter()
-    chatter:On("FollowMe", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    if chatter and chatter.On then
+        chatter:On("FollowMe", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    end
 
     return STATUS.RUNNING
 end
@@ -171,7 +173,9 @@ function FollowMe.OnEnd(bot)
     else
         local teamOnly = false
     end
-    chatter:On("FollowMeEnd", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    if chatter and chatter.On then
+        chatter:On("FollowMeEnd", { target = bot.followMeTarget:Nick() }, teamOnly, math.random(1, 4))
+    end
     bot.followMeTarget = nil
     bot.botFollowPoint = nil
     bot.followEndTime = nil
