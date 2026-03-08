@@ -565,19 +565,6 @@ function TTTBots.PathManager.RequestPath(owner, startPos, finishPos, isAreas, pr
 
     local pathID = startArea:GetID() .. "to" .. finishArea:GetID()
 
-    -- Region pre-check: if the two areas belong to different nav regions they are definitely
-    -- unreachable without a portal. Skip expensive A* entirely.
-    local startRegions = startArea:GetID() ~= finishArea:GetID() and navmesh.GetNavRegions and navmesh.GetNavRegions()
-    if startRegions then
-        local startReg = startArea:GetPlaceID and startArea:GetPlaceID()
-        local finishReg = finishArea:GetPlaceID and finishArea:GetPlaceID()
-        local hasPortal = #(startArea:GetPortals()) > 0 or #(finishArea:GetPortals()) > 0
-        if startReg and finishReg and startReg ~= 0 and finishReg ~= 0 and startReg ~= finishReg and not hasPortal then
-            TTTBots.PathManager.impossiblePaths[pathID] = true
-            return pathID, false, "impossible_region"
-        end
-    end
-
     local isImpossible = TTTBots.PathManager.impossiblePaths[pathID] ~= nil
     local existingPath = TTTBots.PathManager.cachedPaths[pathID]
     local queuedPath, pathNumber = getQueuedPathFor(owner)
@@ -1003,6 +990,11 @@ end
 -- Create timer to cull paths every 5 seconds
 timer.Create("TTTBotsPathManagerCullCache", 5, 0, function()
     TTTBots.PathManager.CullCache()
+end)
+
+-- Clear impossible-path cache between rounds so stale entries don't persist
+hook.Add("TTTBeginRound", "TTTBots.PathManager.ClearImpossible", function()
+    TTTBots.PathManager.impossiblePaths = {}
 end)
 
 --------------------------------------

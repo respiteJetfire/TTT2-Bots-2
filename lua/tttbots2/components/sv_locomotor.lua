@@ -466,6 +466,7 @@ end
 ---@param pos Vector
 ---@return boolean
 function BotLocomotor:IsCloseEnough(pos)
+    if not TTTBots.PathManager then return false end
     return TTTBots.PathManager.BotIsCloseEnough(self.bot, pos)
 end
 

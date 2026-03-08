@@ -125,6 +125,10 @@ function TTTBots.Reload()
                 -- TTTBots.DebugServer.RenderDebugFor(bot, { "all" })
                 if not (IsValid(bot) and bot and bot.components) then continue end -- Sometimes a weird bug or edge case occurs, just ignore it
 
+                -- Keep bot.tick in sync BEFORE components run so ThinkRate arithmetic never sees nil
+                local loco = bot:BotLocomotor()
+                bot.tick = loco and loco.tick or 0
+
                 for i, component in pairs(bot.components) do
                     if component.Think == nil then
                         print("No think")
@@ -137,7 +141,6 @@ function TTTBots.Reload()
                     end
                 end
 
-                bot.tick = bot:BotLocomotor().tick
                 bot.timeInGame = (bot.timeInGame or 0) + (1 / TTTBots.Tickrate)
             end
             TTTBots.Lib.UpdateBotModels()
