@@ -279,13 +279,18 @@ function Memory:UpdateKnownPositions()
         return false
     end
 
+    local omniscientPositions = TTTBots.Roles.GetRoleFor(self.bot):GetKnowsAllPositions()
+
     for i, ply in pairs(AlivePlayers) do
         if ply == self.bot then continue end
-        if not lib.CanSee(self.bot, ply) then
+        if omniscientPositions then
+            -- Omniscient bots always know exactly where every player is.
+            self:UpdateKnownPositionFor(ply, ply:GetPos())
+        elseif not lib.CanSee(self.bot, ply) then
             self:HandleUnseenPlayer(ply)
-            continue
+        else
+            self:UpdateKnownPositionFor(ply)
         end
-        self:UpdateKnownPositionFor(ply)
     end
 end
 
