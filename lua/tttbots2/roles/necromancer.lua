@@ -8,11 +8,26 @@ local allyTeams = {
     [TEAM_JESTER] = true,
 }
 
+local enemyTeams = {
+    [TEAM_INNOCENT] = true,
+    [TEAM_TRAITOR] = true,
+    [TEAM_JACKAL] = true,
+    [TEAM_SERIALKILLER] = true,
+    [TEAM_NONE] = true,
+    [TEAM_PIRATE] = true,
+    [TEAM_DOOMSLAYER] = true,
+    [TEAM_RESTLESS] = true,
+    [TEAM_REVENANT] = true,
+    [TEAM_INFECTED] = true,
+}
+
 local _bh = TTTBots.Behaviors
 local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
     _prior.FightBack,
     _prior.Requests,
+    _bh.Roledefib,
+    _bh.InvestigateCorpse,
     _prior.Support,
     _prior.Restore,
     _bh.Stalk,

@@ -10,7 +10,7 @@ local Roledefib = TTTBots.Behaviors.Roledefib
 Roledefib.Name = "Roledefib"
 Roledefib.Description = "Use the roledefibrillator on a corpse."
 Roledefib.Interruptible = true
-Roledefib.WeaponClasses = { "weapon_ttt_defib_traitor", "weapon_ttt_mesdefi", "weapon_ttt2_markerdefi" }
+Roledefib.WeaponClasses = { "weapon_ttt_defib_traitor", "weapon_ttt_mesdefi", "weapon_ttt2_markerdefi", "weapon_ttth_necrodefi" }
 
 
 local STATUS = TTTBots.STATUS
@@ -153,6 +153,16 @@ end
 function Roledefib.OnStart(bot)
     bot.roledefibTarget, bot.roledefibRag = Roledefib.GetCorpse(bot)
 
+    if bot.roledefibTarget and IsValid(bot.roledefibTarget) then
+        local chatter = bot:BotChatter()
+        if chatter then
+            if ROLE_NECROMANCER and bot:GetSubRole() == ROLE_NECROMANCER then
+                chatter:On("NecroRaiseUndead", { player = bot.roledefibTarget:Nick() })
+            else
+                chatter:On("RoleDefibPlayer", { player = bot.roledefibTarget:Nick() })
+            end
+        end
+    end
 
     return STATUS.RUNNING
 end

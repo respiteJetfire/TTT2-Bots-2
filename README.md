@@ -62,6 +62,7 @@ This add-on supports a wide range of TTT2 roles. Here are some that have explici
 * Medic
 * Mesmerist
 * Mimic
+* Necromancer
 * Occultist
 * Oracle
 * Pharaoh (WIP)

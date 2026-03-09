@@ -2053,6 +2053,18 @@ local LoadLang = function()
     Line("{{player}} is getting revived with a role defibrillator.", A.Stoic)
     
 
+    RegisterCategory("NecroRaiseUndead", P.IMPORTANT) -- When a necromancer bot raises a dead player as undead.
+    Line("Rise, {{player}}. Join my undead army.", A.Default)
+    Line("{{player}}, time to become my zombie.", A.Casual)
+    Line("{{player}}, I'll give you new life as my undead servant.", A.Nice)
+    Line("Raising {{player}} as undead.", A.Stoic)
+    Line("Get up {{player}}! Fight for me!", A.Hothead)
+    Line("{{player}} will make a good zombie.", A.Bad)
+    Line("We need {{player}} on our side. Raising them now.", A.Teamer)
+    Line("Optimally raising {{player}} as undead reinforcement.", A.Tryhard)
+    Line("Don't be surprised, {{player}}... hehehe.", A.Sus)
+    Line("uhhh idk what im doing but {{player}} is coming back", A.Dumb)
+
     RegisterCategory("UsingRoleChecker", P.IMPORTANT) -- When a bot is heading to use a role checker.
     Line("I'm going to use the role checker.", A.Default)
     Line("Heading to the role checker.", A.Default)
