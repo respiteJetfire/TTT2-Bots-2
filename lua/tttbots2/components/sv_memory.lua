@@ -560,7 +560,8 @@ end
 ---@return boolean
 function Memory:IsDangerZone(pos)
     for _, zone in ipairs(self.dangerZones or {}) do
-        if pos:Distance(zone.pos) < 400 then
+        local radius = zone.radius or 400
+        if pos:Distance(zone.pos) < radius then
             return true
         end
     end
@@ -569,24 +570,35 @@ end
 
 --- Record a danger zone at the given position.
 ---@param pos Vector
-function Memory:AddDangerZone(pos)
+---@param radius number|nil   Danger radius in units (default 400)
+---@param label  string|nil   Optional identifier tag (default "generic")
+---@param expiry number|nil   CurTime() at which this zone expires (default CurTime()+120)
+function Memory:AddDangerZone(pos, radius, label, expiry)
+    radius = radius or 400
+    label  = label  or "generic"
+    expiry = expiry or (CurTime() + 120)
     self.dangerZones = self.dangerZones or {}
-    -- Avoid duplicates within 400 units
+    -- Avoid duplicates within the zone's radius
     for _, zone in ipairs(self.dangerZones) do
-        if zone.pos:Distance(pos) < 400 then
-            zone.time = CurTime()
+        if zone.pos:Distance(pos) < radius then
+            zone.time   = CurTime()
+            zone.expiry = expiry
+            zone.radius = radius
+            zone.label  = label
             return
         end
     end
-    table.insert(self.dangerZones, { pos = pos, time = CurTime() })
+    table.insert(self.dangerZones, { pos = pos, time = CurTime(), radius = radius, label = label, expiry = expiry })
 end
 
---- Prune danger zones older than 120 seconds.
+--- Prune danger zones that have passed their expiry time.
 function Memory:CullDangerZones()
     if not self.dangerZones then return end
+    local now   = CurTime()
     local fresh = {}
     for _, zone in ipairs(self.dangerZones) do
-        if (CurTime() - zone.time) < 120 then
+        local exp = zone.expiry or (zone.time + 120)
+        if now < exp then
             table.insert(fresh, zone)
         end
     end

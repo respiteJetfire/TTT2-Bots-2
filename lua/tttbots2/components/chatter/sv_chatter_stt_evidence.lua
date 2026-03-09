@@ -4,11 +4,14 @@
 --- Sits between the STT transcript polling (sv_chatter_stt.lua) and the
 --- keyword command router (RespondToPlayerMessage).  For every voice
 --- transcript it:
----   1. Runs fast regex-based extraction for common claim patterns.
----   2. Falls back to an LLM extraction call (Ollama JSON mode) if regex
+---   1. Normalizes Doomguy alias variants into the canonical string "doomguy".
+---   2. Runs fast regex-based extraction for common claim patterns.
+---   3. Falls back to an LLM extraction call (Ollama JSON mode) if regex
 ---      finds nothing AND the LLM provider is available.
----   3. Maps extracted claims to evidence entries on nearby bots.
----   4. Returns so the caller can still route the transcript through
+---   4. Maps extracted claims to evidence entries on nearby bots.
+---   5. Fires DoomguyAtLocation or DoomguyChasingMe chatter events on nearby
+---      bots when Doomguy-specific speech is detected.
+---   6. Returns so the caller can still route the transcript through
 ---      RespondToPlayerMessage for command matching / conversational replies.
 ---
 --- Speech-extracted evidence carries a 0.5× trust multiplier because
@@ -16,6 +19,79 @@
 
 local lib    = TTTBots.Lib
 local Parser = TTTBots.ChatterParser  -- for findPlayersInText / isNameInMessage
+
+-- ---------------------------------------------------------------------------
+-- Doomguy alias normalization
+-- ---------------------------------------------------------------------------
+
+--- Patterns that all refer to the Doom Slayer.  Case-insensitive, applied before
+--- any other processing so the rest of the code only needs to handle "doomguy".
+local DOOMGUY_ALIASES = {
+    "doom slayer",
+    "doomslayer",
+    "doom guy",
+    "the slayer",
+    "slayer",
+    "doom$",      -- lone "doom" at end of sentence
+    "^doom ",     -- lone "doom" at start of sentence
+    " doom ",     -- lone "doom" mid-sentence
+}
+
+--- Normalize Doomguy alias variants in a transcript to the canonical "doomguy".
+---@param text string  lowercase sanitized transcript
+---@return string normalized, boolean wasDoomguy
+local function normalizeDoomguyAliases(text)
+    local wasDoomguy = false
+    local normalized = text
+
+    for _, pattern in ipairs(DOOMGUY_ALIASES) do
+        local replaced, count = string.gsub(normalized, pattern, "doomguy")
+        if count > 0 then
+            wasDoomguy = true
+            normalized = replaced
+        end
+    end
+
+    return normalized, wasDoomguy
+end
+
+-- ---------------------------------------------------------------------------
+-- Doomguy-specific STT event firing
+-- ---------------------------------------------------------------------------
+
+--- Fire Doomguy chatter events on nearby alive bots that use suspicion/innocents.
+--- Called when a human mentions Doomguy in voice.
+---@param sanitized string  normalized transcript
+---@param speaker Player
+local function fireDoomguyChatterEvents(sanitized, speaker)
+    if not IsValid(speaker) then return end
+    local speakerPos = speaker:GetPos()
+
+    -- Determine which Doomguy event is most appropriate for the transcript.
+    local eventName = "DoomguyAtLocation"   -- default: generic sighting
+    local args      = { player = speaker:Nick(), location = "unknown area" }
+
+    if string.find(sanitized, "chasing") or string.find(sanitized, "after me") or string.find(sanitized, "following me") then
+        eventName = "DoomguyChasingMe"
+    elseif string.find(sanitized, "weak") or string.find(sanitized, "low") or string.find(sanitized, "almost dead") then
+        eventName = "DoomguyWeak"
+    elseif string.find(sanitized, "spotted") or string.find(sanitized, "here") or string.find(sanitized, "near") or string.find(sanitized, "at") then
+        eventName = "DoomguySpotted"
+    end
+
+    -- Fire the event on nearby bots (within 2500 units — voice range).
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
+        if speakerPos and bot:GetPos():Distance(speakerPos) > 2500 then continue end
+
+        local chatter = bot:BotChatter()
+        if not chatter then continue end
+
+        -- Small stagger so all bots don't respond simultaneously.
+        local delay = math.random() * 1.5
+        chatter:On(eventName, args, false, delay)
+    end
+end
 
 -- ---------------------------------------------------------------------------
 -- Evidence type mapping
@@ -135,7 +211,8 @@ local function applyClaims(claims, speaker)
 
     for _, bot in ipairs(TTTBots.Bots or {}) do
         if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
-        if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then continue end
+        local roleData = TTTBots.Roles.GetRoleFor(bot)
+        if not (roleData and roleData:GetUsesSuspicion()) then continue end
         local evidence = bot:BotEvidence()
         if not evidence then continue end
 
@@ -180,16 +257,38 @@ function TTTBots.STTEvidence.Process(transcript, sanitized, speaker)
     if not IsValid(speaker) then return end
     if not TTTBots.Match.RoundActive then return end
 
+    -- Normalize Doomguy aliases so downstream patterns find "doomguy" consistently.
+    local normalized, wasDoomguy = normalizeDoomguyAliases(sanitized)
+
+    -- If the transcript contained a Doomguy reference, fire lobby-wide chatter events
+    -- and treat the mention as high-priority threat intel for nearby bots.
+    if wasDoomguy then
+        fireDoomguyChatterEvents(normalized, speaker)
+        -- Record the Doomguy mention in nearby bot memory so LLM prompts have context.
+        local speakerName = speaker:Nick()
+        local speakerPosForMem = IsValid(speaker) and speaker:GetPos() or nil
+        for _, bot in ipairs(TTTBots.Bots or {}) do
+            local mem = bot:BotMemory()
+            if not (IsValid(bot) and mem) then continue end
+            if speakerPosForMem and bot:GetPos():Distance(speakerPosForMem) > 2500 then continue end
+            mem:AddWitnessEvent("speech", string.format("%s mentioned doomguy: %s", speakerName, normalized:sub(1, 60)))
+        end
+    end
+
+    -- Use the normalized text for all further evidence extraction.
+    local sanitizedForExtraction = normalized
+
     -- Fast regex pass
-    local claims = extractWithRegex(sanitized, speaker)
+    local claims = extractWithRegex(sanitizedForExtraction, speaker)
 
     if #claims > 0 then
         applyClaims(claims, speaker)
         -- Record in nearby bot memory ring buffers for LLM context
         local speakerName = speaker:Nick()
         for _, bot in ipairs(TTTBots.Bots or {}) do
-            if not (IsValid(bot) and bot:BotMemory()) then continue end
-            bot:BotMemory():AddWitnessEvent("speech", string.format("%s said: %s", speakerName, sanitized:sub(1, 60)))
+            local mem = bot:BotMemory()
+            if not (IsValid(bot) and mem) then continue end
+            mem:AddWitnessEvent("speech", string.format("%s said: %s", speakerName, sanitizedForExtraction:sub(1, 60)))
         end
         return  -- regex was enough, skip LLM extraction
     end
@@ -199,7 +298,7 @@ function TTTBots.STTEvidence.Process(transcript, sanitized, speaker)
     if not TTTBots.Ollama or not TTTBots.Ollama.SendText then return end
     if not TTTBots.Match.RoundActive then return end
 
-    local system, prompt = buildExtractionPrompt(sanitized)
+    local system, prompt = buildExtractionPrompt(sanitizedForExtraction)
 
     -- Use a dummy "bot" for the Ollama call — pick the first alive bot
     local dummyBot = nil
@@ -217,9 +316,12 @@ function TTTBots.STTEvidence.Process(transcript, sanitized, speaker)
         num_predict  = 40,
         num_ctx      = 512,
         temperature  = 0.1,
-        stop         = { "\n", "}", "Transcript:" },
+        stop         = { "\n", "Transcript:" },
         accusation   = false,
     }
+
+    -- Capture speaker identity before async call — entity may disconnect during HTTP round-trip.
+    local speakerNameForLLM = IsValid(speaker) and speaker:Nick() or "unknown"
 
     TTTBots.Ollama.SendText(prompt, dummyBot, opts, function(envelope)
         if not envelope.ok then return end
@@ -243,16 +345,16 @@ function TTTBots.STTEvidence.Process(transcript, sanitized, speaker)
             subject    = subject,
             type       = evType,
             weightMult = SPEECH_TRUST_MULT,
-            detail     = string.format("extracted from speech by %s", speaker:Nick()),
+            detail     = string.format("extracted from speech by %s", speakerNameForLLM),
         } }
 
-        applyClaims(llmClaims, speaker)
+        applyClaims(llmClaims, IsValid(speaker) and speaker or nil)
 
         -- Record in nearby bot witness ring buffers
-        local speakerName = speaker:Nick()
         for _, bot in ipairs(TTTBots.Bots or {}) do
-            if not (IsValid(bot) and bot:BotMemory()) then continue end
-            bot:BotMemory():AddWitnessEvent("speech", string.format("%s mentioned %s (%s)", speakerName, subject:Nick(), evType))
+            local mem = bot:BotMemory()
+            if not (IsValid(bot) and mem) then continue end
+            mem:AddWitnessEvent("speech", string.format("%s mentioned %s (%s)", speakerNameForLLM, subject:Nick(), evType))
         end
     end)
 end

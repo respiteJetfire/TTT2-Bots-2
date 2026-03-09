@@ -133,6 +133,15 @@ local chancesOf100 = {
     HostKilled                 = 85,  -- The infected host was killed
     InfectedTeamRush           = 70,  -- Infected team-chat: rallying zombies to attack
     InfectedVictory            = 80,  -- Infected team won the round
+    -- -----------------------------------------------------------------------
+    -- Doomguy / Doom Slayer events
+    -- -----------------------------------------------------------------------
+    DoomguySpotted             = 90,  -- Bot spots the Doom Slayer (public alert)
+    DoomguyKilledPlayer        = 85,  -- Doomguy killed a player in view of the bot
+    DoomguyWeak                = 80,  -- Doomguy appears to be at low health — push time
+    DoomguyChasingMe           = 95,  -- Bot is being actively chased by Doomguy
+    DoomguyAvoid               = 65,  -- Bot warns others not to approach Doomguy alone
+    DoomguyAtLocation          = 70,  -- Bot calls out Doomguy's last known location
 }
 
 -- ---------------------------------------------------------------------------
