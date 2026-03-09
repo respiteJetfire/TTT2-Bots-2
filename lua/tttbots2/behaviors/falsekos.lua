@@ -1,6 +1,6 @@
 --- falsekos.lua
---- FalseKOS behavior — Traitor-only.
---- The traitor calls KOS on a random innocent to sow chaos and confusion.
+--- FalseKOS behavior — Deceptive hostile roles.
+--- The hostile bot calls KOS on a random innocent to sow chaos and confusion.
 --- Gated by phase (not EARLY), alive count, and risk assessment.
 
 ---@class BFalseKOS
@@ -28,9 +28,14 @@ local function isEnabled()
     return TTTBots.Lib.GetConVarBool("deception_enabled")
 end
 
-local function isTraitor(bot)
+--- True if bot is a deceptive hostile role — starts fights but isn't publicly known.
+---@param bot Bot
+local function isDeceptiveHostile(bot)
     local role = TTTBots.Roles.GetRoleFor(bot)
-    return role and role:GetTeam() == TEAM_TRAITOR
+    if not role then return false end
+    local startsFights = role:GetStartsFights()
+    local isKOSedByAll = role.GetKOSedByAll and role:GetKOSedByAll()
+    return startsFights and not isKOSedByAll
 end
 
 --- Returns a suitable innocent target to false-KOS.
@@ -65,7 +70,7 @@ end
 function FalseKOS.Validate(bot)
     if not isEnabled() then return false end
     if not lib.IsPlayerAlive(bot) then return false end
-    if not isTraitor(bot) then return false end
+    if not isDeceptiveHostile(bot) then return false end
     if bot.attackTarget then return false end
 
     -- Phase gate: only MID or LATE (not EARLY — too suspicious; not OVERTIME — too obvious)

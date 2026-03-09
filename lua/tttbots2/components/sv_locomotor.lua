@@ -54,7 +54,6 @@ function BotLocomotor:Initialize(bot)
     bot.components.locomotor = self
 
     self.componentID = string.format("locomotor (%s)", lib.GenerateID()) -- Component ID, used for debugging
-    self.ThinkRate = 1 -- Run every tick (5Hz)
 
     self.tick = 0                                                        -- Tick counter
     self.bot = bot
@@ -161,7 +160,9 @@ end
 
 ---@return boolean
 function BotLocomotor:HasPath()
-    return type(self.pathRequest) == "table" and type(self.pathRequest.pathInfo) == "table"
+    return type(self.pathRequest) == "table"
+        and type(self.pathRequest.pathInfo) == "table"
+        and type(self.pathRequest.pathInfo.path) == "table"
 end
 
 function BotLocomotor:GetPathLength()
@@ -450,22 +451,6 @@ function BotLocomotor:CheckFeetAreObstructed()
     return trce.Hit and not (trce.Entity and (trce.Entity:IsPlayer() or lib.IsDoor(trce.Entity)))
 end
 
---- Returns the entity the bot is standing on if it is a non-world prop (physics, breakable, etc.), otherwise nil.
----@return Entity|nil
-function BotLocomotor:IsStandingOnProp()
-    local pos = self.bot:GetPos()
-    local trace = util.TraceLine({
-        start  = pos + Vector(0, 0, 4),
-        endpos = pos - Vector(0, 0, 8),
-        filter = self.bot,
-    })
-    if not trace.Hit then return nil end
-    local ent = trace.Entity
-    -- World geometry (brushes) returns NULL entity or world; we only care about props/physics
-    if not IsValid(ent) or ent:IsWorld() or ent:IsPlayer() then return nil end
-    return ent
-end
-
 function BotLocomotor:ShouldJump()
     return self:CheckFeetAreObstructed() or (math.random(1, 100) == 1 and self:IsStuck())
 end
@@ -482,7 +467,6 @@ end
 ---@param pos Vector
 ---@return boolean
 function BotLocomotor:IsCloseEnough(pos)
-    if not TTTBots.PathManager then return false end
     return TTTBots.PathManager.BotIsCloseEnough(self.bot, pos)
 end
 
@@ -564,111 +548,6 @@ function BotLocomotor:TestDoorTimer()
     -- self:TimedVariable("cantUseAgain", true, 1.2)
     -- return true
     return not self:GetSetTimedVariable("cantUseAgain", true, 1.2)
-end
-
---- Check if a door entity is locked.
----@param doorEnt Entity
----@return boolean
-function BotLocomotor:IsDoorLocked(doorEnt)
-	if not IsValid(doorEnt) then return false end
-	-- TTT2 uses a NetworkVar for lock state
-	if doorEnt.GetNWBool then
-		return doorEnt:GetNWBool("ttt2_door_locked", false)
-	end
-	return false
-end
-
---- Lock a door using TTT2's door library. Returns true if successful.
----@param doorEnt Entity
----@return boolean
-function BotLocomotor:LockDoor(doorEnt)
-	if not IsValid(doorEnt) then return false end
-	if self:IsDoorLocked(doorEnt) then return false end -- Already locked
-
-	-- Use TTT2 door library if available
-	if door and door.Lock then
-		door.Lock(doorEnt)
-		return true
-	end
-
-	-- Fallback: try to lock via entity input
-	if doorEnt.Fire then
-		doorEnt:Fire("Lock", "", 0)
-		return true
-	end
-
-	return false
-end
-
---- Unlock a door using TTT2's door library. Returns true if successful.
----@param doorEnt Entity
----@return boolean
-function BotLocomotor:UnlockDoor(doorEnt)
-	if not IsValid(doorEnt) then return false end
-	if not self:IsDoorLocked(doorEnt) then return false end -- Already unlocked
-
-	if door and door.Unlock then
-		door.Unlock(doorEnt)
-		return true
-	end
-
-	if doorEnt.Fire then
-		doorEnt:Fire("Unlock", "", 0)
-		return true
-	end
-
-	return false
-end
-
---- Break down a destructible door (for traitors pursuing targets or bots bypassing locks).
---- Returns true if we started attacking the door.
----@param doorEnt Entity
----@return boolean
-function BotLocomotor:BreakDoor(doorEnt)
-	if not IsValid(doorEnt) then return false end
-
-	-- Check if destructible
-	local isDestructible = false
-	if door and door.IsDestructible then
-		isDestructible = door.IsDestructible(doorEnt)
-	else
-		-- Fallback: prop_door_rotating are often destructible
-		isDestructible = doorEnt:GetClass() == "prop_door_rotating"
-	end
-
-	if not isDestructible then return false end
-
-	self:LookAt(doorEnt:GetPos())
-	self:StartAttack()
-
-	-- Store target for attacking
-	self.bot.breakDoorTarget = doorEnt
-
-	return true
-end
-
---- Find the nearest locked door within radius that is blocking the current path.
----@param radius number
----@return Entity|nil
-function BotLocomotor:FindNearestLockedDoor(radius)
-	radius = radius or 150
-	local myPos = self.bot:GetPos()
-	local bestDoor = nil
-	local bestDist = radius
-
-	local doorClasses = { "func_door", "func_door_rotating", "prop_door_rotating" }
-	for _, class in pairs(doorClasses) do
-		for _, ent in pairs(ents.FindByClass(class)) do
-			if not IsValid(ent) then continue end
-			local dist = myPos:Distance(ent:GetPos())
-			if dist < bestDist and self:IsDoorLocked(ent) then
-				bestDoor = ent
-				bestDist = dist
-			end
-		end
-	end
-
-	return bestDoor
 end
 
 function BotLocomotor:UpdateADS()
@@ -898,40 +777,10 @@ function BotLocomotor:TryUnstick()
             Ray 1: We should jump.
             Ray 2: Strafe right
             Ray 3: Strafe left
-
-        Special case: bot is standing ON TOP of a prop (e.g. a crate).
-            Knee-height raycasts all miss because nothing blocks the bot at that height.
-            Solution: crouch-jump off the prop by holding IN_DUCK + IN_JUMP.
     ]]
     local kneePos = self.bot:GetPos() + Vector(0, 0, 16)
     local bodyfacingdir = self.bot:GetAimVector()
-    local dvlpr = lib.GetConVarBool("debug_pathfinding")
 
-    if dvlpr then
-        TTTBots.DebugServer.DrawText(kneePos, string.format("%s's stuck!", self.bot:Nick()), Color(255, 0, 255))
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Prop-perch check: if the bot is standing on a non-world entity (a crate,
-    -- barrel, physics prop, etc.) and all three knee rays are clear, it means
-    -- the bot jumped onto the object and is now stuck on top of it.
-    -- Crouch-jump with forward movement to slide off the prop.
-    -- -----------------------------------------------------------------------
-    local propUnderFeet = self:IsStandingOnProp()
-    if propUnderFeet then
-        -- Set a short-lived flag so StartCommand knows to hold crouch+jump together
-        self:Jump(true)
-        self:Crouch(true)
-        self:SetForceForward(true)
-        if dvlpr then
-            TTTBots.DebugServer.DrawText(kneePos, string.format("%s perched on prop — crouch-jumping off", self.bot:Nick()), Color(255, 128, 0))
-        end
-        return
-    end
-
-    -- -----------------------------------------------------------------------
-    -- Standard stuck resolution: knee-height raycasts
-    -- -----------------------------------------------------------------------
     local magnitude = 30
     local forward = kneePos + (bodyfacingdir * magnitude)
     local ang = (bodyfacingdir:Angle():Right() * magnitude * 2)
@@ -958,6 +807,15 @@ function BotLocomotor:TryUnstick()
         filter = self.bot,
         mask = MASK_ALL
     })
+
+    -- draw debug lines
+    -- TTTBots.DebugServer.DrawLineBetween(kneePos, forward, Color(255, 0, 255))
+    -- TTTBots.DebugServer.DrawLineBetween(kneePos, left, Color(255, 0, 255))
+    -- TTTBots.DebugServer.DrawLineBetween(kneePos, right, Color(255, 0, 255))
+    local dvlpr = lib.GetConVarBool("debug_pathfinding")
+    if dvlpr then
+        TTTBots.DebugServer.DrawText(kneePos, string.format("%s's stuck!", self.bot:Nick()), Color(255, 0, 255))
+    end
 
     self:Jump(false)
     self:Crouch(false)
@@ -989,12 +847,6 @@ function BotLocomotor:AvoidDoor(door)
     if dvlpr_door then print(self.bot:Nick() .. " opening door") end
 
     self:SetUse(true)
-
-    -- If the door is locked and we can't open it normally, try to break it down
-    if self:IsDoorLocked(door) then
-        self:BreakDoor(door)
-    end
-
     if not self.doorStandPos then
         local vec = self:GetWhereStandForDoor(door)
         local duration = 0.9
@@ -1026,7 +878,7 @@ end
 function BotLocomotor:ValidateGoalProx()
     local goal = self:GetGoal()
 
-    if not IsValid(goal) then return end
+    if not goal then return end
 
     if self:IsCloseEnough(goal) then
         self:SetGoal(nil)
@@ -1037,7 +889,10 @@ end
 ---@package
 function BotLocomotor:UpdateMovement()
     self:Jump(false)
-    self:Crouch(false)
+    -- Only reset crouch if no behavior has requested persistent crouching
+    if not self.persistCrouch then
+        self:Crouch(false)
+    end
     self:SetUse(false)
     self:StopPriorityMovement()
     self.isTryingPath = false
@@ -1185,35 +1040,22 @@ function BotLocomotor:UpdatePathRequest()
     local pathLength = self:GetPathLength()
     local hasPath = self:HasPath()
 
-    local endIsGoal = hasPath and pathRequest and type(pathRequest.pathInfo.path) == "table" and pathRequest.pathInfo.path[pathLength] == goalNav
-    if pathRequest and hasPath and endIsGoal and not self:AnySegmentsNearby(pathRequest.pathInfo.path, 500) then
+    local pathInfo = pathRequest and pathRequest.pathInfo
+    local path = pathInfo and pathInfo.path
+
+    local endIsGoal = hasPath and path and path[pathLength] == goalNav
+    if pathRequest and hasPath and endIsGoal and not self:AnySegmentsNearby(path, 500) then
         if lib.GetConVarBool("debug_pathfinding") then
             print(self.bot:Nick() .. " path is too far")
         end
     elseif hasPath and pathLength > 0 and endIsGoal then
-        -- Replan trigger: if the cached path's final waypoint has drifted >200 units from
-        -- the current goal (e.g. a moving target), discard the path and re-request at high priority.
-        local lastNode = pathRequest.pathInfo.processedPath and pathRequest.pathInfo.processedPath[#pathRequest.pathInfo.processedPath]
-        local lastPos  = lastNode and lastNode.pos
-        local replanCooldown = self.replanCooldown or 0
-        if lastPos and lastPos:Distance(goalPos) > 200 and CurTime() > replanCooldown then
-            self.pathRequest = nil
-            self.pathRequestWaiting = false
-            self.replanCooldown = CurTime() + 2 -- 2-second debounce to avoid thrashing
-            if lib.GetConVarBool("debug_pathfinding") then
-                print(self.bot:Nick() .. " replanning: goal drifted " .. math.Round(lastPos:Distance(goalPos)) .. " units")
-            end
-            -- Fall through to request a new path with elevated priority
-        else
-            return STAT.PATHINGCURRENTLY
-        end
+        return STAT.PATHINGCURRENTLY
     end
 
-    -- If we don't have a path, request one. Use priority 1 (urgent) when we just invalidated a stale path.
-    local reqPriority = (self.replanCooldown and self.replanCooldown > CurTime()) and 1 or 10
-    local pathid, pathInfo, status = TTTBots.PathManager.RequestPath(self.bot, self.bot:GetPos(), goalPos, false, reqPriority)
+    -- If we don't have a path, request one
+    local pathid, pathInfo, status = TTTBots.PathManager.RequestPath(self.bot, self.bot:GetPos(), goalPos, false)
 
-    if not pathInfo then -- path is truly impossible (open-set exhausted, not a timeout)
+    if not pathInfo then -- path is impossible
         self.cantReachGoal = true
         self.pathRequestWaiting = false
         self.pathRequest = nil
@@ -1221,6 +1063,12 @@ function BotLocomotor:UpdatePathRequest()
     elseif pathInfo == true then
         self.pathRequestWaiting = true
         return STAT.PENDING
+    elseif type(pathInfo) == "table" and type(pathInfo.path) ~= "table" then
+        -- Cached path exists but has no valid path table; treat as impossible.
+        self.cantReachGoal = true
+        self.pathRequestWaiting = false
+        self.pathRequest = nil
+        return STAT.IMPOSSIBLE
     else -- path is a table
         self.pathRequest = {
             pathInfo = pathInfo,
@@ -1686,7 +1534,18 @@ end
 function BotLocomotor:StartCommand(cmd) -- aka StartCmd
     cmd:ClearButtons()
     cmd:ClearMovement()
-    if self.dontmove then return end
+    if self.dontmove then
+        -- Even when halted, we still need crouch + attack buttons (e.g. defibbing)
+        if lib.IsPlayerAlive(self.bot) then
+            local haltBtns = 0
+            if self:IsTryingCrouch() then haltBtns = haltBtns + IN_DUCK end
+            if self.attack then haltBtns = haltBtns + IN_ATTACK end
+            if self.attack2 then haltBtns = haltBtns + IN_ATTACK2 end
+            if haltBtns > 0 then cmd:SetButtons(haltBtns) end
+            self:UpdateEyeAnglesFinal()
+        end
+        return
+    end
     if not lib.IsPlayerAlive(self.bot) then return end
 
     local hasPath = self:HasPath()
@@ -1702,24 +1561,17 @@ function BotLocomotor:StartCommand(cmd) -- aka StartCmd
     )
 
     --- 🦘 Set buttons for jumping if :GetJumping() is true
-    --- The way jumping works is a little quirky, as it cannot be held down. We must release it occasionally.
-    --- Crouch-jumping (IN_DUCK + IN_JUMP) is used both for standard crouch-jumps and to dismount props.
-    if self:IsTryingJump() and ((self.jumpReleaseTime or 0) < TIMESTAMP) then
-        local wantCrouch = self:IsTryingCrouch()
-        if wantCrouch then
-            -- Crouch-jump: hold duck AND jump together so the bot can hop off props/ledges
+    --- The way jumping works is a little quirky, as it cannot be held down. We must release it occasionally
+    if self:IsTryingJump() and (self.jumpReleaseTime < TIMESTAMP) or self.jumpReleaseTime == nil then
+        local onGround = self.bot:OnGround()
+        if not onGround then
             cmd:SetButtons(IN_JUMP + IN_DUCK)
         else
-            local onGround = self.bot:OnGround()
-            if not onGround then
-                cmd:SetButtons(IN_JUMP + IN_DUCK)
-            else
-                cmd:SetButtons(IN_JUMP)
-            end
+            cmd:SetButtons(IN_JUMP)
         end
         self.jumpReleaseTime = TIMESTAMP + 0.1
         if DVLPR_PATHFINDING then
-            TTTBots.DebugServer.DrawText(MYPOS, wantCrouch and "Crouch-Jumping (prop dismount)" or "Jumping", Color(255, 255, 255))
+            TTTBots.DebugServer.DrawText(MYPOS, "Crouch Jumping", Color(255, 255, 255))
         end
     end
 
@@ -1821,17 +1673,12 @@ function BotLocomotor:StartCommand(cmd) -- aka StartCmd
     )
     cmd:SetForwardMove(forwardDir)
 
-    --- 🚪 MANAGE BOT DOOR HANDLING + USE KEY
-    if self:GetUsing() then
-        -- Always emit IN_USE so weapon pickups, buttons, etc. work.
-        cmd:SetButtons(cmd:GetButtons() + IN_USE)
-        -- Additionally handle door toggling (rate-limited separately).
-        if self:TestDoorTimer() then
-            if DVLPR_PATHFINDING then
-                TTTBots.DebugServer.DrawText(MYPOS, "Opening door", Color(255, 255, 255))
-            end
-            self:TryToggleDoor(cmd)
+    --- 🚪 MANAGE BOT DOOR HANDLING
+    if self:GetUsing() and self:TestDoorTimer() then
+        if DVLPR_PATHFINDING then
+            TTTBots.DebugServer.DrawText(MYPOS, "Opening door", Color(255, 255, 255))
         end
+        self:TryToggleDoor(cmd)
     end
 
     --- 🔫 MANAGE ATTACKING OF THE BOT

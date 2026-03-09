@@ -59,7 +59,7 @@ local function pickBestSuspect(bot, threshold)
     for _, s in ipairs(suspects) do
         if not (IsValid(s) and lib.IsPlayerAlive(s)) then continue end
         if s == bot then continue end
-        if TTTBots.Roles.IsAllies(bot, s) and bot:GetTeam() ~= TEAM_INNOCENT then continue end
+        if (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, s) or TTTBots.Roles.IsAllies(bot, s)) and bot:GetTeam() ~= TEAM_INNOCENT then continue end
         -- Never accuse a detective / police role — their role is publicly known
         if TTTBots.Roles.GetRoleFor(s):GetAppearsPolice() then continue end
         table.insert(valid, s)

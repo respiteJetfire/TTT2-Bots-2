@@ -1,156 +1,242 @@
+--- behaviors/swaprole.lua
+--- Cursed-role proximity tag-swap behavior.
+--- Walks up to a valid target and triggers CURS_DATA.AttemptSwap() to swap roles.
+--- Uses the addon's native swap pipeline so backsies timers, detective protection,
+--- sticky team handling, and status icons all work correctly.
 
---- This module is specific to the TTT2 Cursed role.
 if not (TTT2 and ROLE_CURSED) then return end
-
---- This file defines the behavior for walking up to a player and copying their role.
 
 ---@class BSwapRole : BBase
 TTTBots.Behaviors.SwapRole = {}
 
 local lib = TTTBots.Lib
--- Intentionally shared: global registry of recently-cursed players, not per-bot state.
-local cursedPlayers = {}
 
 ---@class BSwapRole
 local SwapRole = TTTBots.Behaviors.SwapRole
 SwapRole.Name = "SwapRole"
-SwapRole.Description = "Swaps a role with the nearest non-allied player."
+SwapRole.Description = "Walks up to a player and swaps roles via CURS_DATA.AttemptSwap."
 SwapRole.Interruptible = true
 
 local STATUS = TTTBots.STATUS
 
---- Validate the behavior before we can start it (or continue running)
---- Returning false when the behavior was just running will still call OnEnd.
----@param bot Bot
----@return boolean
-function SwapRole.Validate(bot)
-    local role = bot:GetSubRole()
-    if role ~= ROLE_CURSED then
-        return false
-    end
-    local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
-    local target = SwapRole.GetTarget(bot)
-    return (target ~= nil or state.target ~= nil) and SwapRole.ShouldStartSwapping(bot)
+-- ---------------------------------------------------------------------------
+-- Helpers
+-- ---------------------------------------------------------------------------
+
+--- Urgency-scaled chance to attempt a swap. Higher as more players die.
+---@param bot Player
+---@return number chance 0-100
+local function GetSwapChance(bot)
+    local alive = #TTTBots.Lib.GetAlivePlayers()
+    local total = player.GetCount()
+    if total <= 0 then return 50 end
+    -- Base 35%, scales toward ~95% when few players remain
+    local ratio = 1 - (alive / total)
+    return math.Clamp(35 + ratio * 60, 35, 95)
 end
 
---- Use random chance to determine if we should run this behavior, to add variation.
----@param bot Bot
----@return boolean
-function SwapRole.ShouldStartSwapping(bot)
-    local chance = math.random(1, 100)
-    local shouldStart = chance <= 5
-    if shouldStart then return true end
+--- Score a potential swap target. Higher = more desirable.
+---@param bot Player
+---@param ply Player
+---@return number
+local function ScoreTarget(bot, ply)
+    local score = 0
+    local botPos = bot:GetPos()
+    local plyPos = ply:GetPos()
+    local dist = botPos:Distance(plyPos)
+
+    -- Closer is much better (invert distance, max 20 pts)
+    score = score + math.Clamp(2000 - dist, 0, 2000) / 100
+
+    -- Prefer isolated players (fewer nearby witnesses)
+    local witnesses = 0
+    for _, other in ipairs(player.GetAll()) do
+        if other ~= bot and other ~= ply and lib.IsPlayerAlive(other) then
+            if plyPos:Distance(other:GetPos()) < 500 then
+                witnesses = witnesses + 1
+            end
+        end
+    end
+    score = score - witnesses * 3
+
+    -- Slight penalty for detective targets (less predictable outcome)
+    if ROLE_DETECTIVE and ply:GetBaseRole() == ROLE_DETECTIVE then
+        score = score - 5
+    end
+
+    -- Bonus for distracted/in-combat players
+    if ply.attackTarget and IsValid(ply.attackTarget) then
+        score = score + 3
+    end
+
+    return score
+end
+
+-- ---------------------------------------------------------------------------
+-- Target Selection
+-- ---------------------------------------------------------------------------
+
+--- Find the best valid swap target respecting all addon convars.
+---@param bot Player
+---@return Player?
+function SwapRole.GetTarget(bot)
+    local detAllowed = GetConVar("ttt2_cursed_affect_det") and GetConVar("ttt2_cursed_affect_det"):GetBool() or false
+
+    local bestTarget = nil
+    local bestScore = -math.huge
+
+    for _, ply in ipairs(player.GetAll()) do
+        if ply == bot then continue end
+        if not lib.IsPlayerAlive(ply) then continue end
+
+        -- Addon's native backsies protection
+        if ply.curs_last_tagged ~= nil then continue end
+
+        -- Detective protection (respects convar)
+        if not detAllowed then
+            if ROLE_DETECTIVE and ply:GetBaseRole() == ROLE_DETECTIVE then continue end
+            if ROLE_DEFECTIVE and ply:GetSubRole() == ROLE_DEFECTIVE then continue end
+        end
+
+        -- Don't target allies
+        if TTTBots.Roles.IsAllies(bot, ply) then continue end
+
+        -- Counter-curse item
+        if ply.HasEquipmentItem and ply:HasEquipmentItem("item_ttt_countercurse_mantra") then continue end
+
+        -- Same-role early exit (waste of a swap)
+        if ply:GetSubRole() == bot:GetSubRole() then continue end
+
+        -- Skip defectors
+        if ROLE_DEFECTOR and ply:GetSubRole() == ROLE_DEFECTOR then continue end
+
+        -- Round state check
+        if GetRoundState and GetRoundState() ~= ROUND_ACTIVE then continue end
+
+        local score = ScoreTarget(bot, ply)
+        if score > bestScore then
+            bestScore = score
+            bestTarget = ply
+        end
+    end
+
+    return bestTarget
+end
+
+-- ---------------------------------------------------------------------------
+-- Behavior Lifecycle
+-- ---------------------------------------------------------------------------
+
+function SwapRole.Validate(bot)
+    if not CURS_DATA then return false end
+    if bot:GetSubRole() ~= ROLE_CURSED then return false end
+    if not TTTBots.Match.IsRoundActive() then return false end
+    if not lib.IsPlayerAlive(bot) then return false end
+
+    local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
+    local existingTarget = state.target
+    if existingTarget and IsValid(existingTarget) and lib.IsPlayerAlive(existingTarget) then
+        return true
+    end
+
+    -- Urgency-scaled gate
+    local chance = GetSwapChance(bot)
+    if math.random(1, 100) > chance then return false end
+
+    local target = SwapRole.GetTarget(bot)
+    if target then
+        state.target = target
+        return true
+    end
     return false
 end
 
---- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.
----@param bot Bot
----@return BStatus
 function SwapRole.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
-    local chatter = bot:BotChatter()
-    if chatter and chatter.On then
-        chatter:On("SwappingRole", {player = state.target:Nick()})
+    local target = state.target
+
+    if target and IsValid(target) then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("CursedChasing", { player = target:Nick() })
+        end
     end
-    timer.Simple(1, function()
-        return STATUS.RUNNING
-    end)
+    return STATUS.RUNNING
 end
 
---- Called when OnStart or OnRunning returns STATUS.RUNNING. Return STATUS.RUNNING to continue running.
----@param bot Bot
----@return BStatus
 function SwapRole.OnRunning(bot)
-    if not cursedPlayers[bot] then
-        cursedPlayers[bot] = true
+    local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
+    local target = state.target
+
+    -- Re-validate target
+    if not target or not IsValid(target) or not lib.IsPlayerAlive(target) then
+        target = SwapRole.GetTarget(bot)
+        if not target then return STATUS.FAILURE end
+        state.target = target
     end
-    local target = SwapRole.GetTarget(bot)
-    if not target then
-        return STATUS.FAILURE
+
+    -- Check if target became invalid (e.g. tagged by someone else)
+    if target.curs_last_tagged ~= nil then
+        target = SwapRole.GetTarget(bot)
+        if not target then return STATUS.FAILURE end
+        state.target = target
     end
 
     local targetPos = target:GetPos()
     local botPos = bot:GetPos()
+    local dist = botPos:Distance(targetPos)
     local loco = bot:BotLocomotor()
+    if not loco then return STATUS.FAILURE end
 
+    local tagDist = GetConVar("ttt2_cursed_tag_dist") and GetConVar("ttt2_cursed_tag_dist"):GetInt() or 150
 
-    if botPos:Distance(targetPos) <= 150 then
-        local bodyPos = TTTBots.Behaviors.AttackTarget.GetTargetBodyPos(target)
+    if dist <= tagDist then
+        -- In range — look at target and attempt swap via native addon system
+        local bodyPos = (TTTBots.Behaviors.AttackTarget and TTTBots.Behaviors.AttackTarget.GetTargetBodyPos)
+            and TTTBots.Behaviors.AttackTarget.GetTargetBodyPos(target)
+            or target:EyePos()
         loco:LookAt(bodyPos)
-        local eyeTrace = bot:GetEyeTrace()
-        if eyeTrace and eyeTrace.Entity == target then
-            SwapRole.SwapRole(bot, target)
-            cursedPlayers[target] = true
-            timer.Simple(10, function()
-                cursedPlayers[bot] = nil
-            end)
+
+        -- CURS_DATA.AttemptSwap handles all validation, backsies, detective checks, sticky teams
+        local didSwap = CURS_DATA.AttemptSwap(bot, target, 0)
+
+        if didSwap then
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On then
+                chatter:On("CursedSwapSuccess", { player = target:Nick() })
+            end
+            return STATUS.SUCCESS
+        else
+            -- Fire appropriate failure chatter
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On then
+                local detAllowed = GetConVar("ttt2_cursed_affect_det") and GetConVar("ttt2_cursed_affect_det"):GetBool() or false
+                if not detAllowed and ROLE_DETECTIVE and (target:GetBaseRole() == ROLE_DETECTIVE or (ROLE_DEFECTIVE and target:GetSubRole() == ROLE_DEFECTIVE)) then
+                    chatter:On("CursedCantTagDet", {})
+                elseif target.curs_last_tagged ~= nil then
+                    chatter:On("CursedNoBacksies", {})
+                end
+            end
+            state.target = nil
+            return STATUS.RUNNING
         end
-        return STATUS.SUCCESS
     else
-        bot:BotLocomotor():SetGoal(targetPos)
+        -- Navigate toward target
+        loco:SetGoal(targetPos)
         return STATUS.RUNNING
     end
 end
 
-
---- Called when the behavior returns a success state. Only called on success, however.
----@param bot Bot
 function SwapRole.OnSuccess(bot)
 end
 
---- Called when the behavior returns a failure state. Only called on failure, however.
----@param bot Bot
 function SwapRole.OnFailure(bot)
 end
 
---- Called when the behavior succeeds or fails. Useful for cleanup, as it is always called once the behavior is a) interrupted, or b) returns a success or failure state.
----@param bot Bot
 function SwapRole.OnEnd(bot)
     TTTBots.Behaviors.ClearState(bot, "SwapRole")
-    bot:BotLocomotor():SetGoal(nil)
-end
-
---- Get the nearest non-allied player to the bot.
----@param bot Bot
----@return Player
-function SwapRole.GetTarget(bot)
-    local players = player.GetAll()
-    local botPos = bot:GetPos()
-    local nearestPlayer = nil
-    local nearestDistance = math.huge
-
-    for _, ply in ipairs(players) do
-        if ply ~= bot and not TTTBots.Roles.IsAllies(bot, ply) and not cursedPlayers[ply] and TTTBots.Lib.IsPlayerAlive(ply) and not ply:HasEquipmentItem('item_ttt_countercurse_mantra') and ply:GetSubRole() ~= ROLE_DEFECTOR then
-            -- print("Found a player with no role preference")
-            local distance = botPos:Distance(ply:GetPos())
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestPlayer = ply
-            end
-        end
+    local loco = bot:BotLocomotor()
+    if loco then
+        loco:SetGoal(nil)
     end
-
-    local state = TTTBots.Behaviors.GetState(bot, "SwapRole")
-    state.target = nearestPlayer
-    return nearestPlayer
-end
-
---- Copy the role of the target player to the bot.
----@param bot Bot
----@param target Player
-function SwapRole.SwapRole(bot, target)
-    local botRole = bot:GetSubRole()
-    local botTeam = bot:GetTeam()
-    local targetRole = target:GetSubRole()
-    local targetTeam = target:GetTeam()
-    local roleString = target:GetRoleStringRaw()
-    target:ChatPrint("Your role has been stolen by " .. bot:Nick())
-    target:PrintMessage(HUD_PRINTTALK, "Your role has been stolen by " .. bot:Nick())
-    bot:UpdateTeam(targetTeam)
-    bot:SetRole(targetRole)
-    SendFullStateUpdate()
-    target:SetRole(botRole)
-    target:UpdateTeam(botTeam)
-    SendFullStateUpdate()
-    print("Stolen role: ", roleString, " from ", target:Nick())
 end

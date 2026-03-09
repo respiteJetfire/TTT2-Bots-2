@@ -51,6 +51,11 @@ BotMorality.SUSPICIONVALUES = {
     -- Infected role events
     InfectionWitnessed = 10, -- We saw this player get converted into a zombie (maximum suspicion)
     ZombieModel = 8,         -- This player has the zombie player model (strong indicator)
+    -- Cursed role events
+    CurseWitnessed = 3,      -- We saw this player become Cursed (noteworthy but not evil)
+    CurseSwapWitnessed = 2,  -- We witnessed a Cursed role swap event
+    CursedApproaching = 1,   -- Cursed player approaching us (awareness, low suspicion)
+    CursedImmune = 0,        -- Cursed is damage-immune (information, no suspicion change)
 }
 
 BotMorality.SuspicionDescriptions = {
@@ -680,6 +685,15 @@ timer.Create("TTTBots.Components.Morality.DisguisedPlayerDetection", 1, 0, funct
             end
         end
     end
+end)
+
+-- Clear corpse proximity tracking between rounds
+hook.Add("TTTEndRound", "TTTBots.Morality.ClearPlayersNearBodies", function()
+    playersNearBodies = {}
+end)
+
+hook.Add("TTTPrepareRound", "TTTBots.Morality.PreparePlayersNearBodies", function()
+    playersNearBodies = {}
 end)
 
 -- When a player passes a role tester, mark them as tested clean in nearby bots' morality

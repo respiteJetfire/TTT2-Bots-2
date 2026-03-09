@@ -82,6 +82,13 @@ function GetWeapons.OnStart(bot)
     return STATUS.RUNNING
 end
 
+-- Distance at which the bot walks directly toward the weapon instead of full
+-- pathfinding. Must be larger than PathManager.completeRange (~28) so the bot
+-- does not oscillate when the locomotor thinks the goal is already reached.
+local DIRECT_WALK_DIST = 120
+-- Distance at which the server-side Give() pickup is attempted.
+local PICKUP_DIST_GW = 60
+
 ---@param bot Bot
 ---@return BStatus
 function GetWeapons.OnRunning(bot)
@@ -93,12 +100,14 @@ function GetWeapons.OnRunning(bot)
     end
 
     local loco = bot:BotLocomotor()
-    local dist = bot:GetPos():Distance(target:GetPos())
+    local targetPos = target:GetPos()
+    local dist = bot:GetPos():Distance(targetPos)
 
     -- Close enough — pick up directly server-side.
-    if dist <= 80 then
+    if dist <= PICKUP_DIST_GW then
         loco:StopMoving()
         loco:SetUse(true)
+        loco:LookAt(targetPos)
         local class = target:GetClass()
         if class ~= "" then
             local given = bot:Give(class)
@@ -110,8 +119,17 @@ function GetWeapons.OnRunning(bot)
         return STATUS.SUCCESS
     end
 
+    -- Inside the direct-walk zone: bypass pathfinding (which would clear the
+    -- goal at ~28 units) and walk straight toward the weapon.
+    if dist <= DIRECT_WALK_DIST then
+        loco:SetGoal(nil) -- clear any stale pathfinding goal
+        loco:SetPriorityGoal(targetPos, PICKUP_DIST_GW)
+        loco:LookAt(targetPos)
+        return STATUS.RUNNING
+    end
+
     loco:SetUse(false)
-    loco:SetGoal(target:GetPos())
+    loco:SetGoal(targetPos)
 
     return STATUS.RUNNING
 end

@@ -183,11 +183,17 @@ function DefibPlayer.OnRunning(bot)
     if not (target and rag and defib) then return STATUS.FAILURE end
     if not (IsValid(target) and IsValid(rag) and IsValid(defib)) then return STATUS.FAILURE end
     local ragPos = DefibPlayer.GetSpinePos(rag)
+    -- Use a ground-level position for navigation so the navmesh lookup resolves
+    -- to the correct area.  The spine bone sits above the floor and can map to a
+    -- neighbouring nav area, stalling the path follower.
+    local ragGroundPos = Vector(ragPos.x, ragPos.y, rag:GetPos().z)
 
-    loco:SetGoal(ragPos)
+    loco:SetGoal(ragGroundPos)
     loco:LookAt(ragPos)
 
-    local dist = bot:GetPos():Distance(ragPos)
+    -- Use XY distance so the spine's vertical offset doesn't shrink the
+    -- effective threshold and prevent the bot from reaching the corpse.
+    local dist = ragGroundPos:Distance(Vector(bot:GetPos().x, bot:GetPos().y, ragGroundPos.z))
 
     -- Use a larger threshold to approach, and once we've started the hold timer
     -- don't cancel it just because of minor locomotor drift (hysteresis).
@@ -199,9 +205,15 @@ function DefibPlayer.OnRunning(bot)
         inventory:PauseAutoSwitch()
         bot:SetActiveWeapon(defib)
         loco:SetGoal() -- reset goal to stop moving
+        loco:SetHalt(true)
         loco:PauseAttackCompat()
+        loco.persistCrouch = true
         loco:Crouch(true)
         loco:PauseRepel()
+        -- Look slightly below spine so the bot actually faces the corpse, not above it
+        local lookTarget = ragGroundPos + Vector(0, 0, 5)
+        loco:LookAt(lookTarget, 2)
+        loco:StartAttack()
         if bot.defibStartTime == nil then
             bot.defibStartTime = CurTime()
             startFunc(bot)
@@ -218,6 +230,8 @@ function DefibPlayer.OnRunning(bot)
             loco:ResumeAttackCompat()
             loco:SetHalt(false)
             loco:ResumeRepel()
+            loco:StopAttack()
+            loco.persistCrouch = false
         end
         bot.defibStartTime = nil
     end
@@ -240,7 +254,9 @@ function DefibPlayer.OnEnd(bot)
     local inventory, loco = bot:BotInventory(), bot:BotLocomotor()
     if not (inventory and loco) then return end
 
+    loco:StopAttack()
     loco:ResumeAttackCompat()
+    loco.persistCrouch = false
     loco:Crouch(false)
     loco:SetHalt(false)
     loco:ResumeRepel()

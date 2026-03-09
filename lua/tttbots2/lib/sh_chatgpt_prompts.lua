@@ -35,6 +35,17 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, pl
     local promptInnocent = " although you must claim to be on the innocent team. "
     local promptSus = ""
     local teamOnlyPrompt = " "
+
+    -- Serial Killer special context
+    local promptSKContext = ""
+    if TEAM_SERIALKILLER and bot:GetTeam() == TEAM_SERIALKILLER then
+        promptInnocent = " You MUST pretend to be innocent. You are a lone wolf — trust nobody, kill everyone when isolated. "
+        promptSKContext = "You are the Serial Killer. You work alone and must kill everyone. "
+            .. "You have a powerful SK knife that instant-kills weakened targets. "
+            .. "Pretend to be a regular innocent player in chat. Be deceptive. "
+            .. "Never reveal your role unless you've been caught. "
+    end
+
     if usesSuspicion and playerSus > 5 then
         promptSus = " You think the person talking to you is very suspicious, and you are free to say so, and should treat them as such."
     elseif usesSuspicion and playerSus < -5 then
@@ -71,7 +82,7 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, pl
         promptPremessage = promptPremessage .. " Recent chat: " .. table.concat(lastMessagesStr, ", ") .. "."
     end
 
-    local prompt = promptIntro .. promptName .. promptGame .. promptGameDesc .. promptRole .. promptPersonality .. promptArchetype .. promptReply .. promptBehavior .. promptDirective .. promptTeam .. promptInnocent .. promptMessagerInfo .. promptSus .. teamOnlyPrompt .. promptPremessage .. promptMessage .. promptEnd
+    local prompt = promptIntro .. promptName .. promptGame .. promptGameDesc .. promptRole .. promptPersonality .. promptArchetype .. promptReply .. promptBehavior .. promptDirective .. promptTeam .. promptInnocent .. promptSKContext .. promptMessagerInfo .. promptSus .. teamOnlyPrompt .. promptPremessage .. promptMessage .. promptEnd
     -- print(table.concat(splitPromptsbyFullStop(prompt), "\n"))
     return prompt
 end

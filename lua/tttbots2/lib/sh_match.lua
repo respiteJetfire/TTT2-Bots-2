@@ -189,18 +189,6 @@ function Match.ResetStats(roundActive)
         for i, v in pairs(TTTBots.Bots) do
             if not v.components then continue end
             v:SetAttackTarget(nil, "ROUND_RESET")
-            -- Clear cover-seeking state so it doesn't persist into the next round.
-            v.coverTarget = nil
-            v.seekCoverPos = nil
-            v.seekCoverPeeking = false
-            v.seekCoverStartTime = nil
-            v.seekCoverCooldownUntil = nil
-            -- Clear loot attempt history so bots don't inherit stale cooldowns.
-            v.lootAttempted = nil
-            v.lootTarget = nil
-            v.lootStartTime = nil
-            -- Clear self-defense kill tracking so it doesn't bleed into the next round.
-            v.selfDefenseKills = nil
         end
     end
 end
@@ -271,7 +259,7 @@ end
 function Match.OnBotSpotC4(bot, c4)
     local chatter = bot:BotChatter()
     local locomotor = bot:BotLocomotor()
-    if not chatter or not chatter.On then return end
+    if not chatter then return end
     chatter:On("SpottedC4", {}, false)
     locomotor:LookAt(c4:GetPos())
 end
@@ -358,14 +346,9 @@ hook.Add("TTTPrepareRound", "TTTBots.Match.PrepareRound", function()
 end)
 
 if SERVER then
-    hook.Add("TTTOnCorpseCreated", "TTTBots.Match.OnCorpseCreated", function(corpse, deadply)
+    hook.Add("TTTOnCorpseCreated", "TTTBots.Match.OnCorpseCreated", function(corpse)
         if not Match.RoundActive then return end
         table.insert(Match.Corpses, corpse)
-        -- Tag the ragdoll with the attacker so body-inspection code can read it.
-        -- deadply.tttbots_killedBy is written by the PlayerDeath hook in sv_morality_suspicion.
-        if IsValid(deadply) and IsValid(deadply.tttbots_killedBy) then
-            corpse.tttbots_killedBy = deadply.tttbots_killedBy
-        end
     end)
 
     hook.Add("TTTBodyFound", "TTTBots.Match.BodyFound", function(discoverer, deceased, ragdoll)

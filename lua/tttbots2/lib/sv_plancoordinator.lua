@@ -161,7 +161,7 @@ function PlanCoordinator.CalcNearestEnemy(caller)
     for i, v in pairs(TTTBots.Match.AlivePlayers) do
         if v == caller then continue end
         if not TTTBots.Lib.IsPlayerAlive(v) then continue end
-        if TTTBots.Roles.IsAllies(caller, v) then continue end
+        if TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(caller, v) or TTTBots.Roles.IsAllies(caller, v) then continue end
         local dist = v:GetPos():Distance(caller:GetPos())
         if dist < closestDist then
             closestInnocent = v
@@ -193,7 +193,7 @@ end
 --- A Target Hashtable function to calculate a target for a job.
 function PlanCoordinator.CalcRandEnemy(caller)
     local nonAllies = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers,
-        function(ply) return not TTTBots.Roles.IsAllies(caller, ply) end)
+        function(ply) return not (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(caller, ply) or TTTBots.Roles.IsAllies(caller, ply)) end)
     local randInnocent = table.Random(nonAllies)
 
     return randInnocent
@@ -202,7 +202,7 @@ end
 --- A Target Hashtable function to calculate a target for a job.
 function PlanCoordinator.CalcRandFriendly(caller)
     local allies = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers,
-        function(ply) return TTTBots.Roles.IsAllies(caller, ply) end)
+        function(ply) return TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(caller, ply) or TTTBots.Roles.IsAllies(caller, ply) end)
     local randFriendly = table.Random(allies)
 
     return randFriendly
@@ -211,7 +211,7 @@ end
 --- A Target Hashtable function to calculate a target for a job.
 function PlanCoordinator.CalcRandFriendlyHuman(caller)
     local alliesHuman = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
-        return TTTBots.Roles.IsAllies(caller, ply) and not ply:IsBot()
+        return (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(caller, ply) or TTTBots.Roles.IsAllies(caller, ply)) and not ply:IsBot()
     end)
     local randFriendlyHuman = table.Random(alliesHuman)
 

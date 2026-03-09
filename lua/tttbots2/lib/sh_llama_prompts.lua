@@ -63,6 +63,22 @@ function TTTBots.LlamaPrompts.BuildSystemPrompt(bot)
         nick, role, style
     )
 
+    -- Serial Killer deception context
+    if TEAM_SERIALKILLER and IsValid(bot) and bot:GetTeam() == TEAM_SERIALKILLER then
+        base = base .. " You are the Serial Killer (lone wolf). Pretend to be innocent. Kill everyone."
+    end
+
+    -- Spy infiltration context
+    if TTTBots.Perception and TTTBots.Perception.IsSpy and IsValid(bot) and TTTBots.Perception.IsSpy(bot) then
+        local coverState = TTTBots.Perception.GetCoverState(bot)
+        local coverStr = (coverState and coverState.blown) and "BLOWN" or "intact"
+        base = base .. string.format(
+            " You are a Spy disguised as a traitor. Cover: %s. "
+            .. "Blend in with traitors, gather intel, report to innocents. Never reveal you are a spy.",
+            coverStr
+        )
+    end
+
     if gameCtx ~= "" then
         base = base .. " " .. gameCtx
     end

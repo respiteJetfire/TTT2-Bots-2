@@ -37,6 +37,12 @@ BotEvidence.EvidenceWeights = {
     KOS_CALLED_BY       = 5,    -- Another player called KOS on suspect
     BODY_FOUND_NEAR     = 3,    -- Suspect was in area when body was found
     SUSPICIOUS_MOVEMENT = 2,    -- General suspicious behavior
+    -- Spy role events
+    SPY_INTEL           = 8,    -- Spy-gathered intelligence on traitor identity/behavior
+    -- Cursed role events
+    CURSE_WITNESSED     = 3,    -- Saw someone become Cursed (neutral, but noteworthy)
+    CURSE_SWAP_WITNESSED = 2,   -- Witnessed a Cursed role swap event
+    CURSE_APPROACHING   = 1,    -- Cursed player approaching (low weight, just awareness)
 }
 
 --- Minimum total evidence weight before bot considers suspect KOS-worthy.
@@ -426,6 +432,7 @@ local EVIDENCE_LABELS = {
     KOS_CALLED_BY       = "KOS called by others",
     BODY_FOUND_NEAR     = "found near a body",
     SUSPICIOUS_MOVEMENT = "suspicious movement",
+    SPY_INTEL           = "spy intelligence",
 }
 
 --- Build a compact, natural-language evidence brief for a suspect.

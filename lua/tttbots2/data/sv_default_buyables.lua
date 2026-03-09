@@ -673,6 +673,77 @@ Registry.DeadRinger = {
     PrimaryWeapon = true,
 }
 
+-- ============================================================
+-- Serial Killer — Buyable Equipment
+-- ============================================================
+
+---@type Buyable
+--- Body Armor for Serial Killer — SK is melee-heavy and needs survivability.
+Registry.SKBodyArmor = {
+    Name = "Body Armor (Serial Killer)",
+    Class = "item_ttt_armor",
+    Price = 1,
+    Priority = 4,
+    SituationalScore = function(ply)
+        -- Always high value for SK — melee role needs survivability
+        local base = 6
+        local aliveCount = #getAlivePlayers()
+        if aliveCount > 6 then base = base + 2 end
+        -- Extra value if SK has taken damage (armor depleted)
+        if ply:Armor() < 30 then base = base + 3 end
+        return base
+    end,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    TTT2 = true,
+    Roles = { "serialkiller" },
+}
+
+---@type Buyable
+--- Radar for SK — useful if tracker_mode ConVar is set to 0 (no default tracker).
+Registry.SKRadar = {
+    Name = "Radar (Serial Killer)",
+    Class = "item_ttt_radar",
+    Price = 1,
+    Priority = 3,
+    SituationalScore = function(ply)
+        local base = 4
+        local aliveCount = #getAlivePlayers()
+        if aliveCount > 6 then base = base + 2 end
+        return base
+    end,
+    RandomChance = 2,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    TTT2 = true,
+    Roles = { "serialkiller" },
+}
+
+---@type Buyable
+--- Disguiser for SK — helps maintain stealth identity.
+Registry.SKDisguiser = {
+    Name = "Disguiser (Serial Killer)",
+    Class = "item_ttt_disguiser",
+    Price = 1,
+    Priority = 2,
+    SituationalScore = function(ply)
+        local base = 3
+        -- More valuable early in the round when identity is unknown
+        local awareness = ply.BotRoundAwareness and ply:BotRoundAwareness()
+        if awareness then
+            local phase = awareness:GetPhase()
+            if phase == 1 or phase == 2 then base = base + 3 end -- EARLY or MID
+        end
+        return base
+    end,
+    RandomChance = 2,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    TTT2 = true,
+    Roles = { "serialkiller" },
+}
+
 -- ---@type Buyable
 -- --- This is a custom buyable with the weapon name "'arccw_mw2_g17'" into the shop of the innocent
 -- Registry.G17MW2 = {

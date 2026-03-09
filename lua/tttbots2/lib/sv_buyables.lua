@@ -18,17 +18,12 @@ local buyables_role = TTTBots.Buyables.m_buyables_role
 ---@field BuyFunc function? - A function called to "buy" the Class. By default, just calls function(ply) ply:Give(Class) end
 ---@field TTT2 boolean? - Is this TTT2 specific?
 ---@field PrimaryWeapon boolean? - Should the bot use this over whatever other primaries they have? (affects autoswitch)
----@field SituationalScore function? - function(bot) → number. If present, replaces static Priority for buy-order scoring. Higher = more likely to be bought first.
----@field DeferredEvent string? - If set, this buyable is skipped during initial buying and instead purchased via TryDeferredBuy when the matching event fires.
----@field UniqueTeamItem boolean? - If true, only one bot per team may purchase this item per round.
+---@field DeferredEvent string? - If set, this buyable is only considered during TryDeferredBuy calls matching this event name.
+---@field SituationalScore function? - Returns a numeric score for how valuable this item is right now. Score <= 0 means skip.
 
 --- A table of weapons that are preferred over primary weapons (PrimaryWeapon == true). Indexed by the weapon's classname.
 ---@type table<string, boolean>
 TTTBots.Buyables.PrimaryWeapons = {}
-
---- Tracks which unique-team items have already been purchased this round, keyed by team then classname.
----@type table<string, table<string, boolean>>
-TTTBots.Buyables.TeamPurchases = {}
 
 --- Return a buyable item by its name.
 ---@param name string - The name of the buyable item.
@@ -56,47 +51,24 @@ end
 function TTTBots.Buyables.PurchaseBuyablesFor(bot)
     local roleString = bot:GetRoleStringRaw()
     local options = TTTBots.Buyables.GetBuyablesFor(roleString)
-    local creditAllowance = 1
+    local creditAllowance = 2
     local purchased = {}
 
-    -- Compute effective scores once and sort by them descending
-    local scored = {}
-    for i, option in ipairs(options) do
-        local score = option.SituationalScore and option.SituationalScore(bot) or option.Priority
-        scored[#scored + 1] = { option = option, score = score }
-    end
-    table.sort(scored, function(a, b) return a.score > b.score end)
-
-    for _, entry in ipairs(scored) do
-        local option = entry.option
-        if option.DeferredEvent then continue end                                              -- skip deferred items
-        if option.TTT2 and not TTTBots.Lib.IsTTT2() then continue end                        -- for mod compat.
-        if option.Class and not TTTBots.Lib.WepClassExists(option.Class) then continue end   -- for mod compat.
+    for i, option in pairs(options) do
+        if option.TTT2 and not TTTBots.Lib.IsTTT2() then continue end                      -- for mod compat.
+        if option.Class and not TTTBots.Lib.WepClassExists(option.Class) then continue end -- for mod compat.
         if option.Price > creditAllowance then continue end
         if option.CanBuy and not option.CanBuy(bot) then continue end
         if option.RandomChance and math.random(1, option.RandomChance) ~= 1 then continue end
 
-        -- Team-unique item check
-        if option.UniqueTeamItem then
-            local team = bot:Team()
-            TTTBots.Buyables.TeamPurchases[team] = TTTBots.Buyables.TeamPurchases[team] or {}
-            if TTTBots.Buyables.TeamPurchases[team][option.Class] then continue end
-        end
-
         creditAllowance = creditAllowance - option.Price
         table.insert(purchased, option)
-
-        if option.UniqueTeamItem then
-            local team = bot:Team()
-            TTTBots.Buyables.TeamPurchases[team][option.Class] = true
-        end
-
         local buyfunc = option.BuyFunc or (function(ply) ply:Give(option.Class) end)
         buyfunc(bot)
         if option.OnBuy then option.OnBuy(bot) end
         if option.ShouldAnnounce then
             local chatter = bot:BotChatter()
-            if not chatter or not chatter.On then continue end
+            if not chatter then continue end
             chatter:On("Buy" .. option.Name, {}, option.AnnounceTeam or false)
         end
     end
@@ -104,36 +76,52 @@ function TTTBots.Buyables.PurchaseBuyablesFor(bot)
     return purchased
 end
 
----Tries to purchase any deferred buyables matching the given event type for the given bot.
+---Attempts to purchase any deferred buyables for the given bot that match the provided event name.
+---A deferred buyable is one with a `DeferredEvent` field set. This function iterates all buyables
+---registered for the bot's role, filters to those matching the event, scores them via `SituationalScore`,
+---and purchases the best eligible one (score > 0, CanBuy passes, RandomChance passes).
 ---@param bot Bot
----@param eventType string - One of: "ally_died", "round_mid", "round_late"
-function TTTBots.Buyables.TryDeferredBuy(bot, eventType)
-    if not IsValid(bot) then return end
-    local roleString = bot:GetRoleStringRaw()
-    local options = TTTBots.Buyables.GetBuyablesFor(roleString)
-    local credits = bot.deferredCredits or 0
-    if credits <= 0 then return end
+---@param eventName string - The event name to match against each buyable's DeferredEvent field.
+---@return Buyable|nil - The buyable that was purchased, or nil if none was bought.
+function TTTBots.Buyables.TryDeferredBuy(bot, eventName)
+    if not IsValid(bot) then return nil end
+    local roleString = bot:GetRoleStringRaw and bot:GetRoleStringRaw()
+    if not roleString then return nil end
 
-    for _, option in ipairs(options) do
-        if option.DeferredEvent ~= eventType then continue end
+    local options = TTTBots.Buyables.GetBuyablesFor(roleString)
+    local creditAllowance = 2
+
+    local bestOption = nil
+    local bestScore = 0
+
+    for _, option in pairs(options) do
+        if option.DeferredEvent ~= eventName then continue end
         if option.TTT2 and not TTTBots.Lib.IsTTT2() then continue end
         if option.Class and not TTTBots.Lib.WepClassExists(option.Class) then continue end
-        if option.Price > credits then continue end
+        if option.Price > creditAllowance then continue end
         if option.CanBuy and not option.CanBuy(bot) then continue end
         if option.RandomChance and math.random(1, option.RandomChance) ~= 1 then continue end
 
-        credits = credits - option.Price
-        bot.deferredCredits = credits
-        local buyfunc = option.BuyFunc or (function(ply) ply:Give(option.Class) end)
-        buyfunc(bot)
-        if option.OnBuy then option.OnBuy(bot) end
-        if option.ShouldAnnounce then
-            local chatter = bot:BotChatter()
-            if chatter and chatter.On then
-                chatter:On("Buy" .. option.Name, {}, option.AnnounceTeam or false)
-            end
+        local score = option.SituationalScore and option.SituationalScore(bot) or option.Priority
+        if score > bestScore then
+            bestScore = score
+            bestOption = option
         end
     end
+
+    if not bestOption then return nil end
+
+    local buyfunc = bestOption.BuyFunc or (function(ply) ply:Give(bestOption.Class) end)
+    buyfunc(bot)
+    if bestOption.OnBuy then bestOption.OnBuy(bot) end
+    if bestOption.ShouldAnnounce then
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("Buy" .. bestOption.Name, {}, bestOption.AnnounceTeam or false)
+        end
+    end
+
+    return bestOption
 end
 
 --- Register a buyable item. This is useful for modders wanting to add custom buyable items.
@@ -155,9 +143,6 @@ end
 
 -- hook for TTTBeginRound
 hook.Add("TTTBeginRound", "TTTBots_Buyables", function()
-    -- Clear per-round team purchase tracking
-    TTTBots.Buyables.TeamPurchases = {}
-
     -- The two second delay can avoid a bunch of confusing errors. Don't ask why, I don't fucking know.
     timer.Simple(2,
         function()
@@ -167,7 +152,6 @@ hook.Add("TTTBeginRound", "TTTBots_Buyables", function()
                 if not bot.components then continue end
                 if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
                 TTTBots.Buyables.PurchaseBuyablesFor(bot)
-                bot.deferredCredits = 1
             end
         end)
 end)

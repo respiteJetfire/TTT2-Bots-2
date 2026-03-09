@@ -19,14 +19,16 @@ local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
     _prior.Chatter,
     _prior.FightBack,
+    _prior.SelfDefense,
     _prior.Requests,
-    _prior.Support,
     _prior.Convert,
+    _prior.Support,
     _bh.Roledefib,
+    _prior.Deception,   -- AlibiBuilding, FakeInvestigate, PlausibleIgnorance (EARLY blend-in)
     _prior.Restore,
-    _prior.Minge,
-    _bh.Stalk,
+    _bh.Stalk,          -- Stalk isolated targets (after deception is exhausted)
     _prior.Investigate,
+    _prior.Minge,
     _prior.Patrol
 }
 

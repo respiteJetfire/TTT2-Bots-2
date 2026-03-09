@@ -2153,17 +2153,20 @@ local LoadLang = function()
     Line("{{player}}, we're on your side now", A.Default)
     Line("Hey fuckhead, try not to shoot us now we're on your team!", A.Hothead)
 
-    RegisterCategory("SwappingRole", P.IMPORTANT, "When a bot wants to copy {{player}}'s role")
+    RegisterCategory("SwappingRole", P.IMPORTANT, "When a Cursed bot wants to swap roles with {{player}}")
     Line("{{player}} stand still, don't be alarmed!", A.Default)
     Line("come here {{player}}", A.Default)
-    Line("stop {{player}} I am a Mimic", A.Default)
-    Line("yo {{player}}, wait up, I'm joining your team.", A.Default)
-    Line("{{player}}, hold up a sec!", A.Default)
-    Line("{{player}}, gotta copy your role real quick.", A.Default)
-    Line("{{player}}, don't move, copying your role.", A.Default)
-    Line("{{player}}, stay still, mimicking you.", A.Default)
-    Line("{{player}}, I'm gonna copy your role.", A.Default)
-    Line("{{player}}, wait, I'm a Mimic.", A.Default)
+    Line("{{player}}, I need your role!", A.Default)
+    Line("yo {{player}}, wait up, I'm swapping with you.", A.Casual)
+    Line("{{player}}, hold up a sec!", A.Casual)
+    Line("{{player}}, gotta swap roles real quick.", A.Nice)
+    Line("{{player}}, don't move. Swapping roles.", A.Stoic)
+    Line("GET OVER HERE {{player}}! I need your role!", A.Hothead)
+    Line("{{player}}, just hold still and it'll be over.", A.Bad)
+    Line("{{player}}, for the good of the team, give me your role!", A.Teamer)
+    Line("{{player}}, swapping with you. Optimal play.", A.Tryhard)
+    Line("{{player}}, don't worry... I just want to talk.", A.Sus)
+    Line("{{player}}, wait up! I wanna be friends!", A.Dumb)
 
     RegisterCategory("CopyingRole", P.IMPORTANT, "When a bot is copying another {{player}}'s role.")
     Line("{{player}}, wait up!", A.Default)
@@ -2176,6 +2179,214 @@ local LoadLang = function()
     Line("{{player}}, gonna mimic your role.", A.Default)
     Line("{{player}}, wait up, copying your role.", A.Default)
     Line("{{player}}, I'm becoming you.", A.Default)
+
+    -----------------------------------------------------------
+    -- CURSED ROLE CHATTER
+    -----------------------------------------------------------
+
+    -- When a bot receives the Cursed role (round start or mid-round swap)
+    RegisterCategory("CursedRoleReceived", P.IMPORTANT, "When a bot receives the Cursed role.")
+    Line("Oh no, I'm cursed!", A.Default)
+    Line("Great, I'm cursed... someone come here.", A.Default)
+    Line("I've been cursed! I need to find someone to swap with.", A.Default)
+    Line("ugh, i'm cursed. this sucks", A.Casual)
+    Line("bruh i got cursed lol", A.Casual)
+    Line("I'm so sorry everyone, I'm cursed now.", A.Nice)
+    Line("I've been afflicted with the curse.", A.Stoic)
+    Line("WHO CURSED ME?! I'M GONNA GET YOU BACK!", A.Hothead)
+    Line("Great, I'm cursed. Just my luck.", A.Bad)
+    Line("I'm cursed! Someone help me out here!", A.Teamer)
+    Line("Cursed role. Need to swap ASAP.", A.Tryhard)
+    Line("I'm totally not cursed... don't run.", A.Sus)
+    Line("Ooh I'm cursed! What does that mean?", A.Dumb)
+
+    -- When a Cursed bot successfully swaps roles with someone
+    RegisterCategory("CursedSwapSuccess", P.IMPORTANT, "When a Cursed bot successfully swaps with {{player}}.")
+    Line("Ha! Have fun being cursed, {{player}}!", A.Default)
+    Line("Sorry {{player}}, better you than me!", A.Default)
+    Line("I'm free! Thanks {{player}}!", A.Default)
+    Line("lol bye {{player}}, enjoy the curse", A.Casual)
+    Line("seeya {{player}} haha", A.Casual)
+    Line("Sorry {{player}}, I had to do it!", A.Nice)
+    Line("The curse has been passed.", A.Stoic)
+    Line("HAHA! {{player}} IS CURSED NOW!", A.Hothead)
+    Line("Later, {{player}}! Sucker!", A.Bad)
+    Line("Swapped with {{player}}! Let's go team!", A.Teamer)
+    Line("Swap complete. I'm back in the game.", A.Tryhard)
+    Line("Oh {{player}}, I didn't mean to do that...", A.Sus)
+    Line("Wait, did I just give {{player}} the curse? Oops!", A.Dumb)
+
+    -- When a Cursed bot is chasing/approaching a swap target
+    RegisterCategory("CursedChasing", P.NORMAL, "When a Cursed bot is approaching {{player}} to swap.")
+    Line("Hold still {{player}}!", A.Default)
+    Line("Come here {{player}}, I just want to talk!", A.Default)
+    Line("{{player}}, don't run!", A.Default)
+    Line("yo {{player}} come back here", A.Casual)
+    Line("{{player}} wait up dude", A.Casual)
+    Line("{{player}}, please don't run, I need your help!", A.Nice)
+    Line("Approaching target.", A.Stoic)
+    Line("GET BACK HERE {{player}}!", A.Hothead)
+    Line("{{player}}, stop running you coward!", A.Bad)
+    Line("{{player}}, take one for the team!", A.Teamer)
+    Line("Closing distance on {{player}}.", A.Tryhard)
+    Line("{{player}}, I'm not gonna hurt you... I promise.", A.Sus)
+    Line("{{player}}! I wanna give you a hug!", A.Dumb)
+
+    -- When a Cursed bot fires the RoleSwap Deagle
+    RegisterCategory("CursedDeagleFired", P.NORMAL, "When a Cursed bot fires the RoleSwap Deagle.")
+    Line("Don't dodge!", A.Default)
+    Line("Tag, you're it!", A.Default)
+    Line("Swap deagle, baby!", A.Default)
+    Line("yeet", A.Casual)
+    Line("pew pew swap time", A.Casual)
+    Line("Sorry, I have to shoot!", A.Nice)
+    Line("Firing RoleSwap Deagle.", A.Stoic)
+    Line("EAT DEAGLE!", A.Hothead)
+    Line("Enjoy the curse!", A.Bad)
+    Line("Deagle shot for the team!", A.Teamer)
+    Line("Optimal target acquired. Firing.", A.Tryhard)
+    Line("Oops, my finger slipped!", A.Sus)
+    Line("Is this how you use this thing?", A.Dumb)
+
+    -- When a Cursed bot respawns after dying
+    RegisterCategory("CursedRespawned", P.NORMAL, "When a Cursed bot respawns after dying.")
+    Line("I'm back!", A.Default)
+    Line("You can't get rid of me that easily!", A.Default)
+    Line("The curse brings me back!", A.Default)
+    Line("im back lol", A.Casual)
+    Line("respawned, time to find someone", A.Casual)
+    Line("I'm alive again! Let's try this again.", A.Nice)
+    Line("Respawned. Resuming objective.", A.Stoic)
+    Line("I'M BACK AND I'M ANGRY!", A.Hothead)
+    Line("Miss me? Didn't think so.", A.Bad)
+    Line("Back in action, team!", A.Teamer)
+    Line("Respawn timer expired. Re-engaging.", A.Tryhard)
+    Line("Did you guys miss me? No? Okay.", A.Sus)
+    Line("Woah, I'm alive again! Cool!", A.Dumb)
+
+    -- When a Cursed bot can't tag someone due to no-backsies
+    RegisterCategory("CursedNoBacksies", P.NORMAL, "When a Cursed bot hits the no-backsies restriction.")
+    Line("Ugh, no backsies...", A.Default)
+    Line("I can't tag them back yet!", A.Default)
+    Line("No backsies! I need to find someone else.", A.Default)
+    Line("dang, no backsies", A.Casual)
+    Line("cant swap back, need another target", A.Casual)
+    Line("Oh no, I can't swap with them yet.", A.Nice)
+    Line("Backsies protection active. Seeking new target.", A.Stoic)
+    Line("WHAT?! NO BACKSIES?! UGH!", A.Hothead)
+    Line("Stupid no-backsies rule...", A.Bad)
+    Line("Can't swap back. Finding another target.", A.Teamer)
+    Line("No-backsies timer active. Retargeting.", A.Tryhard)
+    Line("That's... convenient for them.", A.Sus)
+    Line("Why can't I tag them? That's unfair!", A.Dumb)
+
+    -- When a Cursed bot can't tag a Detective
+    RegisterCategory("CursedCantTagDet", P.NORMAL, "When a Cursed bot can't tag a Detective.")
+    Line("I can't curse a Detective!", A.Default)
+    Line("Detectives are protected...", A.Default)
+    Line("damn, can't tag detectives", A.Casual)
+    Line("That's a Detective, I can't swap with them.", A.Nice)
+    Line("Target is Detective-class. Protected.", A.Stoic)
+    Line("WHY CAN'T I TAG THE DETECTIVE?!", A.Hothead)
+    Line("Of course the detective is protected...", A.Bad)
+    Line("Can't tag detectives. Need a different target.", A.Teamer)
+    Line("Detective protection active. Adjusting.", A.Tryhard)
+    Line("The detective seems... immune to me.", A.Sus)
+    Line("I tried to tag the detective but nothing happened!", A.Dumb)
+
+    -- When the round is late and the Cursed is desperate
+    RegisterCategory("CursedDesperateLate", P.IMPORTANT, "When the round is late and the Cursed is desperate to swap.")
+    Line("I need to curse someone NOW!", A.Default)
+    Line("Running out of time!", A.Default)
+    Line("I'm running out of options!", A.Default)
+    Line("oh god oh god i need to swap quick", A.Casual)
+    Line("SOMEONE PLEASE LET ME TAG YOU", A.Casual)
+    Line("Please, someone, I need to swap before it's too late!", A.Nice)
+    Line("Time is running out. Must swap immediately.", A.Stoic)
+    Line("SOMEONE GET OVER HERE RIGHT NOW!", A.Hothead)
+    Line("I'm screwed if I don't swap NOW!", A.Bad)
+    Line("Team, I need someone to swap with urgently!", A.Teamer)
+    Line("Critical: must execute swap before round end.", A.Tryhard)
+    Line("Haha, I'm fine, everything's fine...", A.Sus)
+    Line("Wait, do I lose if I don't swap? HELP!", A.Dumb)
+
+    -- When a Cursed bot self-immolates
+    RegisterCategory("CursedSelfImmolate", P.NORMAL, "When a Cursed bot self-immolates.")
+    Line("AAAGH! *sets self on fire*", A.Default)
+    Line("Burning myself for a fresh start!", A.Default)
+    Line("lmao im on fire", A.Casual)
+    Line("Sorry, I had to burn myself.", A.Nice)
+    Line("Self-immolation initiated.", A.Stoic)
+    Line("BURN BABY BURN!", A.Hothead)
+    Line("Time to make some ashes.", A.Bad)
+    Line("Burning for the team!", A.Teamer)
+    Line("Strategic immolation executed.", A.Tryhard)
+    Line("Don't mind me, just... on fire.", A.Sus)
+    Line("Ooh, pretty flames!", A.Dumb)
+
+    -- When another bot spots a Cursed player
+    RegisterCategory("CursedSpotted", P.IMPORTANT, "When a bot spots a known Cursed player {{player}}.")
+    Line("Watch out, {{player}} is Cursed!", A.Default)
+    Line("Cursed player spotted!", A.Default)
+    Line("{{player}} is the Cursed, stay away!", A.Default)
+    Line("yo {{player}} is cursed, run", A.Casual)
+    Line("heads up, {{player}} is cursed", A.Casual)
+    Line("Everyone be careful, {{player}} is Cursed!", A.Nice)
+    Line("Cursed identified: {{player}}.", A.Stoic)
+    Line("{{player}} IS CURSED! DON'T LET THEM NEAR YOU!", A.Hothead)
+    Line("{{player}} is cursed. Not my problem.", A.Bad)
+    Line("Team, watch out for {{player}}, they're Cursed!", A.Teamer)
+    Line("Cursed player {{player}} identified. Avoid contact.", A.Tryhard)
+    Line("Is {{player}} cursed? I think they are...", A.Sus)
+    Line("{{player}} looks... different. Are they cursed?", A.Dumb)
+
+    -- When the Cursed is approaching another bot
+    RegisterCategory("CursedApproachingMe", P.CRITICAL, "When the Cursed player is approaching this bot.")
+    Line("Stay away from me!", A.Default)
+    Line("The Cursed is coming for me!", A.Default)
+    Line("Don't come any closer!", A.Default)
+    Line("oh no the cursed is coming for me", A.Casual)
+    Line("nope nope nope stay back", A.Casual)
+    Line("Please don't curse me!", A.Nice)
+    Line("Cursed player approaching. Evading.", A.Stoic)
+    Line("GET AWAY FROM ME CURSED!", A.Hothead)
+    Line("Touch me and I'll end you. Oh wait...", A.Bad)
+    Line("Help! The Cursed is after me!", A.Teamer)
+    Line("Cursed player in proximity. Maintaining distance.", A.Tryhard)
+    Line("Why are you walking toward me like that...", A.Sus)
+    Line("Are you trying to tag me? That's not nice!", A.Dumb)
+
+    -- When a bot can't damage the Cursed
+    RegisterCategory("CursedCantDamage", P.NORMAL, "When a bot tries to damage the Cursed and fails.")
+    Line("I can't hurt them!", A.Default)
+    Line("The Cursed is immune!", A.Default)
+    Line("My shots aren't doing anything!", A.Default)
+    Line("bro is unkillable wtf", A.Casual)
+    Line("my shots aint doing jack", A.Casual)
+    Line("I can't damage them, they're immune!", A.Nice)
+    Line("Damage output: zero. Target is immune.", A.Stoic)
+    Line("WHY WON'T YOU DIE?!", A.Hothead)
+    Line("Waste of ammo on that freak.", A.Bad)
+    Line("Team, don't bother shooting the Cursed!", A.Teamer)
+    Line("Confirmed: Cursed has damage immunity.", A.Tryhard)
+    Line("Interesting... they can't be hurt.", A.Sus)
+    Line("Why aren't my bullets working?!", A.Dumb)
+
+    -- When a bot witnesses a role swap
+    RegisterCategory("CursedSwappedWithSomeone", P.IMPORTANT, "When a bot witnesses {{player1}} cursing {{player2}}.")
+    Line("They just swapped roles!", A.Default)
+    Line("{{player1}} cursed {{player2}}!", A.Default)
+    Line("Did you see that? They swapped!", A.Default)
+    Line("yo they just swapped roles", A.Casual)
+    Line("{{player1}} tagged {{player2}} lol", A.Casual)
+    Line("Oh no, {{player2}} just got cursed!", A.Nice)
+    Line("Role swap observed: {{player1}} → {{player2}}.", A.Stoic)
+    Line("{{player1}} JUST CURSED {{player2}}!", A.Hothead)
+    Line("Ha, {{player2}} got cursed. Sucks to be them.", A.Bad)
+    Line("Watch out, {{player2}} is the new Cursed!", A.Teamer)
+    Line("Swap confirmed. {{player2}} is now Cursed.", A.Tryhard)
+    Line("Something weird just happened between {{player1}} and {{player2}}...", A.Sus)
+    Line("Wait, did {{player1}} just curse {{player2}}? Whoa!", A.Dumb)
 
     -----------------------------------------------------------
     -- TRAITOROUS ACTIONS
@@ -3832,6 +4043,1196 @@ local LoadLang = function()
     Line("he was somewhere around {{location}} i think", A.Dumb)
 
     Line("Team! Doomguy last seen at {{location}}! Plan accordingly!", A.Teamer)
+
+    -----------------------------------------------------------
+    -- NECROMANCER / ZOMBIE (NECRO) ROLE EVENTS
+    -----------------------------------------------------------
+
+    RegisterCategory("NecroRevivingZombie", P.IMPORTANT, "Necromancer is raising a dead player as a zombie (team-only chat).")
+    Line("Rise, my minion... I'm raising the dead.", A.Default)
+    Line("I'm converting a corpse into a zombie. Cover me.", A.Default)
+    Line("Raising the dead. This one will serve us well.", A.Default)
+    Line("Another soldier for our army... rising now.", A.Default)
+
+    Line("yo im raising a zombie rn cover me", A.Casual)
+    Line("making another zombie lets gooo", A.Casual)
+    Line("reviving this one as a zombie, hold on", A.Casual)
+
+    Line("Initiating revival protocol. Cover my position.", A.Tryhard)
+    Line("Converting corpse to zombie asset. Maintain perimeter.", A.Tryhard)
+    Line("New zombie inbound. 3 seconds.", A.Tryhard)
+
+    Line("RISE!! RISE FROM THE DEAD!!", A.Hothead)
+    Line("GET UP! YOU SERVE ME NOW!", A.Hothead)
+    Line("ANOTHER ONE FOR THE ARMY!!", A.Hothead)
+
+    Line("The dead shall rise.", A.Stoic)
+    Line("Converting another. Stand by.", A.Stoic)
+    Line("Raising a new zombie.", A.Stoic)
+
+    Line("Sorry about this, but I need your help... rise, please!", A.Nice)
+    Line("I know it's not ideal, but welcome back! As a zombie!", A.Nice)
+
+    Line("Get up. You're mine now.", A.Bad)
+    Line("Another puppet for my collection.", A.Bad)
+    Line("Rise, servant. You don't have a choice.", A.Bad)
+
+    Line("I KNEW this corpse would be useful.", A.Sus)
+    Line("Nobody's watching... perfect time to raise the dead.", A.Sus)
+
+    Line("uhhh im doing the zombie thing on this body", A.Dumb)
+    Line("making a zombie i think? is this how it works?", A.Dumb)
+
+    Line("Team, I'm raising a zombie. Cover this position!", A.Teamer)
+    Line("Converting a corpse — protect me while I work!", A.Teamer)
+
+    RegisterCategory("ZombieRisen", P.IMPORTANT, "A bot has just been raised as a necro zombie.")
+    Line("I... I'm back. But different.", A.Default)
+    Line("Braaains... I serve the master now.", A.Default)
+    Line("The dead walk again.", A.Default)
+    Line("I... serve...", A.Default)
+
+    Line("bruh im a zombie now lol", A.Casual)
+    Line("wait what happened... why am i undead", A.Casual)
+    Line("ok so im a zombie i guess", A.Casual)
+
+    Line("Zombie operational. Awaiting target designation.", A.Tryhard)
+    Line("Reanimated. Combat ready. 7 rounds loaded.", A.Tryhard)
+
+    Line("I'M BACK!! AND I'M HUNGRY!!", A.Hothead)
+    Line("BRAAAINS!! LET ME AT THEM!!", A.Hothead)
+    Line("RAAAAAGH!! I LIVE AGAIN!!", A.Hothead)
+
+    Line("I have returned.", A.Stoic)
+    Line("Reanimated. Ready.", A.Stoic)
+
+    Line("Oh! I'm... alive? Sort of? Hello everyone!", A.Nice)
+    Line("I'm back! Even if I'm a bit... dead-looking!", A.Nice)
+
+    Line("Ugh. Being undead is annoying.", A.Bad)
+    Line("Great. I'm a zombie. Fantastic.", A.Bad)
+
+    Line("wait am i dead or alive??? im confused", A.Dumb)
+    Line("BRAINS??? do i want brains now???", A.Dumb)
+
+    Line("Zombie reporting in! Ready to serve the team!", A.Teamer)
+
+    RegisterCategory("NecroZombieSpotted", P.CRITICAL, "When a bot sees a player get raised as a necro zombie.")
+    Line("{{player}} just came back from the dead! They're a zombie!", A.Default)
+    Line("The necromancer revived {{player}}! Watch out!", A.Default)
+    Line("{{player}} is back as a zombie! Someone's a necromancer!", A.Default)
+    Line("A zombie just rose from {{player}}'s corpse!", A.Default)
+
+    Line("yo {{player}} just got raised from the dead wtf", A.Casual)
+    Line("bruh {{player}} is a zombie now lmao", A.Casual)
+    Line("the necromancer got {{player}}, they're undead now", A.Casual)
+
+    Line("{{player}} reanimated. Necromancer confirmed active.", A.Tryhard)
+    Line("Corpse of {{player}} converted. High-priority threat.", A.Tryhard)
+    Line("Zombie creation witnessed. {{player}} is compromised.", A.Tryhard)
+
+    Line("WHAT THE HELL?! {{player}} JUST CAME BACK TO LIFE!", A.Hothead)
+    Line("THEY RAISED {{player}} FROM THE DEAD!! KILL IT!", A.Hothead)
+    Line("{{player}} IS A ZOMBIE NOW!! SHOOT THEM!", A.Hothead)
+
+    Line("{{player}} has been reanimated. Noted.", A.Stoic)
+    Line("A zombie rose from {{player}}'s corpse.", A.Stoic)
+
+    Line("Oh no! {{player}} got turned into a zombie! Be careful!", A.Nice)
+    Line("Poor {{player}}... they've been raised from the dead.", A.Nice)
+
+    Line("Heh. {{player}} is a zombie now. Not my problem.", A.Bad)
+    Line("{{player}} got zombified. Sucks to be them.", A.Bad)
+
+    Line("I KNEW there was a necromancer. Look at {{player}}!", A.Sus)
+    Line("{{player}} is a zombie... who's the necromancer?", A.Sus)
+
+    Line("uhhh {{player}} is standing up from being dead???", A.Dumb)
+    Line("wait can dead people do that?? {{player}} is alive again!", A.Dumb)
+
+    Line("Alert! {{player}} raised as zombie! Necromancer is active!", A.Teamer)
+    Line("Team, {{player}} is a zombie now! Group up!", A.Teamer)
+
+    RegisterCategory("NecroMasterKilled", P.CRITICAL, "When the necromancer master is killed (non-necro team reacts).")
+    Line("We got the necromancer! {{player}} is down!", A.Default)
+    Line("{{player}} was the necromancer! The master is dead!", A.Default)
+    Line("The necromancer is down! No more zombies!", A.Default)
+
+    Line("yooo we got the necromancer! {{player}} is done!", A.Casual)
+    Line("{{player}} was the necro, they're dead now", A.Casual)
+    Line("bye bye necromancer lmao", A.Casual)
+
+    Line("Necromancer eliminated. Threat neutralized.", A.Tryhard)
+    Line("{{player}} was the necromancer. Mission complete.", A.Tryhard)
+
+    Line("HAHA GET WRECKED {{player}}!! NO MORE ZOMBIES!", A.Hothead)
+    Line("THE NECROMANCER IS DEAD!! EAT THAT!", A.Hothead)
+
+    Line("The necromancer has been dealt with.", A.Stoic)
+    Line("{{player}}, the necromancer, is dead.", A.Stoic)
+
+    Line("Good job everyone! The necromancer is down!", A.Nice)
+    Line("We stopped {{player}} from raising more zombies!", A.Nice)
+
+    Line("About time. {{player}} was getting annoying with those zombies.", A.Bad)
+    Line("Good riddance, necromancer.", A.Bad)
+
+    Line("The zombie master is dead... right? Right??", A.Sus)
+    Line("{{player}} went down. But are there more?", A.Sus)
+
+    Line("we killed the zombie boss person! yay!", A.Dumb)
+    Line("wait so no more zombies now right?", A.Dumb)
+
+    Line("Necromancer down! Great teamwork everyone!", A.Teamer)
+
+    RegisterCategory("NecroMasterDied", P.IMPORTANT, "Zombie reacts when their necromancer master dies.")
+    Line("Master? MASTER?! No...", A.Default)
+    Line("The master is dead... I'm on my own now.", A.Default)
+    Line("I feel the bond breaking... the necromancer has fallen.", A.Default)
+
+    Line("wait the necromancer died?? uh oh", A.Casual)
+    Line("rip master... guess im solo now", A.Casual)
+    Line("necromancer down, im on my own lol", A.Casual)
+
+    Line("Master eliminated. Switching to solo combat mode.", A.Tryhard)
+    Line("Lost command. Operating independently.", A.Tryhard)
+
+    Line("MASTER!! NOOO!! I'LL AVENGE YOU!!", A.Hothead)
+    Line("THEY KILLED THE MASTER!! THEY ALL PAY!!", A.Hothead)
+
+    Line("The master has fallen.", A.Stoic)
+    Line("I am alone now.", A.Stoic)
+
+    Line("Oh no... the necromancer... I'm sorry I couldn't protect you.", A.Nice)
+
+    Line("Tch. The master was weak. I'll finish this myself.", A.Bad)
+    Line("Pathetic. I have to do everything alone.", A.Bad)
+
+    Line("uh... master? where did you go??", A.Dumb)
+    Line("wait the zombie boss is dead??? what do i do", A.Dumb)
+
+    Line("Master down! All zombies, fight to the last!", A.Teamer)
+
+    RegisterCategory("NecroVictory", P.IMPORTANT, "Team Necromancer won the round.")
+    Line("The dead have risen! We win!", A.Default)
+    Line("Death comes for all! Team Necromancer victorious!", A.Default)
+    Line("The necromancer's army prevails!", A.Default)
+
+    Line("GG necro team wins lets gooo", A.Casual)
+    Line("zombies on top lol", A.Casual)
+    Line("necromancer was too cracked", A.Casual)
+
+    Line("Optimal zombie conversion strategy executed.", A.Tryhard)
+    Line("Team Necromancer: flawless victory.", A.Tryhard)
+
+    Line("HAHAHA THE DEAD RULE!! GET WRECKED!!", A.Hothead)
+    Line("ZOMBIES WIN!! EAT IT!!", A.Hothead)
+
+    Line("The dead have claimed their victory.", A.Stoic)
+    Line("Team Necromancer is victorious.", A.Stoic)
+
+    Line("Good game everyone! Even though we were zombies!", A.Nice)
+    Line("That was fun! Glad we pulled through as a team!", A.Nice)
+
+    Line("They never stood a chance against the undead.", A.Bad)
+    Line("Pathetic resistance. The dead always win.", A.Bad)
+
+    Line("wait we won? yay zombies!", A.Dumb)
+    Line("did the zombie team win? cool!", A.Dumb)
+
+    Line("Great coordination, necro team!", A.Teamer)
+
+    RegisterCategory("ZombieAmmoLow", P.MODERATE, "Zombie bot is running low on ammo.")
+    Line("Only {{ammo}} bullets left... I have to make them count.", A.Default)
+    Line("Running dry... not many shots left.", A.Default)
+    Line("Ammo's almost gone. Every shot matters now.", A.Default)
+
+    Line("bro i only have {{ammo}} bullets left", A.Casual)
+    Line("running out of ammo lol this is bad", A.Casual)
+
+    Line("{{ammo}} rounds remaining. Engaging conservatively.", A.Tryhard)
+    Line("Critically low ammo. Prioritizing headshots.", A.Tryhard)
+
+    Line("I'M ALMOST OUT!! {{ammo}} BULLETS LEFT!!", A.Hothead)
+    Line("RUNNING DRY!! GOTTA MAKE THESE COUNT!!", A.Hothead)
+
+    Line("Low ammo. Proceeding carefully.", A.Stoic)
+
+    Line("Oh no, I'm almost out of ammo... {{ammo}} left!", A.Nice)
+
+    Line("Great. {{ammo}} bullets. This is going well.", A.Bad)
+
+    Line("how many bullets do i have?? oh no only {{ammo}}", A.Dumb)
+
+    Line("Team, I'm low on ammo! {{ammo}} rounds!", A.Teamer)
+
+    RegisterCategory("ZombieSelfDestruct", P.CRITICAL, "Zombie's last words before self-destructing from empty ammo.")
+    Line("No more ammo... this is the end.", A.Default)
+    Line("Empty... I can feel the death returning.", A.Default)
+    Line("Out of bullets. The grave calls me back.", A.Default)
+
+    Line("im out of ammo gg", A.Casual)
+    Line("welp no bullets left rip me", A.Casual)
+
+    Line("Ammunition depleted. Self-destruct imminent.", A.Tryhard)
+    Line("Zero rounds. Mission... incomplete.", A.Tryhard)
+
+    Line("NO!! NOT LIKE THIS!! I'M OUT!!", A.Hothead)
+    Line("EMPTY!! NOOOOO!!", A.Hothead)
+
+    Line("It is over.", A.Stoic)
+    Line("Ammunition exhausted. Farewell.", A.Stoic)
+
+    Line("I'm sorry everyone... no more bullets.", A.Nice)
+
+    Line("What a waste. Out of ammo.", A.Bad)
+
+    Line("wait why is my gun empty??? oh no", A.Dumb)
+    Line("i think my gun broke... it won't shoot anymore", A.Dumb)
+
+    Line("Out of ammo. Going down. GG team.", A.Teamer)
+
+    RegisterCategory("NecroTeamRally", P.MODERATE, "Necromancer rallying zombies to attack (team chat).")
+    Line("Attack {{player}}! Go, my minions!", A.Default)
+    Line("All of you — focus {{player}} now!", A.Default)
+    Line("Swarm them! Target {{player}}!", A.Default)
+
+    Line("yo zombies go get {{player}}", A.Casual)
+    Line("everyone attack {{player}} now lol", A.Casual)
+
+    Line("All units focus {{player}}. Execute.", A.Tryhard)
+    Line("Coordinated assault on {{player}}. Move.", A.Tryhard)
+
+    Line("KILL {{player}}!! ALL OF YOU, NOW!!", A.Hothead)
+    Line("CHARGE!! GET {{player}}!!", A.Hothead)
+
+    Line("Target: {{player}}. Attack.", A.Stoic)
+
+    Line("Please go get {{player}}, my zombie friends!", A.Nice)
+
+    Line("Destroy {{player}}. Now.", A.Bad)
+
+    Line("uhh zombies go attack {{player}} i think", A.Dumb)
+
+    Line("Team, focus {{player}}! Attack together!", A.Teamer)
+
+    RegisterCategory("NecroTeamStrategy", P.MODERATE, "Necromancer team-only strategy talk.")
+    Line("Protect me while I revive more bodies.", A.Default)
+    Line("Stay together. We're stronger as a pack.", A.Default)
+    Line("I need to find more corpses. Cover me.", A.Default)
+
+    Line("cover me while i make more zombies", A.Casual)
+    Line("stay close guys we got this", A.Casual)
+
+    Line("Maintain formation. I'll secure more assets.", A.Tryhard)
+    Line("Defending revive operations. Priority alpha.", A.Tryhard)
+
+    Line("PROTECT ME OR I CAN'T MAKE MORE ZOMBIES!!", A.Hothead)
+    Line("STICK TOGETHER!! WE'RE AN ARMY!!", A.Hothead)
+
+    Line("Stay close. More zombies incoming.", A.Stoic)
+
+    Line("Let's stick together everyone! I'll raise more help!", A.Nice)
+
+    Line("Guard me. I have work to do.", A.Bad)
+
+    Line("uhhh everyone stay near me i think?", A.Dumb)
+
+    Line("Team, cover me while I raise more zombies!", A.Teamer)
+
+    -----------------------------------------------------------
+    -- SERIAL KILLER (SK) ROLE EVENTS
+    -----------------------------------------------------------
+
+    RegisterCategory("SKHunting", P.MODERATE, "Serial Killer is stalking and hunting for isolated targets.")
+    Line("I see a target... time to close in.", A.Default)
+    Line("Someone's alone. Perfect opportunity.", A.Default)
+    Line("Moving in for the kill...", A.Default)
+    Line("Found one by themselves. My lucky day.", A.Default)
+
+    Line("got my eyes on someone hehe", A.Casual)
+    Line("someone's all alone... this'll be easy", A.Casual)
+    Line("ooh a loner, don't mind if i do", A.Casual)
+
+    Line("Target acquired. Closing distance.", A.Tryhard)
+    Line("Isolated contact. Moving for elimination.", A.Tryhard)
+    Line("Solo target identified. Engaging stealth approach.", A.Tryhard)
+
+    Line("GET OVER HERE! I'M COMING FOR YOU!", A.Hothead)
+    Line("FOUND ONE ALONE! TIME TO CUT!", A.Hothead)
+    Line("THIS ONE IS MINE!!", A.Hothead)
+
+    Line("A lone target. Approaching.", A.Stoic)
+    Line("One has separated from the group.", A.Stoic)
+
+    Line("Sorry about this... but you're all alone.", A.Nice)
+    Line("I really don't want to do this... but I have to.", A.Nice)
+
+    Line("Another victim. They never learn.", A.Bad)
+    Line("Walking around alone? Rookie mistake.", A.Bad)
+
+    Line("ooh someone is over there by themselves hmmm", A.Dumb)
+    Line("maybe if i sneak up really quiet...", A.Dumb)
+
+    Line("Moving in on a solo target. Clean and quiet.", A.Teamer)
+
+    Line("haha they have no idea I'm right behind them", A.Sus)
+
+    RegisterCategory("SKKnifeKill", P.IMPORTANT, "Serial Killer just killed someone with the SK knife.")
+    Line("Another one bites the dust.", A.Default)
+    Line("That was clean. No witnesses.", A.Default)
+    Line("One down. Who's next?", A.Default)
+    Line("Silent kill. Moving on.", A.Default)
+
+    Line("lol get rekt", A.Casual)
+    Line("ez kill no cap", A.Casual)
+    Line("got em lmao next?", A.Casual)
+
+    Line("Kill confirmed. Resetting position.", A.Tryhard)
+    Line("Target neutralized. Scanning for witnesses.", A.Tryhard)
+    Line("Clean elimination. Adjusting for next target.", A.Tryhard)
+
+    Line("HAHA GOTCHA!! WHO'S NEXT?!", A.Hothead)
+    Line("THAT'S WHAT YOU GET! COME AT ME!", A.Hothead)
+    Line("ONE DOWN! ANYONE ELSE WANT SOME?!", A.Hothead)
+
+    Line("Done. Next.", A.Stoic)
+    Line("One fewer. Moving on.", A.Stoic)
+
+    Line("I'm sorry... I had to.", A.Nice)
+    Line("Rest in peace. I didn't enjoy that.", A.Nice)
+
+    Line("Pathetic. They didn't even fight back.", A.Bad)
+    Line("Too easy. These people are clueless.", A.Bad)
+
+    Line("wait did I just... oh no", A.Dumb)
+    Line("oops haha that was kinda cool though", A.Dumb)
+
+    Line("Target eliminated. Maintaining operational silence.", A.Teamer)
+
+    Line("they never saw it coming... and they never will", A.Sus)
+
+    RegisterCategory("SKShakeNade", P.MODERATE, "Serial Killer throwing a shake nade for area denial or escape.")
+    Line("Shake nade out! That'll slow them down.", A.Default)
+    Line("Threw a shake nade. Time to reposition.", A.Default)
+    Line("Nade out — that should give me some space.", A.Default)
+
+    Line("SHAKE NADE GO BRRR", A.Casual)
+    Line("yeet lol have fun with that", A.Casual)
+    Line("shake nade go wooooo", A.Casual)
+
+    Line("Deploying shake grenade for area denial.", A.Tryhard)
+    Line("Nade deployed. Controlling engagement zone.", A.Tryhard)
+
+    Line("EAT THIS!! SHAKE NADE!!", A.Hothead)
+    Line("TAKE THAT! GOOD LUCK AIMING NOW!", A.Hothead)
+
+    Line("Deploying distraction.", A.Stoic)
+    Line("Shake grenade out.", A.Stoic)
+
+    Line("Sorry! Shake nade incoming!", A.Nice)
+
+    Line("Have fun with that one.", A.Bad)
+    Line("Bet you didn't see that coming.", A.Bad)
+
+    Line("i threw the wiggly ball thing lol", A.Dumb)
+    Line("shake shake shake!!", A.Dumb)
+
+    Line("Area denial deployed. Team, push through!", A.Teamer)
+
+    RegisterCategory("SKGloat", P.MODERATE, "Serial Killer gloating after getting multiple kills (>50% dead).")
+    Line("I'm on a roll and nobody can stop me.", A.Default)
+    Line("More than half of you are gone. Who's left?", A.Default)
+    Line("They keep falling one by one.", A.Default)
+
+    Line("lmaooo this is too easy", A.Casual)
+    Line("bruh half of them are already dead", A.Casual)
+    Line("im built different honestly", A.Casual)
+
+    Line("Kill count exceeding projections. Excellent.", A.Tryhard)
+    Line("Statistical advantage achieved. Maintaining momentum.", A.Tryhard)
+
+    Line("IS THAT ALL YOU'VE GOT?! I WANT MORE!", A.Hothead)
+    Line("BRING IT!! I'LL TAKE ALL OF YOU!", A.Hothead)
+    Line("NOBODY CAN STOP ME!!", A.Hothead)
+
+    Line("The numbers thin.", A.Stoic)
+    Line("Progress continues.", A.Stoic)
+
+    Line("I'm... I'm so sorry everyone. I can't help it.", A.Nice)
+    Line("I wish I could stop... but I can't.", A.Nice)
+
+    Line("Pathetic. All of you.", A.Bad)
+    Line("This is what happens when you're weak.", A.Bad)
+
+    Line("wow uh I've been doing really well huh", A.Dumb)
+    Line("are people dying? who's doing that? oh wait", A.Dumb)
+
+    Line("Operational success rate: high. Continuing mission.", A.Teamer)
+
+    Line("I wonder who the killer could be... haha", A.Sus)
+    Line("wow whoever is killing everyone is really good lol", A.Sus)
+
+    RegisterCategory("SKLastStand", P.CRITICAL, "Serial Killer is one of the last 2-3 players alive.")
+    Line("It's just us now. No more hiding.", A.Default)
+    Line("Down to the last few. Let's finish this.", A.Default)
+    Line("Almost done. Just a couple more.", A.Default)
+
+    Line("oh we're down to the wire now huh", A.Casual)
+    Line("last few standing lol this is intense", A.Casual)
+    Line("endgame vibes", A.Casual)
+
+    Line("Final phase. Executing cleanup.", A.Tryhard)
+    Line("Two contacts remaining. Prioritizing elimination.", A.Tryhard)
+
+    Line("IT'S THE ENDGAME!! COME FIGHT ME!", A.Hothead)
+    Line("LAST ONES STANDING! LET'S GO!!", A.Hothead)
+
+    Line("This ends now.", A.Stoic)
+    Line("The finale.", A.Stoic)
+
+    Line("I'm sorry it's come to this...", A.Nice)
+    Line("Please... just let it be over.", A.Nice)
+
+    Line("How does it feel knowing you're next?", A.Bad)
+    Line("Almost done with all of you.", A.Bad)
+
+    Line("wait there's only like 3 of us left??", A.Dumb)
+    Line("uh oh this isn't good... or is it? hmmm", A.Dumb)
+
+    Line("Final push. No survivors.", A.Teamer)
+
+    Line("I wonder who the serial killer is... heh", A.Sus)
+
+    RegisterCategory("SKSpotted", P.CRITICAL, "Serial Killer has been identified/KOS'd by others (from SK's perspective).")
+    Line("They know it's me. Time to go loud.", A.Default)
+    Line("Cover's blown. No more sneaking around.", A.Default)
+    Line("They spotted me. Doesn't matter — I'll kill them all.", A.Default)
+
+    Line("welp they found me out gg", A.Casual)
+    Line("rip my stealth run lol time to go loud", A.Casual)
+    Line("aight mask off i guess", A.Casual)
+
+    Line("Compromised. Switching to aggressive protocol.", A.Tryhard)
+    Line("Cover blown. Adapting to open engagement.", A.Tryhard)
+
+    Line("FINE! YOU KNOW IT'S ME?! COME AND GET ME!", A.Hothead)
+    Line("YOU WANT A FIGHT?! YOU GOT ONE!!", A.Hothead)
+
+    Line("Discovered. Adjusting approach.", A.Stoic)
+    Line("They know. It changes nothing.", A.Stoic)
+
+    Line("Oh no... you figured it out. I'm sorry.", A.Nice)
+    Line("I was hoping it wouldn't come to this.", A.Nice)
+
+    Line("So what if you know? You're still going to die.", A.Bad)
+    Line("Knowing who I am won't save you.", A.Bad)
+
+    Line("they know it's me?? how did they figure it out??", A.Dumb)
+    Line("uh oh everyone's looking at me funny", A.Dumb)
+
+    Line("Position compromised. Going full assault.", A.Teamer)
+
+    Line("okay okay so maybe I am the serial killer...", A.Sus)
+
+    RegisterCategory("SKVictory", P.IMPORTANT, "Serial Killer won the round.")
+    Line("I killed them all. Every last one.", A.Default)
+    Line("Nobody could stop me. Victory.", A.Default)
+    Line("That's what a real serial killer looks like.", A.Default)
+
+    Line("gg ez serial killer wins lol", A.Casual)
+    Line("told you i was built different", A.Casual)
+    Line("absolute massacre ngl", A.Casual)
+
+    Line("Mission accomplished. Flawless execution.", A.Tryhard)
+    Line("100% kill rate achieved. GG.", A.Tryhard)
+
+    Line("YESSS!! I KILLED EVERYONE!! UNSTOPPABLE!!", A.Hothead)
+    Line("GET REKT!! THE SERIAL KILLER WINS!!", A.Hothead)
+
+    Line("It is done.", A.Stoic)
+    Line("All targets eliminated.", A.Stoic)
+
+    Line("I'm sorry everyone... but I had to win.", A.Nice)
+    Line("Good game everyone. I feel terrible though.", A.Nice)
+
+    Line("Pathetic. Not a single one of you could stop me.", A.Bad)
+    Line("You never had a chance.", A.Bad)
+
+    Line("wait... did I win?? oh cool!!", A.Dumb)
+    Line("i killed everyone?? that's kinda messed up lol", A.Dumb)
+
+    Line("Serial Killer victory. Mission complete.", A.Teamer)
+
+    Line("haha I told you guys I was innocent... lol jk", A.Sus)
+    Line("plot twist: it was me the whole time!", A.Sus)
+
+    RegisterCategory("SKSpottedByOthers", P.CRITICAL, "When a non-SK bot spots the Serial Killer or identifies them as the killer.")
+    Line("That's the Serial Killer! Watch out!", A.Default)
+    Line("I think {{player}} is the Serial Killer!", A.Default)
+    Line("{{player}} has the SK knife! They're the killer!", A.Default)
+    Line("Serial Killer spotted — it's {{player}}!", A.Default)
+
+    Line("yo {{player}} is the serial killer!!", A.Casual)
+    Line("bruh {{player}} has the knife run", A.Casual)
+    Line("wait that's the sk!! {{player}}!!", A.Casual)
+
+    Line("Confirmed: {{player}} is Serial Killer. Engaging.", A.Tryhard)
+    Line("SK identified as {{player}}. All units respond.", A.Tryhard)
+
+    Line("{{player}} IS THE SERIAL KILLER!! GET THEM!!", A.Hothead)
+    Line("THAT'S THE KILLER!! SHOOT {{player}}!!", A.Hothead)
+
+    Line("{{player}} is the Serial Killer.", A.Stoic)
+    Line("The killer is {{player}}. Be cautious.", A.Stoic)
+
+    Line("Oh no, {{player}} is the Serial Killer! Everyone be careful!", A.Nice)
+    Line("Please watch out — {{player}} is the killer!", A.Nice)
+
+    Line("Knew it. {{player}} is the Serial Killer.", A.Bad)
+    Line("{{player}} is the SK. Shocking. Not.", A.Bad)
+
+    Line("wait is {{player}} the serial killer??? oh no", A.Dumb)
+    Line("{{player}} has a knife... is that bad??", A.Dumb)
+
+    Line("Team! {{player}} is confirmed Serial Killer! Focus them!", A.Teamer)
+
+    Line("{{player}} acting real sus... oh wait they're literally the serial killer", A.Sus)
+
+    -----------------------------------------------------------
+    -- SPY ROLE EVENTS
+    -----------------------------------------------------------
+
+    RegisterCategory("SpyBlendIn", P.NORMAL, "When a spy bot is blending in near a traitor, acting casual to maintain cover.")
+    Line("Just hanging around. Nothing suspicious here.", A.Default)
+    Line("Let's stick together, safer that way.", A.Default)
+    Line("Anything going on over here?", A.Default)
+    Line("Keeping my eyes peeled for traitors.", A.Default)
+
+    Line("yo whats up", A.Casual)
+    Line("just vibing", A.Casual)
+    Line("chilling near you if thats cool", A.Casual)
+    Line("sup lol", A.Casual)
+
+    Line("Maintaining formation. Good situational awareness.", A.Tryhard)
+    Line("Covering this sector. Stay frosty.", A.Tryhard)
+    Line("Holding position. Report any contacts.", A.Tryhard)
+
+    Line("What are you looking at?!", A.Hothead)
+    Line("Stay away from me! I mean— stay close. For safety.", A.Hothead)
+
+    Line("Nothing out of the ordinary.", A.Stoic)
+    Line("All seems quiet here.", A.Stoic)
+    Line("Proceeding normally.", A.Stoic)
+
+    Line("Hey! How's it going? Everything okay?", A.Nice)
+    Line("Glad we're sticking together! Safety in numbers!", A.Nice)
+    Line("You're looking a bit nervous. Everything alright?", A.Nice)
+
+    Line("I'm definitely a traitor too. Yep. For sure.", A.Bad)
+    Line("So when do we... do the thing? You know. The thing.", A.Bad)
+
+    Line("wait are we supposed to go somewhere? i forgot", A.Dumb)
+    Line("are you a traitor? wait am I a traitor? im confused", A.Dumb)
+    Line("i think im lost lol", A.Dumb)
+
+    Line("Let's group up, safer for the team!", A.Teamer)
+    Line("Good to have a partner. We got this.", A.Teamer)
+
+    Line("Interesting choice of weapon you got there...", A.Sus)
+    Line("You seem... calm. Too calm.", A.Sus)
+    Line("I've got my eye on you. In a friendly way of course.", A.Sus)
+
+    RegisterCategory("SpyFakeBuy", P.NORMAL, "When a spy bot completes a fake equipment purchase to deceive traitors.")
+    Line("Just bought some equipment.", A.Default)
+    Line("Got myself a little something from the shop.", A.Default)
+    Line("Stocking up on gear.", A.Default)
+
+    Line("got some stuff lol", A.Casual)
+    Line("shopping spree time", A.Casual)
+
+    Line("Equipment acquired. Optimizing loadout.", A.Tryhard)
+    Line("Purchased tactical advantage. Ready for engagement.", A.Tryhard)
+
+    Line("YEAH! NEW TOYS!", A.Hothead)
+
+    Line("Equipment purchased.", A.Stoic)
+
+    Line("Ooh, got something nice from the shop!", A.Nice)
+
+    Line("This should make things... interesting.", A.Bad)
+
+    Line("i bought a thing but what does it do", A.Dumb)
+    Line("shopping!! wait how do i use this", A.Dumb)
+
+    Line("Gearing up for the team!", A.Teamer)
+
+    Line("Just picked up a little something... don't ask what.", A.Sus)
+
+    RegisterCategory("SpyReportIntel", P.IMPORTANT, "When a spy bot reports traitor intel to an innocent or detective. {{player}} is the traitor being reported, {{target}} is who they're reporting to.")
+    Line("I saw {{player}} doing something suspicious! Be careful!", A.Default)
+    Line("Watch out for {{player}}, they're not what they seem.", A.Default)
+    Line("{{player}} is one of the bad guys, trust me on this.", A.Default)
+    Line("I have intel on {{player}} — they're a traitor!", A.Default)
+
+    Line("yo {{player}} is sus af trust me", A.Casual)
+    Line("dude {{player}} is a traitor im telling you", A.Casual)
+    Line("heads up {{player}} is bad news", A.Casual)
+
+    Line("Intel report: {{player}} confirmed hostile. Engage with caution.", A.Tryhard)
+    Line("Target identified: {{player}}. Traitor confirmed. Relay to all units.", A.Tryhard)
+
+    Line("{{player}} IS A TRAITOR! I KNEW IT!", A.Hothead)
+    Line("I CAUGHT {{player}} RED-HANDED!", A.Hothead)
+
+    Line("{{player}} is a traitor.", A.Stoic)
+    Line("Confirmed hostile: {{player}}.", A.Stoic)
+
+    Line("I really hate to say it, but {{player}} is a traitor...", A.Nice)
+    Line("Please be careful around {{player}}, they're not on our side.", A.Nice)
+
+    Line("Heh, figured {{player}} was a traitor all along.", A.Bad)
+    Line("{{player}} is a traitor. Saw it coming.", A.Bad)
+
+    Line("umm i think {{player}} might be bad?? idk", A.Dumb)
+    Line("is {{player}} a traitor? they looked kinda evil to me", A.Dumb)
+
+    Line("Everyone listen! {{player}} is a confirmed traitor! Group up!", A.Teamer)
+    Line("Team intel: {{player}} is hostile. Watch each other's backs!", A.Teamer)
+
+    Line("I know things about {{player}}... dark things.", A.Sus)
+    Line("{{player}}... isn't who they say they are.", A.Sus)
+
+    RegisterCategory("SpyReactJam", P.NORMAL, "When a traitor bot's team chat is jammed by the spy's presence and they react to it.")
+    Line("Why can't I use team chat?!", A.Default)
+    Line("Something is blocking our comms!", A.Default)
+    Line("Team chat isn't working... that's weird.", A.Default)
+
+    Line("bruh team chat is broken", A.Casual)
+    Line("yo why cant i talk to my team", A.Casual)
+    Line("comms are down or something", A.Casual)
+
+    Line("Communication jamming detected. Possible spy interference.", A.Tryhard)
+    Line("Comms compromised. Adjusting to open-channel protocol.", A.Tryhard)
+
+    Line("WHO'S JAMMING OUR COMMS?! THERE'S A SPY!", A.Hothead)
+    Line("SOMEONE IS MESSING WITH OUR TEAM CHAT!", A.Hothead)
+
+    Line("Comms jammed. Interesting.", A.Stoic)
+    Line("Team channel is compromised.", A.Stoic)
+
+    Line("Oh no, I can't reach my teammates...", A.Nice)
+
+    Line("Great. Someone's ruining our comms.", A.Bad)
+    Line("Useless. Can't even talk to my own team.", A.Bad)
+
+    Line("wait why cant i talk to the other traitors? am i broken?", A.Dumb)
+    Line("hello? hello? is this thing on?", A.Dumb)
+
+    Line("Team comms are down! We might have a spy! Stay alert!", A.Teamer)
+
+    Line("The silence is... deafening.", A.Sus)
+    Line("Someone doesn't want us talking. Curious.", A.Sus)
+
+    RegisterCategory("SpyCoverBlow", P.IMPORTANT, "When a spy bot's cover is blown and traitors discover they're not really a traitor.")
+    Line("They found me out! Cover's blown!", A.Default)
+    Line("Well, the jig is up. They know I'm not a traitor.", A.Default)
+    Line("Cover blown. Time for plan B.", A.Default)
+
+    Line("oh no they caught me lmao", A.Casual)
+    Line("welp cover blown gg", A.Casual)
+    Line("busted lol", A.Casual)
+
+    Line("Cover compromised. Switching to direct engagement.", A.Tryhard)
+    Line("Identity exposed. Falling back to contingency protocol.", A.Tryhard)
+
+    Line("THEY FOUND ME OUT?! FINE! COME AT ME!", A.Hothead)
+    Line("YOU THINK BLOWING MY COVER SCARES ME?!", A.Hothead)
+
+    Line("Cover's blown. Moving on.", A.Stoic)
+    Line("So they know. Makes no difference.", A.Stoic)
+
+    Line("Oh dear, they figured me out...", A.Nice)
+    Line("I'm sorry everyone, I tried my best to stay hidden!", A.Nice)
+
+    Line("Took them long enough to figure it out.", A.Bad)
+    Line("Whatever. I got what I needed anyway.", A.Bad)
+
+    Line("wait they know im not a traitor?? how??", A.Dumb)
+    Line("oh no am i in trouble now", A.Dumb)
+
+    Line("My cover's blown! Innocents, I'm on your side!", A.Teamer)
+
+    Line("The mask falls... but the show isn't over.", A.Sus)
+    Line("Hmm. They saw through me. How perceptive.", A.Sus)
+
+    RegisterCategory("SpyDeflection", P.NORMAL, "When a spy bot deflects suspicion by acting innocent or redirecting blame.")
+    Line("Who, me? I'm just an innocent bystander.", A.Default)
+    Line("I have no idea what you're talking about.", A.Default)
+    Line("You've got the wrong person.", A.Default)
+
+    Line("nah wasnt me lol", A.Casual)
+    Line("idk what ur talking about", A.Casual)
+
+    Line("Negative. Your intel is flawed.", A.Tryhard)
+    Line("I suggest you re-evaluate your target priority.", A.Tryhard)
+
+    Line("YOU ACCUSING ME?! BACK OFF!", A.Hothead)
+    Line("TRY ME! I DARE YOU!", A.Hothead)
+
+    Line("Incorrect.", A.Stoic)
+    Line("You're mistaken.", A.Stoic)
+
+    Line("Oh, I would never! You must be thinking of someone else!", A.Nice)
+    Line("Me? No no no, I'm one of the good guys!", A.Nice)
+
+    Line("Ha. Accuse me all you want. Makes you look dumb.", A.Bad)
+
+    Line("huh?? what did i do??", A.Dumb)
+    Line("i didnt do anything i swear! ...i think", A.Dumb)
+
+    Line("I'm with the team! Don't turn on each other!", A.Teamer)
+
+    Line("Or... maybe you're the one we should be watching.", A.Sus)
+    Line("Interesting accusation. Very... revealing.", A.Sus)
+
+    RegisterCategory("SpySurvival", P.IMPORTANT, "When a spy bot survived the round, post-round celebration.")
+    Line("Made it through! The spy lives to fight another day.", A.Default)
+    Line("And nobody suspected a thing!", A.Default)
+    Line("Mission accomplished. Intel gathered, cover maintained.", A.Default)
+
+    Line("lol i survived gg", A.Casual)
+    Line("ez spy win", A.Casual)
+    Line("they never figured me out haha", A.Casual)
+
+    Line("Mission complete. Spy successfully embedded. Zero casualties.", A.Tryhard)
+    Line("Full round survival achieved. Optimal spy performance.", A.Tryhard)
+
+    Line("HAHA! I WAS RIGHT THERE THE WHOLE TIME!", A.Hothead)
+    Line("YOU COULDN'T CATCH ME! THE SPY WINS!", A.Hothead)
+
+    Line("Survived.", A.Stoic)
+    Line("Another day, another successful mission.", A.Stoic)
+
+    Line("I'm so glad I made it! Good game everyone!", A.Nice)
+    Line("That was scary, but we did it!", A.Nice)
+
+    Line("None of you had a clue. Pathetic.", A.Bad)
+    Line("Too easy. I was literally standing right there.", A.Bad)
+
+    Line("wait i won?? nice!!", A.Dumb)
+    Line("did i do good? i have no idea what happened lol", A.Dumb)
+
+    Line("The spy made it! Great teamwork from the innocents!", A.Teamer)
+
+    Line("I was among you the whole time... and you never knew.", A.Sus)
+    Line("The spy always wins in the end.", A.Sus)
+
+    RegisterCategory("TraitorSuspectsSpy", P.NORMAL, "When a traitor bot becomes suspicious that {{player}} might not really be a traitor (might be a spy).")
+    Line("Wait... is {{player}} really one of us?", A.Default)
+    Line("Something feels off about {{player}}...", A.Default)
+    Line("I'm not so sure about {{player}} anymore.", A.Default)
+
+    Line("yo is {{player}} actually a traitor tho", A.Casual)
+    Line("hmm {{player}} is acting kinda weird for a traitor", A.Casual)
+
+    Line("Anomalous behavior detected from {{player}}. Possible spy.", A.Tryhard)
+    Line("Running identity verification on {{player}}. Patterns inconsistent.", A.Tryhard)
+
+    Line("{{player}} IS ACTING WEIRD! ARE THEY A SPY?!", A.Hothead)
+    Line("I DON'T TRUST {{player}}!", A.Hothead)
+
+    Line("{{player}} seems... different.", A.Stoic)
+    Line("Observing inconsistencies in {{player}}'s behavior.", A.Stoic)
+
+    Line("Hey {{player}}, are you feeling okay?", A.Nice)
+
+    Line("I always had a bad feeling about {{player}}.", A.Bad)
+    Line("{{player}} is sketchy. Just saying.", A.Bad)
+
+    Line("is {{player}} supposed to be with us? i cant remember", A.Dumb)
+
+    Line("Team, keep an eye on {{player}}. Something isn't right.", A.Teamer)
+
+    Line("{{player}}... I've been watching you. Interesting behavior.", A.Sus)
+    Line("There's something {{player}} isn't telling us.", A.Sus)
+
+    RegisterCategory("TraitorDiscoversSpy", P.CRITICAL, "When a traitor bot fully discovers that {{player}} is a spy infiltrator.")
+    Line("{{player}} is a SPY! They're not one of us!", A.Default)
+    Line("We've been infiltrated! {{player}} is a spy!", A.Default)
+    Line("{{player}} was faking it the whole time!", A.Default)
+
+    Line("LMAO {{player}} IS A SPY", A.Casual)
+    Line("yo {{player}} was a spy this whole time bruh", A.Casual)
+
+    Line("SPY CONFIRMED: {{player}}. All units, eliminate immediately.", A.Tryhard)
+    Line("Intelligence breach! {{player}} is a spy. Neutralize!", A.Tryhard)
+
+    Line("{{player}} IS A SPY!! GET THEM!! NOW!!", A.Hothead)
+    Line("A SPY?! {{player}} YOU'RE DEAD!", A.Hothead)
+
+    Line("{{player}} is a spy. Eliminating.", A.Stoic)
+    Line("Identity confirmed: {{player}} is a spy.", A.Stoic)
+
+    Line("Oh no, {{player}} was a spy all along!", A.Nice)
+    Line("I can't believe {{player}} tricked us...", A.Nice)
+
+    Line("Knew it. {{player}} was too good to be true.", A.Bad)
+    Line("{{player}} is a spy. Should've known.", A.Bad)
+
+    Line("wait {{player}} isnt a traitor?? then what are they??", A.Dumb)
+    Line("{{player}} is a... spy? what does that mean", A.Dumb)
+
+    Line("TRAITORS! {{player}} IS A SPY! Focus fire!", A.Teamer)
+
+    Line("A spy in our midst... how delightfully devious.", A.Sus)
+    Line("{{player}}... the master of disguise. Until now.", A.Sus)
+
+    RegisterCategory("SpyPostReveal", P.IMPORTANT, "Post-round: when a traitor bot reacts to learning that {{player}} was a spy the whole time.")
+    Line("{{player}} was a spy?! No way!", A.Default)
+    Line("I can't believe {{player}} was a spy this whole time!", A.Default)
+    Line("A spy? That explains everything about {{player}}.", A.Default)
+
+    Line("BRO {{player}} WAS A SPY?? WTF", A.Casual)
+    Line("no way {{player}} was a spy lmao", A.Casual)
+    Line("{{player}} had us all fooled haha", A.Casual)
+
+    Line("Post-round analysis: {{player}} was a spy. Noted for future reference.", A.Tryhard)
+    Line("Debrief: {{player}} was embedded as spy. Must improve detection protocols.", A.Tryhard)
+
+    Line("{{player}} WAS A SPY?! HOW DID WE NOT NOTICE?!", A.Hothead)
+    Line("ARE YOU KIDDING ME?! {{player}} WAS A SPY!!", A.Hothead)
+
+    Line("{{player}} was a spy. Acknowledged.", A.Stoic)
+    Line("Interesting. {{player}} was a spy.", A.Stoic)
+
+    Line("Oh wow, {{player}} was a spy! Well played!", A.Nice)
+    Line("Good job {{player}}! You really fooled us!", A.Nice)
+
+    Line("{{player}} was a spy. Should've seen it coming.", A.Bad)
+    Line("A spy. Of course. Useless teammates couldn't spot {{player}}.", A.Bad)
+
+    Line("{{player}} was a SPY?! i thought they were our friend!", A.Dumb)
+    Line("wait so {{player}} was pretending? thats so confusing", A.Dumb)
+
+    Line("Team, {{player}} was a spy. Let's learn from this.", A.Teamer)
+
+    Line("I had a feeling about {{player}} all along. Did anyone listen? No.", A.Sus)
+    Line("{{player}}... the ultimate deception. I'm almost impressed.", A.Sus)
+
+    RegisterCategory("SpyEavesdrop", P.NORMAL, "When a spy bot is eavesdropping on a traitor's activity from a distance.")
+    Line("I see what they're up to...", A.Default)
+    Line("Interesting... very interesting.", A.Default)
+    Line("Taking notes on their activity.", A.Default)
+
+    Line("hehe watching them from here", A.Casual)
+    Line("sneaky sneaky", A.Casual)
+
+    Line("Surveillance active. Gathering tactical intelligence.", A.Tryhard)
+    Line("Observing target behavior patterns. Recording.", A.Tryhard)
+
+    Line("I see EVERYTHING you're doing!", A.Hothead)
+
+    Line("Observing.", A.Stoic)
+    Line("Noted.", A.Stoic)
+
+    Line("Oh my, what are they doing over there...", A.Nice)
+
+    Line("Keep talking. I'm listening.", A.Bad)
+    Line("Fools don't even know I'm watching.", A.Bad)
+
+    Line("what are they doing? looks weird", A.Dumb)
+    Line("i see something happening but idk what it is", A.Dumb)
+
+    Line("Gathering intel for the team!", A.Teamer)
+
+    Line("From the shadows, I see all...", A.Sus)
+    Line("How curious... they think nobody's watching.", A.Sus)
+
+    -- ===================================================================
+    -- Cupid / Lover Chatter Lines
+    -- ===================================================================
+
+    RegisterCategory("CupidCreatingLovers", P.NORMAL, "When Cupid is about to shoot someone with the crossbow to create lovers.")
+    Line("Time to spread the love!", A.Default)
+    Line("Let's make a match!", A.Default)
+    Line("Cupid's arrow is ready.", A.Default)
+
+    Line("lol time for shipping", A.Casual)
+    Line("gonna make someone fall in love hehe", A.Casual)
+    Line("matchmaker time!", A.Casual)
+
+    Line("Executing pairing protocol. First target acquired.", A.Tryhard)
+    Line("Initiating lover link. Optimal pairing calculated.", A.Tryhard)
+
+    Line("LOVE IS COMING FOR YOU!", A.Hothead)
+    Line("NOBODY ESCAPES MY ARROWS!", A.Hothead)
+
+    Line("...", A.Stoic)
+    Line("Pairing.", A.Stoic)
+
+    Line("This is going to be so sweet! Two lovebirds~", A.Nice)
+    Line("Aw, I hope they'll be happy together!", A.Nice)
+
+    Line("Suffer the bonds of love, mortals.", A.Bad)
+    Line("Nothing personal. Just business.", A.Bad)
+
+    Line("uhhh which end of the bow do i point?", A.Dumb)
+    Line("is this how love works?", A.Dumb)
+
+    Line("Creating a pair for the team!", A.Teamer)
+    Line("Strategic pairing incoming!", A.Teamer)
+
+    Line("Who said love can't be... manipulated?", A.Sus)
+    Line("They'll never suspect this matchmaking has a purpose.", A.Sus)
+
+    RegisterCategory("CupidLoversFormed", P.NORMAL, "When Cupid successfully links two players as lovers.")
+    Line("It's a match! They're connected now.", A.Default)
+    Line("The bond is formed!", A.Default)
+    Line("Love is in the air!", A.Default)
+
+    Line("omg they're so cute together!!", A.Casual)
+    Line("ship confirmed!", A.Casual)
+
+    Line("Lover bond established. Phase 2 initiated.", A.Tryhard)
+    Line("Pairing complete. Moving to survival protocol.", A.Tryhard)
+
+    Line("AND THEY ARE BOUND FOREVER!", A.Hothead)
+
+    Line("Done.", A.Stoic)
+    Line("Linked.", A.Stoic)
+
+    Line("Aww, they look so good together! Be happy!", A.Nice)
+    Line("What a lovely couple! I wish them the best~", A.Nice)
+
+    Line("Now they're stuck together. Poetic.", A.Bad)
+    Line("Enjoy your chain, lovebirds.", A.Bad)
+
+    Line("wait did that work? are they in love??", A.Dumb)
+    Line("i think i did a thing!!", A.Dumb)
+
+    Line("Pair formed! Now we work as a unit!", A.Teamer)
+
+    Line("And just like that, two fates are intertwined...", A.Sus)
+
+    RegisterCategory("CupidLoverDied", P.NORMAL, "When a Cupid's lover partner dies — the surviving lover reacts in panic.")
+    Line("NO! My partner!", A.Default)
+    Line("They killed my other half!", A.Default)
+    Line("I can feel the bond breaking... no!", A.Default)
+
+    Line("NOOOO my babe!!", A.Casual)
+    Line("omg they're dead im so sad", A.Casual)
+
+    Line("Partner down! Bond severed! I'm compromised!", A.Tryhard)
+    Line("Lover eliminated. Solo survival mode engaged.", A.Tryhard)
+
+    Line("THEY KILLED THEM! THEY'RE GONNA PAY FOR THIS!", A.Hothead)
+    Line("WHO DID THIS?! ANSWER ME!", A.Hothead)
+
+    Line("...gone.", A.Stoic)
+    Line("The bond is broken.", A.Stoic)
+
+    Line("Oh no... please no... not them...", A.Nice)
+    Line("This can't be happening! They were everything!", A.Nice)
+
+    Line("Interesting. One down, and now I'm free.", A.Bad)
+    Line("Shame. They were useful alive.", A.Bad)
+
+    Line("wait what happened? where did they go??", A.Dumb)
+    Line("i feel weird... is my partner ok?", A.Dumb)
+
+    Line("We lost a teammate! Regroup!", A.Teamer)
+
+    Line("How convenient that they died... how very convenient.", A.Sus)
+
+    RegisterCategory("CupidLoverPanic", P.NORMAL, "When a bot's lover partner is being attacked nearby.")
+    Line("Leave them alone!", A.Default)
+    Line("Stop hurting my partner!", A.Default)
+
+    Line("HEY GET AWAY FROM THEM!", A.Casual)
+    Line("nooo stop itttt!", A.Casual)
+
+    Line("Threat to lover detected! Engaging hostile!", A.Tryhard)
+    Line("Protecting paired asset! Weapons free!", A.Tryhard)
+
+    Line("TOUCH THEM AGAIN AND I'LL END YOU!", A.Hothead)
+    Line("BACK OFF RIGHT NOW!", A.Hothead)
+
+    Line("Defending.", A.Stoic)
+
+    Line("Please stop! Don't hurt them!", A.Nice)
+    Line("Why would you do that?!", A.Nice)
+
+    Line("Big mistake targeting my partner.", A.Bad)
+    Line("You shouldn't have done that.", A.Bad)
+
+    Line("hey!! stop being mean to my friend!", A.Dumb)
+
+    Line("Teammate under fire! Moving to assist!", A.Teamer)
+    Line("Covering my partner!", A.Teamer)
+
+    Line("Interesting choice of target you have there...", A.Sus)
+
+    RegisterCategory("CupidTeamCoordinate", P.NORMAL, "When a lover bot is coordinating with their partner during gameplay.")
+    Line("Stay close to me, partner.", A.Default)
+    Line("We need to stick together.", A.Default)
+    Line("I've got your back.", A.Default)
+
+    Line("bff time! lets gooo", A.Casual)
+    Line("u and me buddy!", A.Casual)
+
+    Line("Maintaining optimal formation distance.", A.Tryhard)
+    Line("Formation check. Partner within visual range.", A.Tryhard)
+
+    Line("NOBODY SPLITS US UP!", A.Hothead)
+
+    Line("Together.", A.Stoic)
+    Line("Close.", A.Stoic)
+
+    Line("Let's stay safe together, okay?", A.Nice)
+    Line("I feel safer when we're near each other!", A.Nice)
+
+    Line("Don't slow me down.", A.Bad)
+    Line("Keep up or get left behind.", A.Bad)
+
+    Line("where r u going? wait for me!", A.Dumb)
+    Line("are we supposed to stay together? ok!", A.Dumb)
+
+    Line("Team sync! Let's move as one!", A.Teamer)
+    Line("Buddy system activated!", A.Teamer)
+
+    Line("Interesting that we're bound together, isn't it?", A.Sus)
+
+    RegisterCategory("CupidVictory", P.NORMAL, "When the lover team wins the round.")
+    Line("Love wins! We did it!", A.Default)
+    Line("The power of love prevails!", A.Default)
+
+    Line("YESSS LOVE WINS!!", A.Casual)
+    Line("get rekt losers, love is OP", A.Casual)
+
+    Line("Lover victory condition achieved. GG.", A.Tryhard)
+    Line("Objective complete. Lovers survive. Perfect execution.", A.Tryhard)
+
+    Line("LOVE IS UNSTOPPABLE! HAHA!", A.Hothead)
+
+    Line("Victory.", A.Stoic)
+
+    Line("Isn't it wonderful? Love conquers all!", A.Nice)
+    Line("We survived because we cared about each other!", A.Nice)
+
+    Line("Another victory. How... romantic.", A.Bad)
+
+    Line("wait we won? yay!!", A.Dumb)
+    Line("love is cool i guess!", A.Dumb)
+
+    Line("Teamwork from the heart! That's how we win!", A.Teamer)
+
+    Line("Love wins... but at what cost?", A.Sus)
+
+    RegisterCategory("CupidTimePressure", P.NORMAL, "When Cupid is running out of time to use the crossbow before it gets removed.")
+    Line("I need to find someone fast!", A.Default)
+    Line("Running out of time!", A.Default)
+    Line("Gotta use this before it's gone!", A.Default)
+
+    Line("omg hurry hurry hurry!", A.Casual)
+    Line("no time no time no time!", A.Casual)
+
+    Line("Critical time remaining! Must execute pairing NOW!", A.Tryhard)
+    Line("Timer critical! Acquiring target immediately!", A.Tryhard)
+
+    Line("NO WAY AM I WASTING THIS!", A.Hothead)
+    Line("COME HERE, SOMEONE, ANYONE!", A.Hothead)
+
+    Line("Hurrying.", A.Stoic)
+
+    Line("Oh gosh, I need to hurry!", A.Nice)
+
+    Line("Tch. Running out of time.", A.Bad)
+
+    Line("wait the bow is disappearing??", A.Dumb)
+    Line("uhh how much time do i have?", A.Dumb)
+
+    Line("Need a teammate to pair with! Anyone!", A.Teamer)
+
+    Line("The clock ticks... I must choose wisely.", A.Sus)
+
+    RegisterCategory("CupidBetrayedTraitor", P.NORMAL, "When a traitor-aligned bot reacts to one of their teammates being pulled to the Lover team by Cupid.")
+    Line("Wait, they switched sides?!", A.Default)
+    Line("We lost one of ours to love!", A.Default)
+
+    Line("lol they got cupid'd", A.Casual)
+    Line("rip our teammate, they're in love now", A.Casual)
+
+    Line("Ally compromised by Cupid. Adjusting strategy.", A.Tryhard)
+    Line("Team composition changed. Recalculating.", A.Tryhard)
+
+    Line("TRAITOR! YOU ABANDONED US!", A.Hothead)
+    Line("LOVE MADE THEM WEAK!", A.Hothead)
+
+    Line("Noted.", A.Stoic)
+
+    Line("Oh... I hope they're happy at least.", A.Nice)
+
+    Line("Pathetic. Fell for Cupid's trick.", A.Bad)
+    Line("One less to share the spoils with.", A.Bad)
+
+    Line("wait are they still on our team?", A.Dumb)
+    Line("i'm confused, are we friends still?", A.Dumb)
+
+    Line("We lost a teammate! Regroup and adapt!", A.Teamer)
+
+    Line("How convenient that Cupid chose THEM specifically...", A.Sus)
+
+    RegisterCategory("CupidSpotted", P.NORMAL, "When a bot identifies that a player is playing Cupid.")
+    Line("That's the Cupid! Watch out!", A.Default)
+    Line("I see Cupid over there.", A.Default)
+
+    Line("omg it's cupid lol", A.Casual)
+    Line("there's the matchmaker!", A.Casual)
+
+    Line("Cupid identified! Marking threat priority.", A.Tryhard)
+    Line("Visual on Cupid. Engaging awareness protocol.", A.Tryhard)
+
+    Line("THERE'S CUPID! GET THEM!", A.Hothead)
+
+    Line("Cupid. Spotted.", A.Stoic)
+
+    Line("Oh, it's Cupid! I wonder who they'll pair.", A.Nice)
+
+    Line("Found you, little matchmaker.", A.Bad)
+    Line("Cupid thinks they can play god? Pathetic.", A.Bad)
+
+    Line("what does cupid do again?", A.Dumb)
+
+    Line("Heads up team, Cupid's in play!", A.Teamer)
+
+    Line("Cupid... now why would they be lurking there?", A.Sus)
+
+    RegisterCategory("CupidLoverSpotted", P.NORMAL, "When a non-lover bot spots a player on the Lover team nearby.")
+    Line("Those two are lovers! Watch out.", A.Default)
+    Line("That's one of the lovers.", A.Default)
+
+    Line("aww they're in love! also they might kill us", A.Casual)
+    Line("lovebirds spotted!", A.Casual)
+
+    Line("Lover-team member identified. Threat assessment updated.", A.Tryhard)
+    Line("Confirmed lover. Adjusting target priority.", A.Tryhard)
+
+    Line("THERE'S ONE OF THE LOVERS! THEY'RE DANGEROUS!", A.Hothead)
+
+    Line("Lover. Noted.", A.Stoic)
+
+    Line("Oh, that's one of the lovers! Be careful everyone.", A.Nice)
+
+    Line("Look at the little lovebird. How sweet.", A.Bad)
+    Line("Lovers are a threat. Don't be fooled.", A.Bad)
+
+    Line("are they in love? that's weird", A.Dumb)
+    Line("why do they have hearts around them?", A.Dumb)
+
+    Line("Lover spotted! Team, stay alert!", A.Teamer)
+
+    Line("A lover, you say? How very... interesting.", A.Sus)
 
 end
 

@@ -260,6 +260,7 @@ end
 --- get the first special (buyable) primary we have (aka, a buyable we should use as a primary)
 ---@return Weapon|nil wep The weapon object (not a wepinfo)
 function BotInventory:GetSpecialPrimary()
+    if not TTTBots.Buyables then return end
     local specialClasses = TTTBots.Buyables.PrimaryWeapons
 
     for class, _ in pairs(specialClasses) do
@@ -393,6 +394,25 @@ function BotInventory:ScoreWeaponForContext(wepInfo, bot, distToTarget)
         local inCombat = IsValid(bot.attackTarget)
         if not inCombat and wepInfo.silent then
             score = score + 15
+        end
+    end
+
+    -- ── Serial Killer knife preference ─────────────────────────────────────
+    if bot.GetRoleStringRaw and bot:GetRoleStringRaw() == "serialkiller" then
+        if wepInfo.class == "weapon_ttt_sk_knife" then
+            -- SK knife is silent and does instant-kill at <50 HP — massive CQB bonus
+            if distToTarget and distToTarget < 150 then
+                score = score + 40  -- extreme close-range preference
+            elseif distToTarget and distToTarget < 300 then
+                score = score + 20  -- still prefer knife at medium-close
+            else
+                score = score + 5   -- slight bonus even at range (silent weapon)
+            end
+            -- Extra bonus when not in active combat (stealth kill)
+            local inCombat = IsValid(bot.attackTarget)
+            if not inCombat then
+                score = score + 10
+            end
         end
     end
 
@@ -792,6 +812,23 @@ function BotInventory:EquipMedicMedigun()
     return true
 end
 
+--- Return the Serial Killer knife (weapon_ttt_sk_knife) if the bot has it, or nil.
+---@return Weapon|nil
+function BotInventory:GetSKKnife()
+    if not self.bot:HasWeapon("weapon_ttt_sk_knife") then return nil end
+    local wep = self.bot:GetWeapon("weapon_ttt_sk_knife")
+    return IsValid(wep) and wep or nil
+end
+
+--- Equip the SK Knife if we have it. Returns true if we equipped it, false if we didn't.
+---@return boolean
+function BotInventory:EquipSKKnife()
+    local knife = self:GetSKKnife()
+    if not knife then return false end
+    self.bot:SelectWeapon("weapon_ttt_sk_knife")
+    return true
+end
+
 ---Returns the weapon info table for the weapon we are holding, or what the target is holding if any.
 ---@param target Player|nil
 ---@return WeaponInfo?
@@ -850,15 +887,15 @@ function BotInventory:GetBySlot(slot)
 end
 
 function BotInventory:HasPrimary()
-    return self:GetByKindRaw(BotInventory.kindHash.primary) == nil
+    return self:GetByKindRaw(BotInventory.kindHash.primary) ~= nil
 end
 
 function BotInventory:HasSecondary()
-    return self:GetByKindRaw(BotInventory.kindHash.secondary) == nil
+    return self:GetByKindRaw(BotInventory.kindHash.secondary) ~= nil
 end
 
 function BotInventory:HasSpecialWeapon()
-    return self:GetByKindRaw(BotInventory.kindHash.special) == nil
+    return self:GetByKindRaw(BotInventory.kindHash.special) ~= nil
 end
 
 ---Returns the first Weapon in the bots weapons list of int "kind"

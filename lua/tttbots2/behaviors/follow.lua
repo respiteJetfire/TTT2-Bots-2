@@ -64,7 +64,7 @@ function Follow.GetFollowTargets(bot)
             local otherFollowTarget = other.followTarget
             if otherFollowTarget == bot then continue end              -- don't follow bots that are following us. This will create a death spiral.
         end
-        if followTeammates and TTTBots.Roles.IsAllies(bot, other) then -- we are following teammates and this player is evil (like ourselves).
+        if followTeammates and (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, other) or TTTBots.Roles.IsAllies(bot, other)) then -- we are following teammates and this player is evil (like ourselves).
             table.insert(targets, other)
         elseif not followTeammates then                                -- we are not following teammates so just add everyone.
             table.insert(targets, other)

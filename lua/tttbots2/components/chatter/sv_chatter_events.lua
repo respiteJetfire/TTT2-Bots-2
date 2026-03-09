@@ -142,6 +142,57 @@ local chancesOf100 = {
     DoomguyChasingMe           = 95,  -- Bot is being actively chased by Doomguy
     DoomguyAvoid               = 65,  -- Bot warns others not to approach Doomguy alone
     DoomguyAtLocation          = 70,  -- Bot calls out Doomguy's last known location
+    -- -----------------------------------------------------------------------
+    -- Serial Killer events
+    -- -----------------------------------------------------------------------
+    SKHunting                  = 40,  -- SK picks a new stalk target (team/solo chat)
+    SKKnifeKill                = 60,  -- SK killed with knife (internal gloat)
+    SKShakeNade                = 30,  -- SK threw shake nade (stealth, mostly silent)
+    SKGloat                    = 50,  -- SK has killed >50% of players
+    SKLastStand                = 80,  -- SK is last 2-3 alive
+    SKSpotted                  = 75,  -- SK is accused/KOS'd — drops the mask
+    SKVictory                  = 90,  -- SK wins the round
+    SKSpottedByOthers          = 85,  -- Non-SK bot spots the Serial Killer
+    -- -----------------------------------------------------------------------
+    -- Necromancer / Zombie (necro) events
+    -- -----------------------------------------------------------------------
+    NecroRevivingZombie        = 85,  -- Necromancer is raising a dead player as a zombie (team-only)
+    ZombieRisen                = 75,  -- Bot has just been raised as a necro zombie
+    NecroZombieSpotted         = 90,  -- Bot sees a player get raised as a necro zombie
+    NecroMasterKilled          = 85,  -- The necromancer master was killed
+    NecroMasterDied            = 90,  -- Zombie reacts to its master's death
+    NecroVictory               = 80,  -- Team Necromancer won the round
+    ZombieAmmoLow              = 70,  -- Zombie bot is running low on ammo
+    ZombieSelfDestruct         = 95,  -- Zombie's last words before ammo-death
+    NecroTeamRally             = 65,  -- Necro rallying zombies to attack (team chat)
+    NecroTeamStrategy          = 60,  -- Necro team-only strategy talk
+    -- -----------------------------------------------------------------------
+    -- Spy role events
+    -- -----------------------------------------------------------------------
+    SpyBlendIn                 = 40,  -- Spy makes small talk near traitors to maintain cover
+    SpyFakeBuy                 = 60,  -- Spy executed a fake equipment purchase
+    SpyReportIntel             = 70,  -- Spy shares traitor intelligence with innocents
+    SpyReactJam                = 55,  -- Traitor reacts to team chat being jammed
+    SpyCoverBlow               = 80,  -- Spy realizes traitors are onto them
+    SpyDeflection              = 50,  -- Spy deflects suspicion from traitors
+    SpySurvival                = 85,  -- End of round, spy survived
+    TraitorSuspectsSpy         = 60,  -- Traitor notices spy inaction
+    TraitorDiscoversSpy        = 90,  -- Traitor confirms spy is fake
+    SpyPostReveal              = 75,  -- End of round, roles revealed — reaction to spy
+    SpyEavesdrop               = 35,  -- Spy mutters while observing traitor activity
+    -- -----------------------------------------------------------------------
+    -- Cupid / Lover events
+    -- -----------------------------------------------------------------------
+    CupidCreatingLovers        = 80,  -- Cupid is about to use the crossbow (team-only)
+    CupidLoversFormed          = 90,  -- Lovers successfully linked (team-only)
+    CupidLoverDied             = 95,  -- Partner died — panic before own death
+    CupidLoverPanic            = 70,  -- Lover is being attacked
+    CupidTeamCoordinate        = 50,  -- Periodic lover team coordination
+    CupidVictory               = 85,  -- Lovers team won the round
+    CupidTimePressure          = 75,  -- Time running out to use crossbow
+    CupidBetrayedTraitor       = 70,  -- Reaction when a traitor gets pulled to lovers
+    CupidSpotted               = 85,  -- Non-cupid bot witnesses cupid using crossbow
+    CupidLoverSpotted          = 70,  -- Non-cupid bot identifies a lover-team player
 }
 
 -- ---------------------------------------------------------------------------
@@ -1138,6 +1189,196 @@ hook.Add("TTTEndRound", "TTTBots.Chatter.TraitorVictory", function(result)
     end
 end)
 
+-- ===========================================================================
+-- Serial Killer (SK) Chatter Hooks
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- SKVictory — Serial Killer wins the round
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.SKVictory", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    -- TEAM_SERIALKILLER may not be defined yet at parse time; guard it.
+    if not TEAM_SERIALKILLER then return end
+    if result ~= TEAM_SERIALKILLER then return end
+
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetTeam() == TEAM_SERIALKILLER) then continue end
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            timer.Simple(math.random(1, 3), function()
+                if not IsValid(bot) then return end
+                chatter:On("SKVictory", {}, false, 0)
+            end)
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SKGloat — periodic check: SK has killed >50% of players
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.SKGloat", 15, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not TEAM_SERIALKILLER then return end
+
+    local totalInRound = table.Count(TTTBots.Match.PlayersInRound or {})
+    local aliveCount = #(TTTBots.Match.AlivePlayers or {})
+    if totalInRound < 4 then return end  -- too small to be meaningful
+
+    local deadCount = totalInRound - aliveCount
+    if deadCount <= (totalInRound * 0.5) then return end  -- SK hasn't killed enough yet
+
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetTeam() == TEAM_SERIALKILLER) then continue end
+
+        -- Only fire once per round
+        if bot._skGloatFired then continue end
+        bot._skGloatFired = true
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("SKGloat", {}, false, 0)
+        end
+        break  -- only one SK gloats per sweep
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetSKGloat", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then bot._skGloatFired = nil end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SKLastStand — SK is one of the last 2-3 players alive
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.SKLastStand", 5, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not TEAM_SERIALKILLER then return end
+
+    local alivePlayers = TTTBots.Match.AlivePlayers or {}
+    if #alivePlayers < 2 or #alivePlayers > 3 then return end
+
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetTeam() == TEAM_SERIALKILLER) then continue end
+
+        -- Don't fire more than once per round
+        if bot._skLastStandFired then continue end
+        bot._skLastStandFired = true
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("SKLastStand", {}, false, 0)
+        end
+        break
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetSKLastStand", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then bot._skLastStandFired = nil end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SKSpotted — SK reacts when they realize they've been KOS'd / identified
+-- (fires when the SK bot hears a KOS callout targeting themselves)
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBots.KOSCalled", "TTTBots.Chatter.SKSpotted", function(caller, target)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TEAM_SERIALKILLER then return end
+    if not (IsValid(target) and target:IsBot()) then return end
+    if not TTTBots.Lib.IsPlayerAlive(target) then return end
+
+    local role = TTTBots.Roles.GetRoleFor(target)
+    if not (role and role:GetTeam() == TEAM_SERIALKILLER) then return end
+
+    -- Rate-limit: once per 20s
+    if (CurTime() - (target._skSpottedChatTime or 0)) < 20 then return end
+    target._skSpottedChatTime = CurTime()
+
+    local chatter = target:BotChatter()
+    if chatter then
+        chatter:On("SKSpotted", {}, false, math.random(1, 2))
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SKSpottedByOthers — non-SK bots react when they spot the SK or see SK knife
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBots.KOSCalled", "TTTBots.Chatter.SKSpottedByOthers", function(caller, target)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TEAM_SERIALKILLER then return end
+    if not (IsValid(caller) and caller:IsBot()) then return end
+    if not (IsValid(target)) then return end
+
+    -- The caller must NOT be an SK — they are the one spotting the SK
+    local callerRole = TTTBots.Roles.GetRoleFor(caller)
+    if callerRole and callerRole:GetTeam() == TEAM_SERIALKILLER then return end
+
+    -- The target must be an SK
+    local targetRole = TTTBots.Roles.GetRoleFor(target)
+    if not (targetRole and targetRole:GetTeam() == TEAM_SERIALKILLER) then return end
+
+    -- Rate-limit per bot
+    if (CurTime() - (caller._skSpottedByOthersChatTime or 0)) < 15 then return end
+    caller._skSpottedByOthersChatTime = CurTime()
+
+    local chatter = caller:BotChatter()
+    if chatter then
+        chatter:On("SKSpottedByOthers", {
+            player = target:Nick(),
+            playerEnt = target,
+        }, false, 0)
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SK Knife Kill chatter — SK bot comments after a knife kill
+-- ---------------------------------------------------------------------------
+
+hook.Add("PlayerDeath", "TTTBots.Chatter.SKKnifeKill", function(victim, weapon, attacker)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TEAM_SERIALKILLER then return end
+    if not TTTBots.Match.RoundActive then return end
+    if not (IsValid(attacker) and attacker:IsBot()) then return end
+    if not TTTBots.Lib.IsPlayerAlive(attacker) then return end
+
+    local role = TTTBots.Roles.GetRoleFor(attacker)
+    if not (role and role:GetTeam() == TEAM_SERIALKILLER) then return end
+
+    -- Check if the kill was with the SK knife
+    local weaponClass = IsValid(weapon) and weapon:GetClass() or ""
+    if weaponClass ~= "weapon_ttt_sk_knife" then return end
+
+    -- Rate-limit: once per 10s
+    if (CurTime() - (attacker._skKnifeKillChatTime or 0)) < 10 then return end
+    attacker._skKnifeKillChatTime = CurTime()
+
+    local chatter = attacker:BotChatter()
+    if chatter then
+        -- SK team-only gloat (solo team but keeps pattern consistent)
+        timer.Simple(math.random(1, 3), function()
+            if not IsValid(attacker) then return end
+            chatter:On("SKKnifeKill", {}, false, 0)
+        end)
+    end
+end)
+
 -- ---------------------------------------------------------------------------
 -- PostRoundBanter — bots react at the end of every round
 -- ---------------------------------------------------------------------------
@@ -1212,4 +1453,137 @@ hook.Add("TTTEndRound", "TTTBots.Chatter.PostRoundBanter", function(result)
             end)
         end)
     end)
+end)
+
+-- ===========================================================================
+-- Cupid / Lover Chatter Hooks
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- CupidLoverDied — when a lover dies, the surviving lover panics
+-- ---------------------------------------------------------------------------
+
+hook.Add("PlayerDeath", "TTTBots.Chatter.CupidLoverDied", function(victim, weapon, attacker)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TTTBots.Match.RoundActive then return end
+    if not ROLE_CUPID then return end
+    if not (IsValid(victim) and victim.inLove) then return end
+
+    -- Find the surviving lover
+    local lover = TTTBots.Roles.GetCupidLover and TTTBots.Roles.GetCupidLover(victim)
+    if not (IsValid(lover) and lover:IsBot() and lib.IsPlayerAlive(lover)) then return end
+
+    local chatter = lover:BotChatter()
+    if chatter then
+        chatter:On("CupidLoverDied", {
+            player = victim:Nick(),
+            playerEnt = victim,
+        }, false, 0)
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- CupidVictory — Lovers team wins the round
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.CupidVictory", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TEAM_LOVER then return end
+    if result ~= TEAM_LOVER then return end
+
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if not bot.inLove then continue end
+
+        local chatter = bot:BotChatter()
+        if chatter and math.random(1, 3) == 1 then
+            timer.Simple(math.random(1, 3), function()
+                if not IsValid(bot) then return end
+                chatter:On("CupidVictory", {}, false, 0)
+            end)
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- CupidBetrayedTraitor — traitor-side bots react when one of their own
+-- gets pulled to TEAM_LOVER
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTT2UpdateTeam", "TTTBots.Chatter.CupidBetrayedTraitor", function(ply, oldTeam, newTeam)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TTTBots.Match.RoundActive then return end
+    if not TEAM_LOVER then return end
+    if newTeam ~= TEAM_LOVER then return end
+    if oldTeam ~= TEAM_TRAITOR then return end
+
+    -- A traitor was pulled to TEAM_LOVER — other traitor bots react
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if not lib.IsPlayerAlive(bot) then continue end
+        if bot == ply then continue end
+
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetTeam() == TEAM_TRAITOR) then continue end
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("CupidBetrayedTraitor", {
+                player = ply:Nick(),
+                playerEnt = ply,
+            }, true, math.random(1, 3))
+        end
+        break  -- one speaker per event
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- CupidLoverSpotted — non-lover bots react when they see a player on TEAM_LOVER
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.CupidLoverSpotted", 10, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not TEAM_LOVER then return end
+
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if bot.inLove then continue end  -- lovers don't spot other lovers as threats
+
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetUsesSuspicion()) then continue end
+
+        -- Look for nearby lover-team players
+        for _, ply in ipairs(TTTBots.Match.AlivePlayers or {}) do
+            if not IsValid(ply) then continue end
+            if ply == bot then continue end
+            if ply:GetTeam() ~= TEAM_LOVER then continue end
+
+            local dist = bot:GetPos():Distance(ply:GetPos())
+            if dist > 500 then continue end
+            if not bot:Visible(ply) then continue end
+
+            -- Rate-limit per bot
+            if (CurTime() - (bot._cupidLoverSpottedTime or 0)) < 20 then continue end
+            bot._cupidLoverSpottedTime = CurTime()
+
+            local chatter = bot:BotChatter()
+            if chatter then
+                chatter:On("CupidLoverSpotted", {
+                    player = ply:Nick(),
+                    playerEnt = ply,
+                }, false, 0)
+            end
+            break  -- one detection per bot per sweep
+        end
+        break  -- one bot per sweep
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetCupidFlags", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then
+            bot._cupidLoverSpottedTime = nil
+        end
+    end
 end)

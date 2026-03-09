@@ -136,7 +136,26 @@ end
 hook.Add("TTTEndRound", "TTTBots.Memory.ClearRoundMemory", function()
     for i, bot in pairs(TTTBots.Bots) do
         if not (IsValid(bot) and bot:BotMemory()) then continue end
-        bot:BotMemory().m_genericmemory.round = {}
+        local mem = bot:BotMemory()
+        -- Full reset: wipe known positions, life states, sounds, witness events,
+        -- danger zones, nav visits, messages, and conversation state.
+        -- Preserves "game" scope memory (cross-round) but clears everything else.
+        local savedGameMemory = mem.m_genericmemory and mem.m_genericmemory.game or {}
+        mem:ResetMemory()
+        mem.m_genericmemory.game = savedGameMemory
+        -- Also clear recent sounds
+        mem.recentSounds = {}
+    end
+end)
+
+hook.Add("TTTPrepareRound", "TTTBots.Memory.PrepareRoundMemory", function()
+    for i, bot in pairs(TTTBots.Bots) do
+        if not (IsValid(bot) and bot:BotMemory()) then continue end
+        local mem = bot:BotMemory()
+        local savedGameMemory = mem.m_genericmemory and mem.m_genericmemory.game or {}
+        mem:ResetMemory()
+        mem.m_genericmemory.game = savedGameMemory
+        mem.recentSounds = {}
     end
 end)
 
@@ -943,6 +962,11 @@ timer.Create("TTTBots_Memory_DoorActivityCleanup", 30, 0, function()
 			Memory.DoorActivityLog[idx] = nil
 		end
 	end
+end)
+
+-- Clear door activity between rounds
+hook.Add("TTTEndRound", "TTTBots.Memory.ClearDoorActivity", function()
+    Memory.DoorActivityLog = {}
 end)
 
 ---@class Bot

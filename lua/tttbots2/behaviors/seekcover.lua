@@ -28,12 +28,10 @@ local COVER_ARRIVAL_DIST = 120
 local PEEK_DURATION = 1.2
 -- How long to hide behind cover before peeking again.
 local HIDE_DURATION = 1.5
--- Maximum time (seconds) allowed in the whole SeekCover behavior before giving up.
-local MAX_COVER_DURATION = 8.0
--- How long (seconds) before SeekCover can be triggered again after completing/failing.
-local COVER_COOLDOWN = 5.0
--- How long the attacker can be out of sight before we stop caring about cover.
-local ATTACKER_LOS_TIMEOUT = 6.0
+-- Maximum time (seconds) to stay in SeekCover before giving up.
+local MAX_COVER_DURATION = 10
+-- Cooldown (seconds) after SeekCover ends before it can re-trigger.
+local POST_COVER_COOLDOWN = 4
 
 --- Cast rays in 8 cardinal/diagonal directions and score positions for cover value.
 ---@param bot Bot
@@ -140,23 +138,17 @@ function SeekCover.Validate(bot)
     if not TTTBots.Match.IsRoundActive() then return false end
     -- Hothead personality never takes cover.
     if bot.HasTrait and bot:HasTrait("hothead") then return false end
-    -- Respect post-cover cooldown so we don't immediately loop back in.
-    if (bot.seekCoverCooldownUntil or 0) > CurTime() then return false end
     -- Only run when AttackTarget requested cover.
     if not IsValid(bot.coverTarget) then return false end
-    -- Clear stale cover targets (attacker is dead or not alive).
-    if not lib.IsPlayerAlive(bot.coverTarget) then
+    -- Cover target must still be alive — dead players stay IsValid but are no threat.
+    if bot.coverTarget:IsPlayer() and not lib.IsPlayerAlive(bot.coverTarget) then
         bot.coverTarget = nil
         return false
     end
-    -- Clear if attacker has been out of LOS too long — bot should re-engage, not hide forever.
-    local memory = bot.components and bot.components.memory
-    if memory then
-        local lastSeen = memory:GetLastSeenTime(bot.coverTarget)
-        if (CurTime() - lastSeen) > ATTACKER_LOS_TIMEOUT then
-            bot.coverTarget = nil
-            return false
-        end
+    -- Respect post-cover cooldown to prevent rapid re-entry.
+    if (bot.seekCoverCooldownUntil or 0) > CurTime() then
+        bot.coverTarget = nil
+        return false
     end
     -- Only if alive.
     if not lib.IsPlayerAlive(bot) then return false end
@@ -165,12 +157,11 @@ end
 
 --- Called when the behavior is started.
 function SeekCover.OnStart(bot)
-    local state = TTTBots.Behaviors.GetState(bot, "SeekCover")
-    state.seekCoverPos = nil
-    state.seekCoverLastScan = 0
-    state.seekCoverPeeking = false
-    state.seekCoverPeekTime = 0
-    state.seekCoverStartTime = CurTime()
+    bot.seekCoverPos = nil
+    bot.seekCoverLastScan = 0
+    bot.seekCoverPeeking = false
+    bot.seekCoverPeekTime = 0
+    bot.seekCoverStartTime = CurTime()
     return STATUS.RUNNING
 end
 
@@ -178,12 +169,18 @@ end
 function SeekCover.OnRunning(bot)
     local attacker = bot.coverTarget
     if not IsValid(attacker) then return STATUS.SUCCESS end
+    -- Cover target died — no threat, stop hiding.
+    if attacker:IsPlayer() and not lib.IsPlayerAlive(attacker) then return STATUS.SUCCESS end
     if not lib.IsPlayerAlive(bot) then return STATUS.FAILURE end
 
-    local state = TTTBots.Behaviors.GetState(bot, "SeekCover")
     local loco = bot:BotLocomotor() ---@type CLocomotor
     local botPos = bot:GetPos()
     local now = CurTime()
+
+    -- Timeout: don't stay in cover forever.
+    if now - (bot.seekCoverStartTime or now) > MAX_COVER_DURATION then
+        return STATUS.SUCCESS
+    end
 
     -- Escalate to full retreat if health is critically low.
     if bot:Health() < 25 then
@@ -191,45 +188,30 @@ function SeekCover.OnRunning(bot)
         return STATUS.SUCCESS
     end
 
-    -- Hard timeout: if we've been running SeekCover too long, give up.
-    if (now - (state.seekCoverStartTime or now)) > MAX_COVER_DURATION then
-        return STATUS.FAILURE
-    end
-
-    -- If the attacker has been out of LOS for too long, stop hiding and re-engage.
-    local memory = bot.components and bot.components.memory
-    if memory then
-        local lastSeen = memory:GetLastSeenTime(attacker)
-        if (now - lastSeen) > ATTACKER_LOS_TIMEOUT then
-            bot.coverTarget = nil
-            return STATUS.SUCCESS
-        end
-    end
-
     -- Periodically rescan for a better cover position.
-    if (not state.seekCoverPos) or (now - (state.seekCoverLastScan or 0) > COVER_RESCAN_INTERVAL) then
+    if (not bot.seekCoverPos) or (now - (bot.seekCoverLastScan or 0) > COVER_RESCAN_INTERVAL) then
         local newPos = FindCoverPos(bot, attacker)
         if newPos then
-            state.seekCoverPos = newPos
-            state.seekCoverLastScan = now
+            bot.seekCoverPos = newPos
+            bot.seekCoverLastScan = now
         end
     end
 
-    if not state.seekCoverPos then
+    if not bot.seekCoverPos then
         -- No valid cover found — fall back to normal attack behavior.
         return STATUS.FAILURE
     end
 
-    local distToCover = botPos:Distance(state.seekCoverPos)
+    local distToCover = botPos:Distance(bot.seekCoverPos)
 
     if distToCover > COVER_ARRIVAL_DIST then
         -- Haven't reached cover yet — path towards it.
-        loco:SetGoal(state.seekCoverPos)
+        loco:SetGoal(bot.seekCoverPos)
         -- If the path manager says this is impossible, clear and rescan next tick.
         if loco.cantReachGoal then
             loco.cantReachGoal = false
-            state.seekCoverPos = nil
-            state.seekCoverLastScan = 0
+            bot.seekCoverPos = nil
+            bot.seekCoverLastScan = 0
         end
         return STATUS.RUNNING
     end
@@ -237,7 +219,7 @@ function SeekCover.OnRunning(bot)
     -- We're at cover. Do the peek/hide cycle.
     loco:StopMoving()
 
-    if state.seekCoverPeeking then
+    if bot.seekCoverPeeking then
         -- Currently peeking: look at attacker and start firing.
         loco.stopLookingAround = true
         if IsValid(attacker) then
@@ -247,9 +229,9 @@ function SeekCover.OnRunning(bot)
             end
         end
         -- Switch to hiding after PEEK_DURATION.
-        if now - state.seekCoverPeekTime > PEEK_DURATION then
-            state.seekCoverPeeking = false
-            state.seekCoverPeekTime = now
+        if now - bot.seekCoverPeekTime > PEEK_DURATION then
+            bot.seekCoverPeeking = false
+            bot.seekCoverPeekTime = now
             loco:StopAttack()
             loco.stopLookingAround = false
         end
@@ -257,9 +239,9 @@ function SeekCover.OnRunning(bot)
         -- Currently hiding: stop firing, wait before peeking again.
         loco:StopAttack()
         loco.stopLookingAround = false
-        if now - (state.seekCoverPeekTime or 0) > HIDE_DURATION then
-            state.seekCoverPeeking = true
-            state.seekCoverPeekTime = now
+        if now - (bot.seekCoverPeekTime or 0) > HIDE_DURATION then
+            bot.seekCoverPeeking = true
+            bot.seekCoverPeekTime = now
         end
     end
 
@@ -274,12 +256,14 @@ end
 
 function SeekCover.OnEnd(bot)
     bot.coverTarget = nil
-    -- Apply cooldown so AttackTarget doesn't immediately re-trigger SeekCover.
-    bot.seekCoverCooldownUntil = CurTime() + COVER_COOLDOWN
+    bot.seekCoverPos = nil
+    bot.seekCoverPeeking = false
+    bot.seekCoverStartTime = nil
+    -- Set cooldown so cover doesn't immediately re-trigger.
+    bot.seekCoverCooldownUntil = CurTime() + POST_COVER_COOLDOWN
     local loco = bot:BotLocomotor()
     if loco then
         loco:StopAttack()
         loco.stopLookingAround = false
     end
-    TTTBots.Behaviors.ClearState(bot, "SeekCover")
 end

@@ -83,26 +83,71 @@ function BotMorality:GetRandomVictimFrom(playerlist)
 end
 
 --- Makes it so that traitor bots will attack random players nearby.
+--- Phase-aware: deceptive roles avoid attacking in EARLY phase unless truly isolated.
 function BotMorality:SetRandomNearbyTarget()
     if not (self.tick % TTTBots.Tickrate == 0) then return end
     local roundStarted = TTTBots.Match.RoundActive
-    local targetsRandoms = TTTBots.Roles.GetRoleFor(self.bot):GetStartsFights()
+    local roleData = TTTBots.Roles.GetRoleFor(self.bot)
+    local targetsRandoms = roleData:GetStartsFights()
     if not (roundStarted and targetsRandoms) then return end
     if self.bot.attackTarget ~= nil then return end
     local delay = lib.GetConVarFloat("attack_delay")
     if TTTBots.Match.Time() <= delay then return end
 
+    -- Phase awareness: deceptive roles should blend in during EARLY phase.
+    -- Roles that are KOS by all (doomguy, etc.) are already exposed — they skip this gate.
+    local ra = self.bot:BotRoundAwareness()
+    local phase = ra and ra:GetPhase() or "EARLY"
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+    local isKOSedByAll = roleData.GetKOSedByAll and roleData:GetKOSedByAll()
+
     local aggression = math.max((self.bot:GetTraitMult("aggression")) * (self.bot:BotPersonality().rage / 100), 0.3)
     local time_modifier = TTTBots.Match.SecondsPassed / 30
     -- Phase-based aggression scaling: traitors become bolder as round progresses
-    local ra = self.bot:BotRoundAwareness()
     if ra then
         time_modifier = time_modifier * ra:GetAggressionMult()
     end
 
+    -- Armor aggression boost: armored bots (especially SK) are more willing to engage
+    local armorBoost = 1.0
+    local botArmor = self.bot:Armor() or 0
+    if botArmor > 30 then
+        armorBoost = 1.3  -- 30% more aggressive with armor
+    elseif botArmor > 0 then
+        armorBoost = 1.15
+    end
+    aggression = aggression * armorBoost
+
     local maxTargets = math.max(2, math.ceil(aggression * 2 * time_modifier))
     local targets = lib.GetAllVisible(self.bot:EyePos(), true, self.bot)
     if (#targets > maxTargets) or (#targets == 0) then return end
+
+    -- EARLY phase suppression for deceptive roles:
+    -- Only attack if the target is truly isolated (1 visible enemy, no other witnesses).
+    -- KOS-by-all roles (Doomguy etc.) skip this — they are already publicly hostile.
+    if PHASE and phase == PHASE.EARLY and not isKOSedByAll then
+        -- In EARLY phase, refuse to start random fights unless there is exactly 1 visible
+        -- non-ally and no other witnesses near that target.
+        if #targets > 1 then return end
+        local soleTarget = targets[1]
+        if soleTarget and IsValid(soleTarget) then
+            local witnessesNearTarget = lib.GetAllWitnessesBasic(
+                soleTarget:GetPos(),
+                TTTBots.Roles.GetNonAllies(self.bot),
+                self.bot
+            )
+            -- Abort if anyone else can see the target (we'd be caught)
+            if table.Count(witnessesNearTarget) > 1 then return end
+        end
+        -- Even with an isolated target in EARLY, dramatically reduce the chance
+        aggression = aggression * 0.15
+    end
+
+    -- MID phase: moderate suppression — reduce chance somewhat
+    if PHASE and phase == PHASE.MID and not isKOSedByAll then
+        if #targets > 2 then return end -- don't attack in groups of 3+
+        aggression = aggression * 0.5
+    end
 
     local base_chance = 4.5
     local chanceAttackPerSec = (
@@ -148,6 +193,47 @@ function BotMorality:TickIfLastAlive()
 
     Arb.RequestAttackTarget(self.bot, otherPlayer, "LAST_ALIVE", PRI.OPPORTUNISTIC)
 end
+
+-- ===========================================================================
+-- Round reset — wipe ALL per-round morality / suspicion state
+-- ===========================================================================
+
+--- Full morality state wipe. Must be called on every round boundary to prevent
+--- suspicion, role guesses, grudges, and other per-round state from leaking
+--- into the next round.
+function BotMorality:ResetRoundState()
+    self.suspicions = {}
+    self.roleGuesses = {}
+    self.testedClean = nil
+
+    local bot = self.bot
+    if not IsValid(bot) then return end
+
+    -- Clear per-bot fields that accumulate during a round
+    bot.grudge              = nil
+    bot.personalSpaceTbl    = nil
+    bot.redHandedTime       = nil
+    bot.selfDefenseKills    = nil
+    bot.lastKillTime        = nil
+    bot.pendingAccusations  = nil
+
+    -- Reset arbitration state (attack target priority & reason)
+    Arb.ResetState(bot)
+end
+
+hook.Add("TTTEndRound", "TTTBots.Morality.ResetRoundState", function()
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not (IsValid(bot) and bot.components and bot.components.morality) then continue end
+        bot.components.morality:ResetRoundState()
+    end
+end)
+
+hook.Add("TTTPrepareRound", "TTTBots.Morality.PrepareRoundReset", function()
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not (IsValid(bot) and bot.components and bot.components.morality) then continue end
+        bot.components.morality:ResetRoundState()
+    end
+end)
 
 -- ===========================================================================
 -- Think — orchestrates the per-tick morality update

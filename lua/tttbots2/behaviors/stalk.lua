@@ -108,8 +108,11 @@ function Stalk.Validate(bot)
                 -- Infected hosts are exempt from the phase gate — stalking IS their core mechanic
                 local isInfectedHost = TTTBots.Roles.IsInfectedHost
                     and TTTBots.Roles.IsInfectedHost(bot)
-                if isInfectedHost then
-                    -- Allow stalking to continue for infected hosts at all phases
+                -- Serial Killers are exempt — their core mechanic IS stalking + knife kills
+                local isSerialKiller = bot.GetRoleStringRaw
+                    and bot:GetRoleStringRaw() == "serialkiller"
+                if isInfectedHost or isSerialKiller then
+                    -- Allow stalking to continue for infected hosts / serial killers at all phases
                 elseif not ra:IsOvertake() then
                     -- In overtime with overtake advantage, allow stalking to continue (assassinate stragglers)
                     return false
@@ -150,9 +153,32 @@ function Stalk.OnRunning(bot)
     loco:LookAt(targetEyes)
     loco:SetGoal()
 
-    local witnesses = lib.GetAllWitnessesBasic(targetPos, TTTBots.Roles.GetNonAllies(bot), bot)
-    if table.Count(witnesses) <= 1 then
-        if math.random(1, 3) == 1 then -- Just some extra randomness for fun!
+    local witnesses = lib.GetAllWitnessesBasic(targetPos, TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot), bot)
+
+    -- Phase-aware witness threshold: EARLY phase requires zero witnesses,
+    -- MID allows 1, LATE/OVERTIME allows 1-2.
+    local maxWitnesses = 1
+    local attackChance = 3 -- 1-in-N chance per tick (adds randomness)
+    local ra = bot:BotRoundAwareness()
+    if ra then
+        local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+        if PHASE then
+            local phase = ra:GetPhase()
+            if phase == PHASE.EARLY then
+                maxWitnesses = 0  -- Must be completely alone
+                attackChance = 5  -- Lower chance: 1-in-5
+            elseif phase == PHASE.MID then
+                maxWitnesses = 1
+                attackChance = 3
+            else
+                maxWitnesses = 2
+                attackChance = 2  -- More aggressive in LATE/OVERTIME
+            end
+        end
+    end
+
+    if table.Count(witnesses) <= maxWitnesses then
+        if math.random(1, attackChance) == 1 then
             bot:SetAttackTarget(target, "STALK_ATTACK", 4)
             return STATUS.SUCCESS
         end

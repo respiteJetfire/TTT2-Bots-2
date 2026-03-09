@@ -147,9 +147,66 @@ function TTTBots.PromptContext.BuildGameStateContext(bot)
         ctx = ctx .. infCtx
     end
 
+    -- Serial Killer role context: lone wolf with SK knife, kills everyone
+    if TEAM_SERIALKILLER and bot.GetTeam and bot:GetTeam() == TEAM_SERIALKILLER then
+        local skCtx = ""
+        local killCount = 0
+        -- Estimate kills: total players minus alive players (rough but useful)
+        local totalInRound = table.Count(TTTBots.Match.PlayersInRound or {})
+        local aliveCount = #(TTTBots.Match.AlivePlayers or {})
+        killCount = totalInRound - aliveCount
+
+        local hasKnife = false
+        local weps = bot:GetWeapons()
+        for _, wep in ipairs(weps) do
+            if IsValid(wep) and wep:GetClass() == "weapon_ttt_sk_knife" then
+                hasKnife = true
+                break
+            end
+        end
+
+        local hasArmor = bot:GetArmor() and bot:GetArmor() > 0
+
+        skCtx = string.format(
+            " [Serial Killer. Kill EVERYONE. You work alone. Kills so far: ~%d. Knife: %s. Armor: %s. "
+            .. "Use stealth when possible. Go loud when spotted.]",
+            killCount,
+            hasKnife and "yes" or "no",
+            hasArmor and "yes" or "no"
+        )
+        ctx = ctx .. skCtx
+    end
+
+    -- Spy role context: disguised as traitor, gathering intel, maintaining cover
+    if TTTBots.Perception and TTTBots.Perception.IsSpy and TTTBots.Perception.IsSpy(bot) then
+        local spyCtx = ""
+        local coverState = TTTBots.Perception.GetCoverState(bot)
+        local knownTraitors = TTTBots.Perception.GetKnownTraitors(bot)
+
+        local traitorNames = {}
+        for _, tr in ipairs(knownTraitors) do
+            if IsValid(tr) then
+                table.insert(traitorNames, tr:Nick())
+            end
+        end
+        local traitorStr = #traitorNames > 0
+            and table.concat(traitorNames, ", ")
+            or "none identified"
+
+        spyCtx = string.format(
+            " [Spy. You appear as traitor to traitors — they think you're on their team. "
+            .. "Cover: %s. Known traitors: %s. "
+            .. "Blend in with traitors, gather intel, report to innocents. "
+            .. "Don't attack traitors openly unless cover is blown.]",
+            coverState or "intact",
+            traitorStr
+        )
+        ctx = ctx .. spyCtx
+    end
+
     -- Hard cap to avoid blowing up the context window
-    if #ctx > 450 then
-        ctx = ctx:sub(1, 447) .. "..."
+    if #ctx > 600 then
+        ctx = ctx:sub(1, 597) .. "..."
     end
 
     return ctx

@@ -31,9 +31,14 @@ local function isEnabled()
     return TTTBots.Lib.GetConVarBool("deception_enabled")
 end
 
-local function isTraitor(bot)
+--- True if bot is a deceptive hostile role — starts fights but isn't publicly known.
+---@param bot Bot
+local function isDeceptiveHostile(bot)
     local role = TTTBots.Roles.GetRoleFor(bot)
-    return role and role:GetTeam() == TEAM_TRAITOR
+    if not role then return false end
+    local startsFights = role:GetStartsFights()
+    local isKOSedByAll = role.GetKOSedByAll and role:GetKOSedByAll()
+    return startsFights and not isKOSedByAll
 end
 
 --- Returns true if there is a non-allied player within witnessing range.
@@ -70,7 +75,7 @@ end
 function PlausibleIgnorance.Validate(bot)
     if not isEnabled() then return false end
     if not lib.IsPlayerAlive(bot) then return false end
-    if not isTraitor(bot) then return false end
+    if not isDeceptiveHostile(bot) then return false end
     if bot.attackTarget then return false end
 
     -- Cooldown check

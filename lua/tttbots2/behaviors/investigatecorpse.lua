@@ -142,10 +142,13 @@ function InvestigateCorpse.OnRunning(bot)
         return STATUS.FAILURE
     end
     local loco = bot:BotLocomotor()
-    loco:LookAt(bot.corpseTarget:GetPos())
-    loco:SetGoal(bot.corpseTarget:GetPos())
+    local corpsePos = bot.corpseTarget:GetPos()
+    loco:LookAt(corpsePos)
+    loco:SetGoal(corpsePos)
 
-    local distToBody = bot:GetPos():Distance(bot.corpseTarget:GetPos())
+    -- Use XY distance so minor Z differences from ragdoll physics don't
+    -- prevent the bot from reaching the interaction threshold.
+    local distToBody = lib.DistanceXY(bot:GetPos(), corpsePos)
     if distToBody < 80 then
         loco:StopMoving()
         CORPSE.ShowSearch(bot, bot.corpseTarget, false, false)

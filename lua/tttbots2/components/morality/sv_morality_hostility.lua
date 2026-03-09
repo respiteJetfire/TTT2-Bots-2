@@ -14,31 +14,74 @@ local PRI = Arb.PRIORITY
 -- ===========================================================================
 
 ---Keep killing any nearby non-allies if we're red-handed.
+--- Phase-aware: in EARLY/MID phases, only continue if the next target is isolated
+--- (no point getting caught). KOS-by-all roles always continue.
 ---@param bot Bot
 local function continueMassacre(bot)
     local isRedHanded = bot.redHandedTime and (CurTime() < bot.redHandedTime)
-    local isKillerRole = TTTBots.Roles.GetRoleFor(bot):GetStartsFights()
+    local roleData = TTTBots.Roles.GetRoleFor(bot)
+    local isKillerRole = roleData:GetStartsFights()
 
     if isRedHanded and isKillerRole then
-        local nonAllies = TTTBots.Roles.GetNonAllies(bot)
+        local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot)
         local closest = TTTBots.Lib.GetClosest(nonAllies, bot:GetPos())
         if closest and closest ~= NULL then
+            -- Phase-aware gating: deceptive roles should flee after a kill, not chain-attack in crowds
+            local isKOSedByAll = roleData.GetKOSedByAll and roleData:GetKOSedByAll()
+            if not isKOSedByAll then
+                local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+                local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+                if ra and PHASE then
+                    local phase = ra:GetPhase()
+                    if phase == PHASE.EARLY or phase == PHASE.MID then
+                        -- Only continue the massacre if the next target is isolated
+                        local witnessesNearTarget = lib.GetAllWitnessesBasic(
+                            closest:GetPos(), nonAllies, bot
+                        )
+                        if table.Count(witnessesNearTarget) > 1 then
+                            return -- Disengage and flee rather than chain-kill in a crowd
+                        end
+                    end
+                end
+            end
             Arb.RequestAttackTarget(bot, closest, "CONTINUE_MASSACRE", PRI.ROLE_HOSTILITY)
         end
     end
 end
 
---- Attack any player that is in the GetEnemies for our role
+--- Attack any player that is in the GetEnemies for our role.
+--- Phase-aware: during EARLY/MID phases, deceptive roles only attack isolated enemies.
 ---@param bot Bot
 local function attackEnemies(bot)
-    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Roles.GetNonAllies(bot))
-    local isKillerRole = TTTBots.Roles.GetRoleFor(bot):GetStartsFights()
+    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot))
+    local roleData = TTTBots.Roles.GetRoleFor(bot)
+    local isKillerRole = roleData:GetStartsFights()
     local kosEnemies = TTTBots.Lib.GetConVarBool("kos_enemies")
 
     if isKillerRole or kosEnemies then
         local enemies = TTTBots.Roles.GetEnemies(bot)
         local closest = TTTBots.Lib.GetClosest(enemies, bot:GetPos())
         if closest and closest ~= NULL and TTTBots.Lib.IsPlayerAlive(closest) and table.HasValue(visible, closest) then
+            -- Phase-aware gating for deceptive roles
+            local isKOSedByAll = roleData.GetKOSedByAll and roleData:GetKOSedByAll()
+            if not isKOSedByAll then
+                local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+                local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+                if ra and PHASE then
+                    local phase = ra:GetPhase()
+                    if phase == PHASE.EARLY or phase == PHASE.MID then
+                        local witnessesNearTarget = lib.GetAllWitnessesBasic(
+                            closest:GetPos(),
+                            TTTBots.Roles.GetNonAllies(bot),
+                            bot
+                        )
+                        local maxWitnesses = (phase == PHASE.EARLY) and 0 or 1
+                        if table.Count(witnessesNearTarget) > maxWitnesses then
+                            return -- Maintain cover, too many witnesses
+                        end
+                    end
+                end
+            end
             Arb.RequestAttackTarget(bot, closest, "ROLE_ENEMY", PRI.ROLE_HOSTILITY)
         end
     end
@@ -48,7 +91,7 @@ end
 --- Uses role/team checks instead of fragile model-string comparison.
 ---@param bot Bot
 local function attackZombies(bot)
-    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Roles.GetNonAllies(bot))
+    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot))
     local isKillerRole = TTTBots.Roles.GetRoleFor(bot):GetStartsFights()
     local kosZombies = TTTBots.Lib.GetConVarBool("kos_enemies")
 
@@ -76,22 +119,49 @@ local function attackZombies(bot)
     end
 end
 
---- Attack any player that is in the GetNonAllies for our role
+--- Attack any player that is in the GetNonAllies for our role.
+--- Phase-aware: during EARLY phase, deceptive roles (not KOS-by-all) only attack
+--- isolated targets to maintain cover. Infected zombies (melee-only, already exposed)
+--- and KOS-by-all roles (Doomguy) always attack openly.
 ---@param bot Bot
 local function attackNonAllies(bot)
-    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Roles.GetNonAllies(bot))
+    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot))
     local kosnonallies = TTTBots.Lib.GetConVarBool("kos_nonallies")
     -- Check if this bot is any kind of infected (host OR zombie) via INFECTEDS global
     local isInfectedHost = INFECTEDS and INFECTEDS[bot]
     local isInfectedZombie = TTTBots.Roles.IsInfectedZombie
         and TTTBots.Roles.IsInfectedZombie(bot)
     local isINFECTEDs = isInfectedHost or isInfectedZombie
-    local kosrole = TTTBots.Roles.GetRoleFor(bot):GetKOSAll()
+    local roleData = TTTBots.Roles.GetRoleFor(bot)
+    local kosrole = roleData:GetKOSAll()
 
     if kosnonallies or isINFECTEDs or kosrole then
-        local nonAllies = TTTBots.Roles.GetNonAllies(bot)
+        local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot)
         local closest = TTTBots.Lib.GetClosest(nonAllies, bot:GetPos())
         if closest and closest ~= NULL and TTTBots.Lib.IsPlayerAlive(closest) and table.HasValue(visible, closest) then
+            -- Phase-aware gating: roles that need deception should wait for isolation.
+            -- KOS-by-all roles and already-exposed zombies always attack openly.
+            local isKOSedByAll = roleData.GetKOSedByAll and roleData:GetKOSedByAll()
+            local alwaysAggressive = isKOSedByAll or isInfectedZombie
+            if not alwaysAggressive then
+                local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+                local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+                if ra and PHASE then
+                    local phase = ra:GetPhase()
+                    if phase == PHASE.EARLY or phase == PHASE.MID then
+                        -- Only attack if the target is isolated (few witnesses)
+                        local witnessesNearTarget = lib.GetAllWitnessesBasic(
+                            closest:GetPos(),
+                            nonAllies,
+                            bot
+                        )
+                        local maxWitnesses = (phase == PHASE.EARLY) and 0 or 1
+                        if table.Count(witnessesNearTarget) > maxWitnesses then
+                            return -- Too many witnesses, maintain cover
+                        end
+                    end
+                end
+            end
             Arb.RequestAttackTarget(bot, closest, "KOS_ALL", PRI.ROLE_HOSTILITY)
         end
     end
@@ -150,7 +220,7 @@ local function preventAttackAlly(bot)
     local attackTarget = bot.attackTarget
     local role = TTTBots.Roles.GetRoleFor(attackTarget)
     if not role then return end
-    local isAllies = TTTBots.Roles.IsAllies(bot, attackTarget)
+    local isAllies = TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, attackTarget) or TTTBots.Roles.IsAllies(bot, attackTarget)
     if isAllies then
         Arb.RequestClearTarget(bot, "PREVENT_ALLY", PRI.ROLE_HOSTILITY)
     end
@@ -210,7 +280,7 @@ local function personalSpace(bot)
         if not IsValid(other) then return false end
         if not lib.IsPlayerAlive(other) then return false end
         if not bot:Visible(other) then return false end
-        if TTTBots.Roles.IsAllies(bot, other) then return false end
+        if (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, other) or TTTBots.Roles.IsAllies(bot, other)) then return false end
 
         local dist = bot:GetPos():Distance(other:GetPos())
         if dist > PS_RADIUS then return false end
@@ -254,7 +324,7 @@ local function noticeTraitorWeapons(bot)
     if bot.attackTarget ~= nil then return end
     if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then return end
 
-    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Roles.GetNonAllies(bot))
+    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot))
     local filtered = TTTBots.Lib.FilterTable(visible, function(other)
         if TTTBots.Roles.GetRoleFor(other):GetAppearsPolice() then return false end
         local hasTWeapon = TTTBots.Lib.IsHoldingTraitorWep(other)

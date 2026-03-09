@@ -18,9 +18,13 @@ local _prior = TTTBots.Behaviors.PriorityNodes
 local hostTree = {
     _prior.Chatter,
     _prior.FightBack,
+    _prior.SelfDefense,
     _prior.Requests,
+    _prior.Deception,   -- AlibiBuilding, PlausibleIgnorance (EARLY blend-in)
     _prior.Restore,
-    _bh.Stalk,
+    _bh.Stalk,          -- Stalk isolated targets (core mechanic)
+    _prior.Investigate,
+    _prior.Minge,
     _prior.Patrol,
 }
 

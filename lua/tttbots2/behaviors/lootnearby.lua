@@ -19,12 +19,12 @@ local STATUS = TTTBots.STATUS
 local LOOT_RADIUS = 400
 -- Timeout after which we give up trying to reach a weapon.
 local LOOT_TIMEOUT = 10
--- Distance at which we can pick up a weapon.
-local PICKUP_DIST = 50
--- How many ticks to hold +use when in pickup range.
-local PICKUP_USE_TICKS = 5
--- Cooldown (seconds) before retrying a weapon we already attempted to loot.
-local LOOT_ATTEMPT_COOLDOWN = 8
+-- Distance at which the bot switches from pathfinding to direct walking.
+-- Must exceed PathManager.completeRange (~28) to avoid the dead zone where
+-- the locomotor clears the goal but the bot isn't close enough to pick up.
+local DIRECT_WALK_DIST = 120
+-- Distance at which the server-side Give() pickup is attempted.
+local PICKUP_DIST = 60
 
 --- Score a dropped weapon entity. Higher = better.
 ---@param wepEnt Entity
@@ -98,17 +98,12 @@ local function FindBestDroppedWeapon(bot)
     -- Must beat current best by a margin of 10 DPS.
     local bestScore = ScoreCurrentBest(bot) + 10
 
-    local attempted = bot.lootAttempted or {}
-    local now = CurTime()
     for _, ent in ipairs(nearby) do
         if not IsValid(ent) then continue end
         local class = ent:GetClass()
         if not string.find(class, "weapon_") then continue end
         -- Only pick up world-dropped weapons (no owner).
-        local owner = ent:GetOwner()
-        if owner and owner ~= NULL and IsValid(owner) then continue end
-        -- Skip weapons we recently attempted to loot (prevents infinite retry loop).
-        if attempted[ent] and (now - attempted[ent]) < LOOT_ATTEMPT_COOLDOWN then continue end
+        if IsValid(ent:GetOwner()) then continue end
 
         local score = ScoreDroppedWeapon(ent, bot)
         if score > bestScore then
@@ -126,6 +121,10 @@ function LootNearby.Validate(bot)
     if not lib.IsPlayerAlive(bot) then return false end
     -- No looting during combat.
     if IsValid(bot.attackTarget) then return false end
+    -- If we already have a valid loot target, keep using it (don't thrash targets every tick).
+    if IsValid(bot.lootTarget) and not IsValid(bot.lootTarget:GetOwner()) then
+        return true
+    end
     local target = FindBestDroppedWeapon(bot)
     if not target then return false end
     bot.lootTarget = target
@@ -134,7 +133,13 @@ end
 
 function LootNearby.OnStart(bot)
     bot.lootStartTime = CurTime()
-    bot.lootUseTicks = 0
+    -- Immediately set the goal so the locomotor can start pathfinding right away.
+    if IsValid(bot.lootTarget) then
+        local loco = bot:BotLocomotor()
+        if loco then
+            loco:SetGoal(bot.lootTarget:GetPos())
+        end
+    end
     return STATUS.RUNNING
 end
 
@@ -147,42 +152,45 @@ function LootNearby.OnRunning(bot)
 
     local target = bot.lootTarget
     if not IsValid(target) then return STATUS.SUCCESS end
+    -- Someone else picked it up.
+    if IsValid(target:GetOwner()) then return STATUS.FAILURE end
 
     local loco = bot:BotLocomotor()
-    local dist = bot:GetPos():Distance(target:GetPos())
+    local targetPos = target:GetPos()
+    local dist = bot:GetPos():Distance(targetPos)
 
-    if dist > PICKUP_DIST then
-        loco:SetGoal(target:GetPos())
+    if dist > DIRECT_WALK_DIST then
         -- If the path is impossible, give up rather than standing still.
         if loco.cantReachGoal then
             loco.cantReachGoal = false
-            -- Record that we failed to reach this weapon so we don't immediately retry it.
-            bot.lootAttempted = bot.lootAttempted or {}
-            bot.lootAttempted[target] = CurTime()
             return STATUS.FAILURE
         end
+        loco:SetGoal(targetPos)
         return STATUS.RUNNING
     end
 
-    -- Close enough — pick up the weapon directly server-side (most reliable method).
-    -- Also hold IN_USE as a belt-and-suspenders for any TTT2 pickup hooks.
-    loco:StopMoving()
-    loco:LookAt(target:GetPos())
-    loco:SetUse(true)
-
-    -- Direct server-side give: the canonical reliable pickup path in GMod.
-    local class = target:GetClass()
-    if IsValid(target) and class ~= "" then
-        local given = bot:Give(class)
-        if IsValid(given) then
-            -- Successfully given; remove the world entity to avoid a duplicate.
-            target:Remove()
-        end
+    if dist > PICKUP_DIST then
+        -- Inside direct-walk zone: bypass pathfinding (which clears the goal
+        -- at ~28 units) and walk straight toward the weapon.
+        loco:SetGoal(nil)
+        loco:SetPriorityGoal(targetPos, PICKUP_DIST)
+        loco:LookAt(targetPos)
+        return STATUS.RUNNING
     end
 
-    -- Record attempt and finish regardless of Give result.
-    bot.lootAttempted = bot.lootAttempted or {}
-    bot.lootAttempted[target] = CurTime()
+    -- Close enough — do a server-side pickup (reliable, like GetWeapons does).
+    loco:StopMoving()
+    loco:LookAt(targetPos)
+    local class = target:GetClass()
+    if class and class ~= "" then
+        local given = bot:Give(class)
+        if IsValid(given) then
+            target:Remove()
+            return STATUS.SUCCESS
+        end
+    end
+    -- Fallback: try +use if Give() didn't work (e.g. custom weapon entity).
+    loco:SetUse(true)
     return STATUS.SUCCESS
 end
 
@@ -195,16 +203,6 @@ end
 function LootNearby.OnEnd(bot)
     bot.lootTarget = nil
     bot.lootStartTime = nil
-    bot.lootUseTicks = nil
     local loco = bot:BotLocomotor()
     if loco then loco:SetUse(false) end
-    -- Prune entries from the attempt-cooldown table that have already expired.
-    if bot.lootAttempted then
-        local now = CurTime()
-        for ent, t in pairs(bot.lootAttempted) do
-            if (now - t) >= LOOT_ATTEMPT_COOLDOWN then
-                bot.lootAttempted[ent] = nil
-            end
-        end
-    end
 end
