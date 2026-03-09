@@ -65,6 +65,10 @@ function TTTBots.RoleData.New(rolename, roleteam)
     --- If the bot can "look at the scoreboard" to see who is dead and alive. Functionally this just makes the bot know who is dead/alive at all times.
     newRole.GetKnowsLifeStates, newRole.SetKnowsLifeStates = getSet("knowsLifeStates", false)
 
+    --- If the bot omnisciently tracks all alive players' positions every tick, bypassing line-of-sight requirements.
+    --- Bots with this flag always know where everyone is, like an intelligent predator.
+    newRole.GetKnowsAllPositions, newRole.SetKnowsAllPositions = getSet("knowsAllPositions", false)
+
     --- If the player appears as a police player. Useful for the 'defective' role, so bots trust them.
     newRole.GetAppearsPolice, newRole.SetAppearsPolice = getSet("appearsPolice", false)
 

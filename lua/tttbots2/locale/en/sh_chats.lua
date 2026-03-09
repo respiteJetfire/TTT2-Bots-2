@@ -2159,6 +2159,63 @@ local LoadLang = function()
     Line("yo stand still {{player}} your role seems cool", A.Casual)
 
     -----------------------------------------------------------
+    -- SERIAL KILLER
+    -----------------------------------------------------------
+
+    RegisterCategory("SerialKillerRoleReceived", P.IMPORTANT) -- When a bot is assigned the serial killer role.
+    Line("Looks like I'm the serial killer. Everyone's a target.", A.Default)
+    Line("Serial killer? Fine. I'll make it count.", A.Default)
+    Line("No one gets out of this alive.", A.Default)
+    Line("Just me against the world. I like those odds.", A.Default)
+    Line("Time to go hunting.", A.Default)
+    Line("serial killer? bet", A.Casual)
+    Line("oh nice, everyone's my target now", A.Casual)
+    Line("solo mode activated", A.Casual)
+    Line("rip everyone lmao", A.Casual)
+    Line("ALL targets acquired.", A.Stoic)
+    Line("Acknowledged. Eliminating all hostiles.", A.Stoic)
+    Line("Damn right I'm the serial killer.", A.Hothead)
+    Line("Everyone's gonna catch these hands.", A.Hothead)
+    Line("This is gonna be messy.", A.Hothead)
+    Line("Everyone? Nice. Let's do this.", A.Teamer)
+    Line("Oh boy oh boy, I get to shoot everyone!", A.Dumb)
+    Line("Wait, I can shoot people? Even the good guys?", A.Dumb)
+
+    RegisterCategory("SerialKillerStalking", P.IMPORTANT) -- When a serial killer bot starts stalking a target.
+    Line("Found my next target.", A.Default)
+    Line("Eyes on {{player}}.", A.Default)
+    Line("Time to make my move.", A.Default)
+    Line("Following {{player}} for now...", A.Default)
+    Line("moving on {{player}}", A.Casual)
+    Line("got my eye on {{player}}", A.Casual)
+    Line("tracking", A.Casual)
+    Line("Target located.", A.Stoic)
+    Line("Acquiring target.", A.Stoic)
+    Line("FOUND YOU {{player}}", A.Hothead)
+    Line("{{player}} is MINE", A.Hothead)
+    Line("Zeroing in.", A.Tryhard)
+    Line("Nice and quiet, {{player}}...", A.Sus)
+    Line("hehe {{player}} doesn't know what's coming", A.Dumb)
+
+    RegisterCategory("SerialKillerClosingIn", P.IMPORTANT) -- When a serial killer is closing in on their final kills.
+    Line("Not many left. Almost there.", A.Default)
+    Line("Nearly done with everyone.", A.Default)
+    Line("The end is near... for all of you.", A.Default)
+    Line("only a few left", A.Casual)
+    Line("almost done here lol", A.Casual)
+    Line("wrapping this up", A.Casual)
+    Line("Objective nearing completion.", A.Stoic)
+    Line("Final targets remaining.", A.Stoic)
+    Line("I'M SO CLOSE", A.Hothead)
+    Line("FINISH THEM", A.Hothead)
+    Line("Almost won this thing.", A.Tryhard)
+    Line("Calculating endgame.", A.Tryhard)
+    Line("hehe almost done!", A.Dumb)
+    Line("wait am i winning?", A.Dumb)
+
+
+    -----------------------------------------------------------
+    -- TRAITOROUS ACTIONS
     -- CURSED ROLE EVENTS
     -----------------------------------------------------------
 
