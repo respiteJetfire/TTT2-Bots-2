@@ -12,6 +12,8 @@ SpySurveillance.Interruptible = true
 ---@class Bot
 ---@field spySurveillanceTarget Player? The player currently under surveillance
 ---@field spySurveillanceEndTime number The time at which we should stop surveillance
+---@field spyIntelTarget Player? The last surveilled target; set on success for SpyIntelReport to pick up
+---@field spyIntelSuspicion number The suspicion level of spyIntelTarget when surveillance ended
 
 local STATUS = TTTBots.STATUS
 
@@ -145,6 +147,11 @@ end
 --- Called when the behavior returns a success state.
 ---@param bot Bot
 function SpySurveillance.OnSuccess(bot)
+    local target = bot.spySurveillanceTarget
+    if target and IsValid(target) then
+        bot.spyIntelTarget = target
+        bot.spyIntelSuspicion = SpySurveillance.GetSuspicion(bot, target)
+    end
 end
 
 --- Called when the behavior returns a failure state.

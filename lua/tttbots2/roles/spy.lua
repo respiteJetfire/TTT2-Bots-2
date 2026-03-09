@@ -12,6 +12,7 @@ local bTree = {
     _prior.FightBack,
     _prior.Support,
     _bh.SpySurveillance,
+    _bh.SpyIntelReport,
     _bh.Defuse,
     _prior.Restore,
     _bh.Interact,
@@ -32,5 +33,14 @@ spy:SetKnowsLifeStates(true)
 spy:SetEnemyTeams({[TEAM_DOOMSLAYER] = true})
 spy:SetIsFollower(true)
 TTTBots.Roles.RegisterRole(spy)
+
+--- Spy bots are more perceptive: they build suspicion 1.5x faster than ordinary innocents.
+--- NOTE: The hook contract multiplies the existing `mult` by whatever we return, so returning 1.5
+--- correctly applies a 50% boost without squaring the existing modifier.
+hook.Add("TTTBotsModifySuspicion", "TTTBots.Spy.EnhancedSuspicion", function(bot, target, reason, mult)
+    if not IsValid(bot) then return nil end
+    if bot:GetSubRole() ~= ROLE_SPY then return nil end
+    return 1.5
+end)
 
 return true
