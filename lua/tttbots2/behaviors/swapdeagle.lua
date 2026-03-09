@@ -77,7 +77,7 @@ end
 ---@param bot Bot
 ---@return boolean
 function SwapDeagle.ShouldStartSwapDeagleing(bot)
-    local chance = math.random(0, 100) <= 2
+    local chance = math.random(0, 100) <= 25
     return TTTBots.Match.IsRoundActive() and chance
 end
 
@@ -101,6 +101,9 @@ function SwapDeagle.OnStart(bot)
     if not SwapDeagle.ValidateTarget(bot) then
         SwapDeagle.SetTarget(bot)
     end
+
+    local chatter = bot:BotChatter()
+    if chatter then chatter:On("CursedDeagleFired") end
 
     return STATUS.RUNNING
 end
@@ -177,4 +180,20 @@ function SwapDeagle.OnEnd(bot)
         if not (inv) then return end
         inv:ResumeAutoSwitch()
     end)
+
+    -- Schedule a server-side clip refill since bots lack a client realm and cannot
+    -- receive the addon's ttt_role_swap_deagle_refilled net message.
+    local wep = bot:GetWeapon("weapon_ttt2_role_swap_deagle")
+    if IsValid(wep) and wep:Clip1() == 0 then
+        local refillConVar = GetConVar("ttt2_role_swap_deagle_refill_time")
+        local refillTime = refillConVar and refillConVar:GetFloat() or 10
+        local timerName = "TTTBots_SwapDeagleRefill_" .. bot:EntIndex()
+        timer.Create(timerName, refillTime, 1, function()
+            if not IsValid(bot) then return end
+            local w = bot:GetWeapon("weapon_ttt2_role_swap_deagle")
+            if IsValid(w) then
+                w:SetClip1(1)
+            end
+        end)
+    end
 end

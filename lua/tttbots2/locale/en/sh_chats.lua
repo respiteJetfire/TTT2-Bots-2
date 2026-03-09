@@ -2138,13 +2138,17 @@ local LoadLang = function()
     Line("{{player}}, we're on your side now", A.Default)
     Line("Hey fuckhead, try not to shoot us now we're on your team!", A.Hothead)
 
-    RegisterCategory("SwappingRole", P.IMPORTANT) --- When a bot is trying to swap roles with you, they will pretend to be a mimic.
-    Line("{{player}} stand still, don't be alarmed!", A.Default)
-    Line("I'm definitely a mimic {{player}}, please stand still and let me copy your role!", A.Sus)
-    Line("Stand still fucking {{player}} I don't want to be this fucking role anymore!", A.Hothead)
-    Line("{{player}}, be still, it will all be over soon.", A.Stoic)
-    Line("Hey don't shoot, I want to join your team!", A.Teamer)
-    Line("yo stand still {{player}} i wanna show you somethin", A.Casual)
+    RegisterCategory("SwappingRole", P.IMPORTANT) --- When the Cursed bot is chasing a player to swap roles with them.
+    Line("{{player}}, stand still! I promise this will be quick!", A.Default)
+    Line("yo {{player}} just hold still for a sec", A.Casual)
+    Line("Please don't run, {{player}}. This is for both our sakes.", A.Nice)
+    Line("Stand still, {{player}}. This won't take long.", A.Stoic)
+    Line("GET BACK HERE {{player}}, I NEED THIS!", A.Hothead)
+    Line("Just let me get close to {{player}}... they won't even notice.", A.Sus)
+    Line("{{player}}, stop moving! We can help each other here!", A.Teamer)
+    Line("Don't dodge, {{player}}! I just want to swap roles!", A.Tryhard)
+    Line("um, {{player}}, can you please stop running?", A.Dumb)
+    Line("Hey {{player}}, stop! I just wanna tag you real quick!", A.Bad)
 
     RegisterCategory("CopyingRole", P.IMPORTANT) --- When a bot is trying to copy roles with you
     Line("{{player}} stand still, I want to copy your role!", A.Default)
@@ -2154,10 +2158,141 @@ local LoadLang = function()
     Line("Hey don't shoot {{player}}, I want to join your team!", A.Teamer)
     Line("yo stand still {{player}} your role seems cool", A.Casual)
 
+    -----------------------------------------------------------
+    -- CURSED ROLE EVENTS
+    -----------------------------------------------------------
 
-    -----------------------------------------------------------
-    -- TRAITOROUS ACTIONS
-    -----------------------------------------------------------
+    RegisterCategory("CursedRoleReceived", P.IMPORTANT) --- When a bot has just become the Cursed.
+    Line("Oh no, I'm cursed! Someone come here!", A.Default)
+    Line("ugh i'm the cursed now, this sucks", A.Casual)
+    Line("Oh dear... I've been cursed. I need to pass this on quickly.", A.Nice)
+    Line("I am now the Cursed. This is... unfortunate.", A.Stoic)
+    Line("ARE YOU KIDDING ME?! I'M THE CURSED?!", A.Hothead)
+    Line("Great, I got cursed. Just my luck.", A.Bad)
+    Line("Team, I got cursed — I need to tag someone fast!", A.Teamer)
+    Line("I've been assigned the Cursed role. Time to find an optimal target.", A.Tryhard)
+    Line("wait am i the cursed now?? oh noooo", A.Dumb)
+    Line("Heh... guess I'm cursed now. How interesting.", A.Sus)
+
+    RegisterCategory("CursedSwapSuccess", P.IMPORTANT) --- When the Cursed bot successfully swaps roles with someone.
+    Line("Ha! Better you than me!", A.Default)
+    Line("lmao get cursed loser", A.Casual)
+    Line("Sorry about that! Good luck with the curse!", A.Nice)
+    Line("Role transferred. My work here is done.", A.Stoic)
+    Line("TAKE THAT! You're cursed now!", A.Hothead)
+    Line("Heh, enjoy the curse!", A.Bad)
+    Line("Tag! You're it! Sorry buddy!", A.Teamer)
+    Line("Successful role swap executed. Curse transferred.", A.Tryhard)
+    Line("wait did that work? i think it worked!", A.Dumb)
+    Line("And just like that... I'm free.", A.Sus)
+
+    RegisterCategory("CursedChasing", P.NORMAL) --- When the Cursed bot is closing in on its swap target.
+    Line("Hold still, {{player}}!", A.Default)
+    Line("come here {{player}} i just wanna talk", A.Casual)
+    Line("Don't run, {{player}}! I promise I'm friendly!", A.Nice)
+    Line("{{player}}. Do not move.", A.Stoic)
+    Line("GET BACK HERE {{player}}!", A.Hothead)
+    Line("Stop running, {{player}}...", A.Bad)
+    Line("{{player}}, we could be on the same team after this!", A.Teamer)
+    Line("Approaching target {{player}} for role transfer.", A.Tryhard)
+    Line("{{player}} why are you running from me??", A.Dumb)
+    Line("Come here, {{player}}... I just need a moment.", A.Sus)
+
+    RegisterCategory("CursedDeagleFired", P.NORMAL) --- When the Cursed bot is about to shoot the RoleSwap Deagle.
+    Line("Tag, you're it!", A.Default)
+    Line("dont dodge lol", A.Casual)
+    Line("Please don't move!", A.Nice)
+    Line("Firing.", A.Stoic)
+    Line("EAT THIS!", A.Hothead)
+    Line("Hope I hit...", A.Bad)
+    Line("Team, cover me while I use this!", A.Teamer)
+    Line("Engaging swap deagle. Stand by.", A.Tryhard)
+    Line("okay here goes nothing", A.Dumb)
+    Line("Let's see if this works...", A.Sus)
+
+    RegisterCategory("CursedRespawned", P.NORMAL) --- When the Cursed bot respawns after dying.
+    Line("I'm back! Can't get rid of me that easily.", A.Default)
+    Line("lol i'm alive again", A.Casual)
+    Line("I'm back! Now where were we?", A.Nice)
+    Line("Respawned. Resuming objective.", A.Stoic)
+    Line("I LIVE! NOW WHERE'S MY TARGET?!", A.Hothead)
+    Line("Ugh, back again...", A.Bad)
+    Line("I'm back, team! Still cursed, still going!", A.Teamer)
+    Line("Respawn complete. Re-acquiring swap target.", A.Tryhard)
+    Line("wait i came back to life??", A.Dumb)
+    Line("Death couldn't stop me. How fascinating.", A.Sus)
+
+    RegisterCategory("CursedDesperateLate", P.IMPORTANT) --- When the Cursed is running out of time (few players alive or late round).
+    Line("I need to curse someone NOW or we all lose!", A.Default)
+    Line("guys please i need to tag someone asap", A.Casual)
+    Line("Please, anyone, let me tag you! Time is running out!", A.Nice)
+    Line("Time is critical. I must complete the swap immediately.", A.Stoic)
+    Line("RUNNING OUT OF TIME, SOMEONE HOLD STILL!", A.Hothead)
+    Line("Almost no one left... come on!", A.Bad)
+    Line("Team, I'm desperate — help me get close to someone!", A.Teamer)
+    Line("Round timer critical. Swap probability must be maximized NOW.", A.Tryhard)
+    Line("oh no oh no there's nobody left to tag!!", A.Dumb)
+    Line("The clock is ticking... someone's getting cursed whether they like it or not.", A.Sus)
+
+    RegisterCategory("CursedNoBacksies", P.NORMAL) --- When the bot finds a target is protected by the no-backsies rule.
+    Line("Ugh, no backsies on that one...", A.Default)
+    Line("dang, can't tag them back yet", A.Casual)
+    Line("Oh, I can't tag them yet. That's fair I suppose.", A.Nice)
+    Line("Target is backsies-protected. Seeking alternative.", A.Stoic)
+    Line("NO BACKSIES?! SERIOUSLY?!", A.Hothead)
+    Line("Of course... no backsies. Great.", A.Bad)
+    Line("Can't tag that one back — looking for another target!", A.Teamer)
+    Line("No-backsies flag detected. Re-evaluating target list.", A.Tryhard)
+    Line("wait i can't tag them?? why not??", A.Dumb)
+    Line("No backsies... clever.", A.Sus)
+
+    RegisterCategory("CursedCantTagDet", P.NORMAL) --- When the bot cannot swap with a Detective due to server settings.
+    Line("Can't curse a Detective... server rules.", A.Default)
+    Line("nope, detectives are off limits apparently", A.Casual)
+    Line("I can't tag the Detective, that wouldn't be fair anyway.", A.Nice)
+    Line("Detective is an invalid target. Moving on.", A.Stoic)
+    Line("WHY CAN'T I TAG THE DETECTIVE?! COME ON!", A.Hothead)
+    Line("Figures. Can't even tag the detective.", A.Bad)
+    Line("Detective's off-limits — looking for someone else!", A.Teamer)
+    Line("Detective role flagged as non-swappable. Adjusting strategy.", A.Tryhard)
+    Line("i tried to curse the detective but it didn't work??", A.Dumb)
+    Line("The detective is... protected. Interesting.", A.Sus)
+
+    RegisterCategory("CursedSpotted", P.IMPORTANT) --- When a bot identifies a Cursed player nearby.
+    Line("Watch out! {{player}} is Cursed!", A.Default)
+    Line("yo {{player}} is cursed, stay away", A.Casual)
+    Line("Careful everyone, {{player}} has the curse!", A.Nice)
+    Line("{{player}} is the Cursed. Maintain distance.", A.Stoic)
+    Line("STAY AWAY FROM {{player}}, THEY'RE CURSED!", A.Hothead)
+    Line("{{player}} is cursed... don't let them near you.", A.Bad)
+    Line("Team, {{player}} is Cursed — don't let them tag you!", A.Teamer)
+    Line("Alert: {{player}} identified as Cursed. Recommend evasion.", A.Tryhard)
+    Line("wait is {{player}} the cursed one?? they look weird", A.Dumb)
+    Line("{{player}} is the Cursed... I wonder if they'll come for me.", A.Sus)
+
+    RegisterCategory("CursedApproachingMe", P.CRITICAL) --- When a Cursed player is walking directly toward this bot.
+    Line("Stay away from me, {{player}}! You're Cursed!", A.Default)
+    Line("{{player}} is coming for me, HELP", A.Casual)
+    Line("Please don't tag me, {{player}}! I don't want the curse!", A.Nice)
+    Line("{{player}} is approaching. Evasive action required.", A.Stoic)
+    Line("GET AWAY FROM ME {{player}}! I KNOW WHAT YOU'RE DOING!", A.Hothead)
+    Line("Oh no... {{player}} is coming. Run!", A.Bad)
+    Line("Everyone! {{player}} is trying to tag me!", A.Teamer)
+    Line("Cursed player {{player}} on intercept course. Initiating evasion.", A.Tryhard)
+    Line("WHY IS {{player}} WALKING AT ME LIKE THAT", A.Dumb)
+    Line("{{player}} is coming for me... how flattering.", A.Sus)
+
+    RegisterCategory("CursedCantDamage", P.NORMAL) --- When a bot fails to damage a Cursed player (damage immunity).
+    Line("I can't hurt them! They must be Cursed!", A.Default)
+    Line("wait why isn't {{player}} taking damage??", A.Casual)
+    Line("My attacks aren't working on {{player}}... they must be Cursed!", A.Nice)
+    Line("{{player}} is immune to damage. Likely Cursed.", A.Stoic)
+    Line("WHY WON'T {{player}} TAKE DAMAGE?! ARE THEY CURSED?!", A.Hothead)
+    Line("{{player}} is just standing there... immune. Must be Cursed.", A.Bad)
+    Line("Team, stop shooting {{player}} — they're Cursed and immune!", A.Teamer)
+    Line("Damage output on {{player}} is zero. Cursed immunity confirmed.", A.Tryhard)
+    Line("i keep shooting {{player}} but nothing is happening??", A.Dumb)
+    Line("{{player}} won't take damage... the curse protects them.", A.Sus)
 
     RegisterCategory("BombArmed", P.CRITICAL)
     Line("I armed some C4.", A.Default)
