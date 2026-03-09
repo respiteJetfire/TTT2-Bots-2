@@ -3506,6 +3506,136 @@ local LoadLang = function()
     Line("The weapon was a giveaway. Nobody else had it.", A.Default)
     Line("You kept separating from the group at the worst times.", A.Default)
     Line("honestly you were just being super sus the whole time lol", A.Casual)
+
+    -----------------------------------------------------------
+    -- INFECTED ROLE EVENTS
+    -----------------------------------------------------------
+
+    RegisterCategory("ZombieSpotted", P.CRITICAL, "When a bot sees {{player}} get converted into an infected zombie.")
+    Line("{{player}} just turned into a zombie!", A.Default)
+    Line("{{player}} got infected! Watch out!", A.Default)
+    Line("They got {{player}}! They're one of them now!", A.Default)
+    Line("{{player}} is a zombie now, stay away!", A.Default)
+
+    Line("bro {{player}} just turned into a zombie wtf", A.Casual)
+    Line("yo {{player}} got infected lol", A.Casual)
+    Line("{{player}} is a zombie now omg", A.Casual)
+    Line("rip {{player}} they're infected", A.Casual)
+
+    Line("{{player}} has been converted. Eliminate immediately.", A.Tryhard)
+    Line("{{player}} is compromised. New threat active.", A.Tryhard)
+    Line("Infection confirmed on {{player}}. Adjusting priorities.", A.Tryhard)
+
+    Line("{{player}} JUST TURNED INTO A ZOMBIE!! KILL THEM!", A.Hothead)
+    Line("WHAT THE HELL?! {{player}} is a zombie now!", A.Hothead)
+    Line("Are you kidding me?! {{player}} got infected!", A.Hothead)
+
+    Line("{{player}} is now a zombie.", A.Stoic)
+    Line("Noted: {{player}} has been infected.", A.Stoic)
+    Line("{{player}} has turned. Proceeding accordingly.", A.Stoic)
+
+    Line("Oh no! {{player}} got infected! We have to help them!", A.Nice)
+    Line("Poor {{player}}... they got turned into a zombie.", A.Nice)
+    Line("{{player}} is infected now! Stay safe everyone!", A.Nice)
+
+    Line("Heh, {{player}} got what they deserved.", A.Bad)
+    Line("{{player}} is a zombie now. Not my problem.", A.Bad)
+    Line("That's what happens when you're not careful, {{player}}.", A.Bad)
+
+    Line("I KNEW {{player}} was going to turn. I could feel it.", A.Sus)
+    Line("{{player}} is a zombie... interesting. Very interesting.", A.Sus)
+    Line("Watch out, {{player}} just turned. Who's next?", A.Sus)
+
+    Line("uhhhh {{player}} just turned into a zombie thing", A.Dumb)
+    Line("wait is {{player}} a zombie now? are they ok?", A.Dumb)
+    Line("{{player}} looks different... are they sick?", A.Dumb)
+
+    Line("Team alert! {{player}} has been infected! Stick together!", A.Teamer)
+    Line("{{player}} got turned! Everyone group up NOW!", A.Teamer)
+    Line("We lost {{player}} to the infection! Stay with the team!", A.Teamer)
+
+    RegisterCategory("HostKilled", P.CRITICAL, "When the infected host {{player}} is killed.")
+    Line("We got the host! {{player}} is down!", A.Default)
+    Line("{{player}} was the source! The host is dead!", A.Default)
+    Line("The infected host is down! All zombies should drop!", A.Default)
+
+    Line("yooo we got {{player}}! the host is dead!", A.Casual)
+    Line("{{player}} is down, that was the host right?", A.Casual)
+    Line("bye bye {{player}} lmao host eliminated", A.Casual)
+
+    Line("Host eliminated. Threat neutralized.", A.Tryhard)
+    Line("{{player}} was the host. Mission complete.", A.Tryhard)
+    Line("Primary target {{player}} confirmed down.", A.Tryhard)
+
+    Line("HAHA GET REKT {{player}}!! THE HOST IS DEAD!", A.Hothead)
+    Line("That's what you get, {{player}}! Host DOWN!", A.Hothead)
+
+    Line("The host has been dealt with.", A.Stoic)
+    Line("{{player}}, the host, is dead. The infection should stop.", A.Stoic)
+
+    Line("I'm glad we stopped them. Good job everyone!", A.Nice)
+    Line("{{player}} is down! The zombies should fall too!", A.Nice)
+
+    Line("About time. {{player}} was annoying.", A.Bad)
+    Line("Good riddance, {{player}}.", A.Bad)
+
+    Line("The host is dead... but was that really all of them?", A.Sus)
+    Line("{{player}} went down. Let's make sure there aren't more.", A.Sus)
+
+    Line("we killed the main zombie guy! yay!", A.Dumb)
+    Line("wait does that mean the other zombies die too?", A.Dumb)
+
+    Line("Host down, team! Great teamwork!", A.Teamer)
+    Line("{{player}} eliminated! The infection is over, team!", A.Teamer)
+
+    RegisterCategory("InfectedTeamRush", P.IMPORTANT, "Infected team-only: rallying zombies to attack (team chat).")
+    Line("Let's rush them together!", A.Default)
+    Line("All of us, now! Attack!", A.Default)
+    Line("Swarm them! Go go go!", A.Default)
+
+    Line("lets gooo rush them", A.Casual)
+    Line("everyone attack now lol", A.Casual)
+
+    Line("Coordinated assault. Move.", A.Tryhard)
+    Line("Execute swarm protocol.", A.Tryhard)
+
+    Line("CHARGE!! KILL THEM ALL!", A.Hothead)
+    Line("RUSH THEM NOW!!", A.Hothead)
+
+    Line("We move together.", A.Stoic)
+    Line("Attack.", A.Stoic)
+
+    Line("Go get them, friends!", A.Nice)
+
+    Line("They don't stand a chance.", A.Bad)
+
+    Line("uhhh attack?", A.Dumb)
+
+    Line("Team, attack together! NOW!", A.Teamer)
+
+    RegisterCategory("InfectedVictory", P.IMPORTANT, "Infected celebrating victory.")
+    Line("The infection spreads! We win!", A.Default)
+    Line("Nobody can stop the infected!", A.Default)
+    Line("The horde prevails!", A.Default)
+
+    Line("GG infected win lets gooo", A.Casual)
+    Line("zombies on top lol", A.Casual)
+
+    Line("Flawless infection strategy.", A.Tryhard)
+    Line("Optimal conversion rate achieved.", A.Tryhard)
+
+    Line("GET WRECKED!! ZOMBIES WIN!!", A.Hothead)
+    Line("HAHAHA THE INFECTED DOMINATE!", A.Hothead)
+
+    Line("The infection is complete.", A.Stoic)
+
+    Line("Good game everyone! Even though we were zombies!", A.Nice)
+
+    Line("They never stood a chance. Pathetic.", A.Bad)
+
+    Line("wait we won? yay zombies!", A.Dumb)
+
+    Line("Great teamwork, infected crew!", A.Teamer)
 end
 
 

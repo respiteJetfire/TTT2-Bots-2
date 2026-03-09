@@ -39,6 +39,10 @@ Events.NAMES = {
     BOT_DIED           = "BOT_DIED",             -- payload: { bot, killer }
     PLAN_ASSIGNED      = "PLAN_ASSIGNED",        -- payload: { bot, job }
     HEAL_REQUESTED     = "HEAL_REQUESTED",       -- payload: { requester, healer, accepted }
+    -- Infected role events
+    INFECTION_OCCURRED = "INFECTION_OCCURRED",    -- payload: { host, victim, zombieCount }
+    ZOMBIE_SPOTTED     = "ZOMBIE_SPOTTED",        -- payload: { witness, zombie }
+    HOST_DIED          = "HOST_DIED",             -- payload: { host, killer }
 }
 
 --- Subscribe to an event.

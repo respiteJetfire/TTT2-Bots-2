@@ -98,14 +98,20 @@ function Stalk.Validate(bot)
 
     -- Phase gate: Stalk is a subtle behavior, only use in EARLY and MID phases.
     -- In LATE/OVERTIME, traitors should move to bolder behaviors.
+    -- Exception: Infected hosts ALWAYS stalk — their kill mechanic IS stalking.
     local ra = bot:BotRoundAwareness()
     if ra then
         local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
         if PHASE then
             local phase = ra:GetPhase()
             if phase == PHASE.LATE or phase == PHASE.OVERTIME then
-                -- In overtime with overtake advantage, allow stalking to continue (assassinate stragglers)
-                if not ra:IsOvertake() then
+                -- Infected hosts are exempt from the phase gate — stalking IS their core mechanic
+                local isInfectedHost = TTTBots.Roles.IsInfectedHost
+                    and TTTBots.Roles.IsInfectedHost(bot)
+                if isInfectedHost then
+                    -- Allow stalking to continue for infected hosts at all phases
+                elseif not ra:IsOvertake() then
+                    -- In overtime with overtake advantage, allow stalking to continue (assassinate stragglers)
                     return false
                 end
             end

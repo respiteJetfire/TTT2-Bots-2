@@ -123,9 +123,33 @@ function TTTBots.PromptContext.BuildGameStateContext(bot)
         phase, aliveCount, totalInRound, recentEvents, suspects, mood
     )
 
+    -- Infected role context: add host/zombie status and swarm info
+    if ROLE_INFECTED and bot.GetSubRole and bot:GetSubRole() == ROLE_INFECTED then
+        local infCtx = ""
+        local isHost = TTTBots.Roles.IsInfectedHost and TTTBots.Roles.IsInfectedHost(bot)
+        local isZombie = TTTBots.Roles.IsInfectedZombie and TTTBots.Roles.IsInfectedZombie(bot)
+
+        if isHost then
+            local zombieCount = 0
+            if INFECTEDS and INFECTEDS[bot] and istable(INFECTEDS[bot]) then
+                zombieCount = #INFECTEDS[bot]
+            end
+            infCtx = string.format(" [Infected Host, %d zombies under you. Kill to convert!]", zombieCount)
+        elseif isZombie then
+            local host = TTTBots.Roles.GetInfectedHost and TTTBots.Roles.GetInfectedHost(bot)
+            local hostStatus = "alive"
+            if not IsValid(host) or not TTTBots.Lib.IsPlayerAlive(host) then
+                hostStatus = "DEAD (you will die too!)"
+            end
+            infCtx = string.format(" [Infected Zombie, melee-only. Host is %s. Rush and kill!]", hostStatus)
+        end
+
+        ctx = ctx .. infCtx
+    end
+
     -- Hard cap to avoid blowing up the context window
-    if #ctx > 350 then
-        ctx = ctx:sub(1, 347) .. "..."
+    if #ctx > 450 then
+        ctx = ctx:sub(1, 447) .. "..."
     end
 
     return ctx

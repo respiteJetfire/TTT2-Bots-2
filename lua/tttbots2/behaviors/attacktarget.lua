@@ -530,7 +530,10 @@ function Attack.ValidateTarget(bot)
     local hasTarget = (target and target ~= NULL) and true or false
     if target == NULL or not IsValid(target) then return false end
     local targetIsValid = target and target:IsValid() or false
-    local notSeenRecently = bot.components.memory:GetLastSeenTime(target) + 30 < CurTime()
+    local lastSeenTime = bot.components.memory:GetLastSeenTime(target)
+    -- 0 means "never recorded in memory" (e.g. target assigned via SELF_DEFENSE without LOS).
+    -- Only treat the target as stale when we have a real last-seen timestamp and it is old.
+    local notSeenRecently = lastSeenTime > 0 and (lastSeenTime + 30 < CurTime())
     local botIsAlive = bot and bot:Health() > 0 or false
     local targetIsAlive = target and target:IsPlayer() and target:Health() > 0 or false
     local targetIsPlayer = target and target:IsPlayer() or false
@@ -636,10 +639,15 @@ end
 
 --- Called when the behavior ends
 function Attack.OnEnd(bot)
+    local lastTarget = bot.attackTarget  -- capture before clearing
     bot:SetAttackTarget(nil, "BEHAVIOR_END")
     bot:BotLocomotor().stopLookingAround = false
     bot:BotLocomotor():StopAttack()
     TTTBots.Behaviors.ClearState(bot, "AttackTarget")
+    -- Fire the AttackEnd hook so chatter (PostCombatRelief) can respond.
+    if IsValid(lastTarget) then
+        hook.Run("TTTBots.AttackEnd", bot, lastTarget)
+    end
 end
 
 local FOCUS_DECAY = 0.02

@@ -450,6 +450,22 @@ function BotLocomotor:CheckFeetAreObstructed()
     return trce.Hit and not (trce.Entity and (trce.Entity:IsPlayer() or lib.IsDoor(trce.Entity)))
 end
 
+--- Returns the entity the bot is standing on if it is a non-world prop (physics, breakable, etc.), otherwise nil.
+---@return Entity|nil
+function BotLocomotor:IsStandingOnProp()
+    local pos = self.bot:GetPos()
+    local trace = util.TraceLine({
+        start  = pos + Vector(0, 0, 4),
+        endpos = pos - Vector(0, 0, 8),
+        filter = self.bot,
+    })
+    if not trace.Hit then return nil end
+    local ent = trace.Entity
+    -- World geometry (brushes) returns NULL entity or world; we only care about props/physics
+    if not IsValid(ent) or ent:IsWorld() or ent:IsPlayer() then return nil end
+    return ent
+end
+
 function BotLocomotor:ShouldJump()
     return self:CheckFeetAreObstructed() or (math.random(1, 100) == 1 and self:IsStuck())
 end
@@ -882,10 +898,40 @@ function BotLocomotor:TryUnstick()
             Ray 1: We should jump.
             Ray 2: Strafe right
             Ray 3: Strafe left
+
+        Special case: bot is standing ON TOP of a prop (e.g. a crate).
+            Knee-height raycasts all miss because nothing blocks the bot at that height.
+            Solution: crouch-jump off the prop by holding IN_DUCK + IN_JUMP.
     ]]
     local kneePos = self.bot:GetPos() + Vector(0, 0, 16)
     local bodyfacingdir = self.bot:GetAimVector()
+    local dvlpr = lib.GetConVarBool("debug_pathfinding")
 
+    if dvlpr then
+        TTTBots.DebugServer.DrawText(kneePos, string.format("%s's stuck!", self.bot:Nick()), Color(255, 0, 255))
+    end
+
+    -- -----------------------------------------------------------------------
+    -- Prop-perch check: if the bot is standing on a non-world entity (a crate,
+    -- barrel, physics prop, etc.) and all three knee rays are clear, it means
+    -- the bot jumped onto the object and is now stuck on top of it.
+    -- Crouch-jump with forward movement to slide off the prop.
+    -- -----------------------------------------------------------------------
+    local propUnderFeet = self:IsStandingOnProp()
+    if propUnderFeet then
+        -- Set a short-lived flag so StartCommand knows to hold crouch+jump together
+        self:Jump(true)
+        self:Crouch(true)
+        self:SetForceForward(true)
+        if dvlpr then
+            TTTBots.DebugServer.DrawText(kneePos, string.format("%s perched on prop — crouch-jumping off", self.bot:Nick()), Color(255, 128, 0))
+        end
+        return
+    end
+
+    -- -----------------------------------------------------------------------
+    -- Standard stuck resolution: knee-height raycasts
+    -- -----------------------------------------------------------------------
     local magnitude = 30
     local forward = kneePos + (bodyfacingdir * magnitude)
     local ang = (bodyfacingdir:Angle():Right() * magnitude * 2)
@@ -912,15 +958,6 @@ function BotLocomotor:TryUnstick()
         filter = self.bot,
         mask = MASK_ALL
     })
-
-    -- draw debug lines
-    -- TTTBots.DebugServer.DrawLineBetween(kneePos, forward, Color(255, 0, 255))
-    -- TTTBots.DebugServer.DrawLineBetween(kneePos, left, Color(255, 0, 255))
-    -- TTTBots.DebugServer.DrawLineBetween(kneePos, right, Color(255, 0, 255))
-    local dvlpr = lib.GetConVarBool("debug_pathfinding")
-    if dvlpr then
-        TTTBots.DebugServer.DrawText(kneePos, string.format("%s's stuck!", self.bot:Nick()), Color(255, 0, 255))
-    end
 
     self:Jump(false)
     self:Crouch(false)
@@ -1665,17 +1702,24 @@ function BotLocomotor:StartCommand(cmd) -- aka StartCmd
     )
 
     --- 🦘 Set buttons for jumping if :GetJumping() is true
-    --- The way jumping works is a little quirky, as it cannot be held down. We must release it occasionally
-    if self:IsTryingJump() and (self.jumpReleaseTime < TIMESTAMP) or self.jumpReleaseTime == nil then
-        local onGround = self.bot:OnGround()
-        if not onGround then
+    --- The way jumping works is a little quirky, as it cannot be held down. We must release it occasionally.
+    --- Crouch-jumping (IN_DUCK + IN_JUMP) is used both for standard crouch-jumps and to dismount props.
+    if self:IsTryingJump() and ((self.jumpReleaseTime or 0) < TIMESTAMP) then
+        local wantCrouch = self:IsTryingCrouch()
+        if wantCrouch then
+            -- Crouch-jump: hold duck AND jump together so the bot can hop off props/ledges
             cmd:SetButtons(IN_JUMP + IN_DUCK)
         else
-            cmd:SetButtons(IN_JUMP)
+            local onGround = self.bot:OnGround()
+            if not onGround then
+                cmd:SetButtons(IN_JUMP + IN_DUCK)
+            else
+                cmd:SetButtons(IN_JUMP)
+            end
         end
         self.jumpReleaseTime = TIMESTAMP + 0.1
         if DVLPR_PATHFINDING then
-            TTTBots.DebugServer.DrawText(MYPOS, "Crouch Jumping", Color(255, 255, 255))
+            TTTBots.DebugServer.DrawText(MYPOS, wantCrouch and "Crouch-Jumping (prop dismount)" or "Jumping", Color(255, 255, 255))
         end
     end
 

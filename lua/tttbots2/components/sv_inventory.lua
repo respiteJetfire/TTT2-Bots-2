@@ -222,11 +222,16 @@ function BotInventory:GetWeaponInfo(wep)
     info.is_shotgun = string.find(info.ammo_type_string or "", "buckshot") ~= nil
     -- If it is melee
     info.is_melee = info.clip == -1
+    -- If it is the Doom Super Shotgun (has meathook capability)
+    info.has_hook = (info.class == "weapon_dredux_de_supershotgun") or false
+    -- If it is a gap-closer (shotgun or meathook weapon — close range commitment)
+    info.is_gapcloser = info.is_shotgun or info.has_hook
 
     info.damage = wep.Primary and wep.Primary.Damage or 1
     local rps = wep.Primary and (1 / (wep.Primary.Delay or 1)) or 1
     info.rpm = math.ceil(rps * 60) or 1
-    info.numshots = wep.Primary and wep.Primary.NumShots or 1
+    -- Support both NumShots (standard TTT) and NumberOfShots (Doom weapon framework)
+    info.numshots = (wep.Primary and (wep.Primary.NumShots or wep.Primary.NumberOfShots)) or 1
     info.dps = math.ceil(info.damage * info.numshots * rps) or 1
     info.time_to_kill = (math.ceil((100 / info.dps) * 100) / 100) or 1
 
@@ -408,6 +413,22 @@ function BotInventory:AutoManageInventory()
 
     if self:ManageDebugWeapon() then return end
 
+    -- Respect AutoSwitch(false) from role data: infected zombies should stick with fists
+    local roleData = TTTBots.Roles and TTTBots.Roles.GetRoleFor(self.bot)
+    if roleData and roleData.GetAutoSwitch and not roleData:GetAutoSwitch() then
+        local preferred = roleData:GetPreferredWeapon()
+        if preferred then
+            local prefWep = self.bot:GetWeapon(preferred)
+            if IsValid(prefWep) then
+                local held = self.bot:GetActiveWeapon()
+                if not IsValid(held) or held:GetClass() ~= preferred then
+                    self.bot:SelectWeapon(preferred)
+                end
+                return
+            end
+        end
+    end
+
     local w_special  = self:GetSpecialPrimary()
     local special    = w_special and self:GetWeaponInfo(w_special) or nil
     local w_primary, primary   = self:GetPrimary()
@@ -425,6 +446,13 @@ function BotInventory:AutoManageInventory()
         { func = self.EquipPrimary,   info = primary,    wep = w_primary   },
         { func = self.EquipSecondary, info = secondary,  wep = w_secondary },
     }
+
+    -- Add infected fists as a candidate if the bot has them
+    local infFists = self.bot:GetWeapon("weapon_ttt_inf_fists")
+    if IsValid(infFists) then
+        local fistsInfo = self:GetWeaponInfo(infFists)
+        table.insert(candidates, { func = self.EquipMelee, info = fistsInfo, wep = infFists })
+    end
 
     local bestFunc  = nil
     local bestScore = -999
@@ -922,7 +950,13 @@ function BotInventory:EquipSecondary()
 end
 
 function BotInventory:EquipMelee()
-    -- return self:Equip("melee")
+    -- Infected bots (both host and zombie) should use infected fists
+    local fists = self.bot:GetWeapon("weapon_ttt_inf_fists")
+    if IsValid(fists) then
+        self.bot:SelectWeapon("weapon_ttt_inf_fists")
+        return true
+    end
+    -- Fallback to crowbar for non-infected
     return self.bot:SelectWeapon("weapon_zm_improvised")
 end
 

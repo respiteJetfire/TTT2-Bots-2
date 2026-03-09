@@ -44,7 +44,8 @@ local function attackEnemies(bot)
     end
 end
 
---- Attack any player that is on TEAM_INFECTED and has a zombie player model
+--- Attack any player that is on TEAM_INFECTED and is a zombie (converted infected).
+--- Uses role/team checks instead of fragile model-string comparison.
 ---@param bot Bot
 local function attackZombies(bot)
     local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Roles.GetNonAllies(bot))
@@ -55,7 +56,13 @@ local function attackZombies(bot)
     local bestPly = nil
     if isKillerRole or kosZombies then
         for _, ply in pairs(visible) do
-            if ply:GetModel() == "models/player/corpse1.mdl" then
+            -- Check by team/role first, then fall back to model as a secondary signal
+            local isInfectedTeam = TEAM_INFECTED and ply.GetTeam and ply:GetTeam() == TEAM_INFECTED
+            local isZombieModel = ply:GetModel() == "models/player/corpse1.mdl"
+            local isInfectedZombie = TTTBots.Roles.IsInfectedZombie
+                and TTTBots.Roles.IsInfectedZombie(ply)
+
+            if isInfectedTeam or isZombieModel or isInfectedZombie then
                 local dist = bot:GetPos():Distance(ply:GetPos())
                 if dist < bestDist then
                     bestDist = dist
@@ -74,7 +81,11 @@ end
 local function attackNonAllies(bot)
     local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Roles.GetNonAllies(bot))
     local kosnonallies = TTTBots.Lib.GetConVarBool("kos_nonallies")
-    local isINFECTEDs = INFECTEDS and INFECTEDS[bot]
+    -- Check if this bot is any kind of infected (host OR zombie) via INFECTEDS global
+    local isInfectedHost = INFECTEDS and INFECTEDS[bot]
+    local isInfectedZombie = TTTBots.Roles.IsInfectedZombie
+        and TTTBots.Roles.IsInfectedZombie(bot)
+    local isINFECTEDs = isInfectedHost or isInfectedZombie
     local kosrole = TTTBots.Roles.GetRoleFor(bot):GetKOSAll()
 
     if kosnonallies or isINFECTEDs or kosrole then

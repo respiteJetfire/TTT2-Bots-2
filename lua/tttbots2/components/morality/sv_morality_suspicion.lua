@@ -48,6 +48,9 @@ BotMorality.SUSPICIONVALUES = {
     ThrowIncin = 5,          -- This player has thrown an incendiary grenade
     ThrowSmoke = 2,          -- This player has thrown a smoke grenade
     PersonalSpace = 2,       -- This player is standing too close to me for too long
+    -- Infected role events
+    InfectionWitnessed = 10, -- We saw this player get converted into a zombie (maximum suspicion)
+    ZombieModel = 8,         -- This player has the zombie player model (strong indicator)
 }
 
 BotMorality.SuspicionDescriptions = {

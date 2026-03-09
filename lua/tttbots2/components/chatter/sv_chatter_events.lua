@@ -126,7 +126,93 @@ local chancesOf100 = {
     NearMissReaction           = 50,  -- Bullet narrowly missed
     SurvivorRelief             = 55,  -- Survived when others nearby died
     QuietRoundComment          = 30,  -- Nobody has died in a long while
+    -- -----------------------------------------------------------------------
+    -- Infected role events
+    -- -----------------------------------------------------------------------
+    ZombieSpotted              = 90,  -- Bot sees a player get converted into a zombie
+    HostKilled                 = 85,  -- The infected host was killed
+    InfectedTeamRush           = 70,  -- Infected team-chat: rallying zombies to attack
+    InfectedVictory            = 80,  -- Infected team won the round
 }
+
+-- ---------------------------------------------------------------------------
+-- Casual event classification helpers
+-- ---------------------------------------------------------------------------
+
+--- Full set of event names that are casual/idle in nature.
+--- These use the dedicated casual LLM prompts and the separate chance cvar.
+local CASUAL_EVENT_SET = {
+    CasualObservation = true, CasualJoke     = true, CasualStory       = true,
+    CasualCompliment  = true, CasualComplaint= true, CasualQuestion    = true,
+    CasualNervous     = true, CasualBoredom  = true, CasualWeather     = true,
+    PostCombatRelief  = true, NearMissReaction= true, SurvivorRelief   = true,
+    QuietRoundComment = true,
+    -- Also treat the legacy SillyChat events as casual for mood-gating purposes
+    SillyChat = true, SillyChatDead = true,
+}
+
+--- Map from casual event name → triggerReason string consumed by the prompt builders.
+local CASUAL_TRIGGER_REASON = {
+    CasualBoredom     = "boredom",
+    PostCombatRelief  = "post_combat",
+    NearMissReaction  = "near_miss",
+    SurvivorRelief    = "survivor",
+    QuietRoundComment = "quiet_round",
+    -- everything else defaults to "idle"
+}
+local function getCasualTriggerReason(event_name)
+    return CASUAL_TRIGGER_REASON[event_name] or "idle"
+end
+
+--- Build the appropriate prompt for a casual event.
+--- Returns: prompt (string or table), isCasualLLM (bool), sendOpts (table).
+local function buildCasualPrompt(bot, event_name, args, teamOnly)
+    local triggerReason = getCasualTriggerReason(event_name)
+    local providerInt   = lib.GetConVarInt("chatter_api_provider")
+    local prompt, sendOpts
+
+    if providerInt == 4 then
+        -- Ollama / local LLM — GetCasualPrompt returns {system, prompt}
+        local promptData = TTTBots.LlamaPrompts and TTTBots.LlamaPrompts.GetCasualPrompt(bot, triggerReason)
+        if promptData then
+            prompt = promptData.prompt or ""
+            sendOpts = {
+                teamOnly      = teamOnly,
+                wasVoice      = false,
+                systemPrompt  = promptData.system,
+                triggerReason = triggerReason,
+                eventName     = event_name,
+                eventArgs     = args,
+            }
+        end
+    else
+        -- Cloud providers (ChatGPT / Gemini / DeepSeek / OpenRouter / mixed)
+        local cloudPrompt = TTTBots.PromptContext and TTTBots.PromptContext.GetCasualCloudPrompt(bot, triggerReason)
+        if cloudPrompt then
+            prompt = cloudPrompt
+            sendOpts = {
+                teamOnly      = teamOnly,
+                wasVoice      = false,
+                triggerReason = triggerReason,
+                eventName     = event_name,
+                eventArgs     = args,
+            }
+        end
+    end
+
+    -- Fallback: if the casual prompt builders are unavailable, use the generic prompt
+    if not prompt then
+        prompt = TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, bot, args, teamOnly, true, nil)
+        sendOpts = {
+            teamOnly  = teamOnly,
+            wasVoice  = false,
+            eventName = event_name,
+            eventArgs = args,
+        }
+    end
+
+    return prompt, sendOpts
+end
 
 -- ---------------------------------------------------------------------------
 -- BotChatter:On  — main event entry-point
@@ -165,24 +251,19 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
 
     local difficulty   = lib.GetConVarInt("difficulty")
     local ChanceMult   = lib.GetConVarFloat("chatter_chance_multi") or 1
-    local chatGPTChance= lib.GetConVarFloat("chatter_gpt_chance")   or 0.25
 
     -- Dynamic CallKOS probability
     local dynamicChances = table.Copy(chancesOf100)
     dynamicChances.CallKOS = 15 * difficulty
 
     local personality = self.bot.components.personality ---@type CPersonality
+    local isCasualEvent = CASUAL_EVENT_SET[event_name] == true
+
     if dynamicChances[event_name] then
         local chance = dynamicChances[event_name]
-        -- For casual/idle events, also apply the mood multiplier so boredom
-        -- increases chatter frequency while pressure/rage suppress it.
-        local casualEvents = {
-            CasualObservation = true, CasualJoke = true, CasualStory = true,
-            CasualCompliment = true, CasualComplaint = true, CasualQuestion = true,
-            CasualNervous = true, CasualBoredom = true, CasualWeather = true,
-            SillyChat = true, SillyChatDead = true,
-        }
-        local moodMult = casualEvents[event_name]
+        -- For casual/idle events, apply the mood multiplier so boredom increases
+        -- chatter frequency while pressure/rage suppress it.
+        local moodMult = isCasualEvent
             and (personality.GetChatMoodMultiplier and personality:GetChatMoodMultiplier() or 1.0)
             or 1.0
         if math.random(0, 100) > (chance * personality:GetTraitMult("textchat") * ChanceMult * moodMult) then
@@ -202,9 +283,9 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
 
     local function setLocalizedString(response)
         localizedString = handleChatResponse(response)
-        local isCasual  = personality:GetClosestArchetype() == TTTBots.Archetypes.Casual
+        local isCasualArch = personality:GetClosestArchetype() == TTTBots.Archetypes.Casual
         if localizedString then
-            if isCasual then localizedString = string.lower(localizedString) end
+            if isCasualArch then localizedString = string.lower(localizedString) end
             if delay then
                 timer.Simple(delay, function()
                     if not IsValid(self.bot) then return end
@@ -217,6 +298,42 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
         end
         return false
     end
+
+    -- -----------------------------------------------------------------------
+    -- Casual event path — dedicated prompt builders + separate LLM chance
+    -- -----------------------------------------------------------------------
+    if isCasualEvent then
+        local casualLLMEnabled = lib.GetConVarBool("chatter_casual_llm")
+        local casualLLMChance  = lib.GetConVarFloat("chatter_casual_llm_chance") or 0.4
+
+        if casualLLMEnabled and math.random() < casualLLMChance then
+            local prompt, sendOpts = buildCasualPrompt(self.bot, event_name, args, teamOnly)
+            TTTBots.Providers.SendText(prompt, self.bot, sendOpts, function(envelope)
+                if not IsValid(self.bot) then return end
+                setLocalizedString(envelope.ok and envelope.text or nil)
+            end)
+        else
+            -- Locale path for casual events
+            localizedString = TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args)
+            if localizedString then
+                setLocalizedString(localizedString)
+                return true
+            else
+                -- No locale line; try LLM as fallback even if casual LLM is off
+                local prompt, sendOpts = buildCasualPrompt(self.bot, event_name, args, teamOnly)
+                TTTBots.Providers.SendText(prompt, self.bot, sendOpts, function(envelope)
+                    if not IsValid(self.bot) then return end
+                    setLocalizedString(envelope.ok and envelope.text or nil)
+                end)
+            end
+        end
+        return false
+    end
+
+    -- -----------------------------------------------------------------------
+    -- Standard (non-casual) event path
+    -- -----------------------------------------------------------------------
+    local chatGPTChance = lib.GetConVarFloat("chatter_gpt_chance") or 0.25
 
     local prompt = TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description)
     local sendOpts = {
@@ -342,6 +459,18 @@ timer.Create("TTTBots.Chatter.CasualProximity", 15, 0, function()
         local now = CurTime()
         if (bot._lastCasualProximityTime or 0) + 30 > now then continue end
         bot._lastCasualProximityTime = now
+
+        -- Mark both bots as in conversation so the memory system is aware
+        local botMem    = bot.components.memory
+        local targetMem = chatTarget.components and chatTarget.components.memory
+        if botMem then
+            botMem.conversationPartner  = chatTarget
+            botMem.lastConversationTime = CurTime()
+        end
+        if targetMem then
+            targetMem.conversationPartner  = bot
+            targetMem.lastConversationTime = CurTime()
+        end
 
         -- Pick a random casual event from the weighted pool
         local eventName = casualProximityWeighted[math.random(1, #casualProximityWeighted)]
