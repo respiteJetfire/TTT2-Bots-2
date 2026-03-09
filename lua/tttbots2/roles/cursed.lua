@@ -31,11 +31,12 @@ TTTBots.Roles.RegisterRole(cursed)
 
 -- React to mid-round role changes so bots cleanly transition into and out of the
 -- Cursed role without carrying stale suspicion or attack-target state.
+-- TTT2 fires "TTT2UpdatedSubrole" with (ply, newSubrole, oldSubrole).
 hook.Add("TTT2UpdatedSubrole", "TTTBots.Cursed.OnRoleChange", function(ply, newSubrole, oldSubrole)
     if not (ply and IsValid(ply) and ply:IsBot()) then return end
 
-    -- The hook may pass (ply, oldSubrole) or (ply, newSubrole, oldSubrole) depending
-    -- on the TTT2 version; fall back to reading the current subrole directly.
+    -- The hook fires after the subrole has already been updated, so reading
+    -- ply:GetSubRole() yields the new role. oldSubrole is the previous role.
     local currentRole = ply:GetSubRole()
 
     -- Bot just received the Cursed role.

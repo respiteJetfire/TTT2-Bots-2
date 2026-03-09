@@ -188,6 +188,9 @@ function SwapDeagle.OnEnd(bot)
         local refillConVar = GetConVar("ttt2_role_swap_deagle_refill_time")
         local refillTime = refillConVar and refillConVar:GetFloat() or 10
         local timerName = "TTTBots_SwapDeagleRefill_" .. bot:EntIndex()
+        -- Remove any existing refill timer before creating a new one so multiple
+        -- shots in the same behavior run don't orphan earlier timers.
+        timer.Remove(timerName)
         timer.Create(timerName, refillTime, 1, function()
             if not IsValid(bot) then return end
             local w = bot:GetWeapon("weapon_ttt2_role_swap_deagle")

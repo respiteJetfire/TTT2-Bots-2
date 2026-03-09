@@ -27,14 +27,15 @@ local STATUS = TTTBots.STATUS
 local function GetCursedUrgency(bot)
     local alivePlayers = #TTTBots.Match.AlivePlayers
     local totalPlayers = #player.GetAll()
-    local aliveRatio = 1 - (alivePlayers / math.max(totalPlayers, 1))
+    -- deadRatio approaches 1 as more players die, increasing urgency.
+    local deadRatio = 1 - (alivePlayers / math.max(totalPlayers, 1))
 
     local roundTime = TTTBots.Match.Time()
     local roundMinutesConVar = GetConVar("ttt_roundtime_minutes")
     local maxTime = (roundMinutesConVar and roundMinutesConVar:GetFloat() or 5) * 60
     local timeRatio = math.Clamp(roundTime / math.max(maxTime, 1), 0, 1)
 
-    return math.Clamp(0.1 + (timeRatio * 0.5) + (aliveRatio * 0.4), 0.1, 1.0)
+    return math.Clamp(0.1 + (timeRatio * 0.5) + (deadRatio * 0.4), 0.1, 1.0)
 end
 
 --- Should we start swapping this tick? Urgency scales the probability from ~5% (round start) up to ~50% (near end).
@@ -78,8 +79,7 @@ function SwapRole.OnRunning(bot)
     local target = bot.SwapRoleTarget
     if not (target and IsValid(target) and lib.IsPlayerAlive(target)) then
         -- Attempt to find a fresh target before giving up.
-        SwapRole.GetTarget(bot)
-        target = bot.SwapRoleTarget
+        target = SwapRole.GetTarget(bot)
         if not (target and IsValid(target) and lib.IsPlayerAlive(target)) then
             return STATUS.FAILURE
         end
