@@ -441,6 +441,35 @@ local LoadLang = function()
     Line("Je vais suivre ce gosse.", A.Hothead)
     Line("Tu ferais mieux d'avoir de la place pour deux, {{player}}", A.Hothead)
 
+    RegisterCategory("SpySurveillance", P.NORMAL) -- When the Spy bot begins shadowing a suspicious player
+    Line("Je vais garder un œil sur {{player}} un moment.", A.Default)
+    Line("{{player}} me semble suspect. Je vais le surveiller.", A.Default)
+    Line("{{player}} a l'air louche.", A.Default)
+    Line("Je surveille {{player}}.", A.Default)
+    Line("Je t'observe, {{player}}.", A.Default)
+
+    Line("je reste sur {{player}} pour l'instant", A.Casual)
+    Line("{{player}} a l'air sus, je les regarde", A.Casual)
+    Line("je garde l'œil sur {{player}}", A.Casual)
+    Line("m'en veux pas {{player}}, je regarde juste", A.Casual)
+
+    Line("{{player}} se comporte bizarrement.", A.Bad)
+    Line("Je ne fais pas confiance à {{player}}.", A.Bad)
+    Line("Quelque chose de louche avec {{player}}.", A.Bad)
+
+    Line("attends qu'est-ce que fait {{player}}", A.Dumb)
+    Line("hmm {{player}} est bizarre", A.Dumb)
+
+    Line("{{player}} prépare clairement quelque chose.", A.Hothead)
+    Line("Je t'ai à l'œil, {{player}}.", A.Hothead)
+    Line("Pas de bêtises, {{player}}.", A.Hothead)
+
+    Line("{{player}} est sous surveillance.", A.Stoic)
+    Line("Surveillance des mouvements de {{player}}.", A.Stoic)
+
+    Line("Je trace {{player}} pour activité suspecte.", A.Tryhard)
+    Line("{{player}} ne m'échappera pas.", A.Tryhard)
+
     RegisterCategory("PersonalSpace", P.IMPORTANT) -- Warning another player about their personal space
     Line("Hey, {{player}}, tu es un peu trop proche.", A.Default)
     Line("S'il te plaît, recule.", A.Default)
