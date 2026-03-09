@@ -441,6 +441,72 @@ local LoadLang = function()
     Line("Je vais suivre ce gosse.", A.Hothead)
     Line("Tu ferais mieux d'avoir de la place pour deux, {{player}}", A.Hothead)
 
+    RegisterCategory("SpySurveillance", P.NORMAL) -- When the Spy bot begins shadowing a suspicious player
+    Line("Je vais garder un œil sur {{player}} un moment.", A.Default)
+    Line("{{player}} me semble suspect. Je vais le surveiller.", A.Default)
+    Line("{{player}} a l'air louche.", A.Default)
+    Line("Je surveille {{player}}.", A.Default)
+    Line("Je t'observe, {{player}}.", A.Default)
+
+    Line("je reste sur {{player}} pour l'instant", A.Casual)
+    Line("{{player}} a l'air sus, je les regarde", A.Casual)
+    Line("je garde l'œil sur {{player}}", A.Casual)
+    Line("m'en veux pas {{player}}, je regarde juste", A.Casual)
+
+    Line("{{player}} se comporte bizarrement.", A.Bad)
+    Line("Je ne fais pas confiance à {{player}}.", A.Bad)
+    Line("Quelque chose de louche avec {{player}}.", A.Bad)
+
+    Line("attends qu'est-ce que fait {{player}}", A.Dumb)
+    Line("hmm {{player}} est bizarre", A.Dumb)
+
+    Line("{{player}} prépare clairement quelque chose.", A.Hothead)
+    Line("Je t'ai à l'œil, {{player}}.", A.Hothead)
+    Line("Pas de bêtises, {{player}}.", A.Hothead)
+
+    Line("{{player}} est sous surveillance.", A.Stoic)
+    Line("Surveillance des mouvements de {{player}}.", A.Stoic)
+
+    Line("Je trace {{player}} pour activité suspecte.", A.Tryhard)
+    Line("{{player}} ne m'échappera pas.", A.Tryhard)
+
+    RegisterCategory("SpyIntelReport", P.IMPORTANT) -- When Spy reports surveillance findings to a detective
+    Line("{{detective}}, j'ai surveillé {{player}}. Quelque chose cloche.", A.Default)
+    Line("{{detective}}, garde un œil sur {{player}} — ils sont suspects.", A.Default)
+    Line("{{detective}}, j'ai des infos sur {{player}}. Ils semblent louches.", A.Default)
+    Line("Rapport pour {{detective}} : {{player}} se comporte bizarrement.", A.Default)
+
+    Line("yo {{detective}}, j'ai suivi {{player}}, ça sent mauvais", A.Casual)
+    Line("{{detective}} attention, {{player}} est chelou", A.Casual)
+    Line("j'ai du thé sur {{player}} pour toi {{detective}}", A.Casual)
+
+    Line("{{detective}}, {{player}} s'est comporté de manière suspecte.", A.Stoic)
+    Line("Rapport livré : {{player}} est une personne d'intérêt, {{detective}}.", A.Stoic)
+
+    Line("{{detective}} j'ai filé {{player}}, quelque chose ne va pas.", A.Hothead)
+    Line("Attention {{detective}}, {{player}} est louche !", A.Hothead)
+
+    Line("J'ai suivi {{player}} — tu devrais l'inspecter, {{detective}}.", A.Tryhard)
+    Line("Mon analyse de {{player}} suggère des actes répréhensibles, {{detective}}.", A.Tryhard)
+
+    RegisterCategory("SpyIntelReportKOS", P.CRITICAL) -- When Spy reports a KOS-level target to a detective
+    Line("{{detective}} ! KOS {{player}} — c'est clairement un traître !", A.Default)
+    Line("{{detective}}, {{player}} est dangereux. Appelle le KOS !", A.Default)
+    Line("Confirmé : {{player}} est un traître. KOS, {{detective}} !", A.Default)
+
+    Line("{{detective}} KOS {{player}} MAINTENANT", A.Casual)
+    Line("omg {{detective}} kos {{player}} fais moi confiance", A.Casual)
+    Line("bro {{detective}} kos {{player}} j'ai tout vu", A.Casual)
+
+    Line("{{detective}} : éliminez {{player}} immédiatement.", A.Stoic)
+    Line("{{player}} hostile confirmé. Autorisation KOS demandée, {{detective}}.", A.Stoic)
+
+    Line("KOS {{player}} !! {{detective}} fais quelque chose !!", A.Hothead)
+    Line("{{player}} EST LE TRAÎTRE ! KOS-LE {{detective}} !!", A.Hothead)
+
+    Line("{{detective}}, mes données confirment que {{player}} est KOS.", A.Tryhard)
+    Line("Menace confirmée : {{player}} est KOS. Élimine-le, {{detective}}.", A.Tryhard)
+
     RegisterCategory("PersonalSpace", P.IMPORTANT) -- Warning another player about their personal space
     Line("Hey, {{player}}, tu es un peu trop proche.", A.Default)
     Line("S'il te plaît, recule.", A.Default)
