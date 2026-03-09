@@ -96,12 +96,48 @@ function Stalk.Validate(bot)
     return Stalk.ValidateTarget(bot) or Stalk.ShouldStartStalking(bot)
 end
 
+---Compute an urgency value [0, 1] for serial killer bots based on dead-player ratio and elapsed round time.
+---A higher urgency means fewer players remain alive or more time has passed, warranting bolder action.
+---@param bot Bot
+---@return number urgency
+function Stalk.GetSerialKillerUrgency(bot)
+    local Match = TTTBots.Match
+    local aliveCount = #Match.AlivePlayers
+    local startingCount = math.max(table.Count(Match.PlayersInRound), 1)
+    local deadRatio = 1 - (aliveCount / startingCount)
+
+    local elapsed = Match.Time()
+    -- Use the server's round time limit if available, otherwise assume 8-minute rounds
+    local roundTimeCVar = GetConVar("ttt2_round_timelimit") or GetConVar("ttt_roundtime")
+    local roundSecs = (roundTimeCVar and roundTimeCVar:GetInt() * 60) or 480
+    local timeRatio = math.Clamp(elapsed / math.max(roundSecs, 1), 0, 1)
+
+    return math.Clamp((deadRatio * 0.5) + (timeRatio * 0.5), 0, 1)
+end
+
+---Return the maximum number of witnesses the serial killer will tolerate before committing to a kill.
+---Scales from 1 (stealthy, early round) up to 3 (desperate, late round / few survivors) inclusive.
+---@param bot Bot
+---@return number maxWitnesses
+function Stalk.GetMaxWitnessesForSerialKiller(bot)
+    local urgency = Stalk.GetSerialKillerUrgency(bot)
+    return math.floor(1 + urgency * 2) -- [1, 3] inclusive
+end
+
 --- Called when the behavior is started. Useful for instantiating one-time variables per cycle. Return STATUS.RUNNING to continue running.
 ---@param bot Bot
 ---@return BStatus
 function Stalk.OnStart(bot)
     if not Stalk.ValidateTarget(bot) then
         Stalk.SetTarget(bot)
+    end
+
+    if bot:GetSubRole() == ROLE_SERIALKILLER then
+        local chatter = bot:BotChatter()
+        local target = Stalk.GetTarget(bot)
+        if chatter and target then
+            chatter:On("SerialKillerStalking", { player = target:Nick() }, false, math.random(1, 6))
+        end
     end
 
     return STATUS.RUNNING
@@ -125,9 +161,19 @@ function Stalk.OnRunning(bot)
     loco:LookAt(targetEyes)
     loco:SetGoal()
 
+    local isSerialKiller = bot:GetSubRole() == ROLE_SERIALKILLER
+    local maxWitnesses = isSerialKiller and Stalk.GetMaxWitnessesForSerialKiller(bot) or 1
+
     local witnesses = lib.GetAllWitnessesBasic(targetPos, TTTBots.Roles.GetNonAllies(bot), bot)
-    if table.Count(witnesses) <= 1 then
+    if table.Count(witnesses) <= maxWitnesses then
         if math.random(1, 3) == 1 then -- Just some extra randomness for fun!
+            if isSerialKiller then
+                local chatter = bot:BotChatter()
+                local urgency = Stalk.GetSerialKillerUrgency(bot)
+                if chatter and urgency >= 0.65 then
+                    chatter:On("SerialKillerClosingIn", {}, false, math.random(1, 5))
+                end
+            end
             bot:SetAttackTarget(target)
             return STATUS.SUCCESS
         end
