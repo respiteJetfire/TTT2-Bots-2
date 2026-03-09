@@ -2065,6 +2065,18 @@ local LoadLang = function()
     Line("Don't be surprised, {{player}}... hehehe.", A.Sus)
     Line("uhhh idk what im doing but {{player}} is coming back", A.Dumb)
 
+    RegisterCategory("ZombieSpawned", P.IMPORTANT) -- When a bot has been raised as a zombie by the necromancer.
+    Line("I'm alive again... I think. Time to fight.", A.Default)
+    Line("brains... wait wrong zombie. time to shoot.", A.Casual)
+    Line("I've been given another chance. I'll use it well.", A.Nice)
+    Line("Undead and operational.", A.Stoic)
+    Line("I'M ALIVE AGAIN. TIME TO KILL.", A.Hothead)
+    Line("ugh, being undead sucks but killing doesn't.", A.Bad)
+    Line("We undead serve the necromancer now.", A.Teamer)
+    Line("Revived. Threat assessment: all living players.", A.Tryhard)
+    Line("Wait... am I a zombie? ...nice.", A.Sus)
+    Line("uhhhh am i dead or alive? both i think", A.Dumb)
+
     RegisterCategory("UsingRoleChecker", P.IMPORTANT) -- When a bot is heading to use a role checker.
     Line("I'm going to use the role checker.", A.Default)
     Line("Heading to the role checker.", A.Default)
