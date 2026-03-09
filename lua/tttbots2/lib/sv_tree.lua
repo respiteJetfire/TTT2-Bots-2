@@ -31,6 +31,7 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.CreateDoctor,
         _bh.CreateCursed,
         _bh.CreateDeputy,
+        _bh.CreateSidekick,
         _bh.SwapDeagle,
         _bh.SwapRole,
         _bh.CopyRole,

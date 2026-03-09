@@ -23,7 +23,8 @@ function FollowMaster.FindMaster(bot)
         local baseRole = ply:GetBaseRole()
         local team = ply:GetTeam()
 
-        return (role ~= myRole and team == myTeam and baseRole ~= ROLE_INNOCENT and role ~= 'pirate') 
+        local sameTeamOrAlly = (team == myTeam) or TTTBots.Roles.IsAllies(bot, ply)
+        return (role ~= myRole and sameTeamOrAlly and baseRole ~= ROLE_INNOCENT and role ~= 'pirate')
     end)
 
     if table.IsEmpty(options) then return end
