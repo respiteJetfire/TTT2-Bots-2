@@ -62,6 +62,7 @@ This add-on supports a wide range of TTT2 roles. Here are some that have explici
 * Medic
 * Mesmerist
 * Mimic
+* Necromancer
 * Occultist
 * Oracle
 * Pharaoh (WIP)
@@ -81,6 +82,7 @@ This add-on supports a wide range of TTT2 roles. Here are some that have explici
 * Unknown (WIP)
 * Vigilante
 * Wicked
+* Zombie (Necromancer sub-role)
 
 The mod also auto-generates compatibility with custom roles, but it is imperfect. It does not comprehend most 'public killer' roles (e.g., 'Speedrunner').
 
