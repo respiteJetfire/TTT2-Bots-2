@@ -155,8 +155,35 @@ function TTTBots.Behaviors.RegisterRoleWeapon(config)
         if not HasWeapon(bot) then return false end
         if not TTTBots.Match.IsRoundActive() then return false end
         if config.validateExtraFn and not config.validateExtraFn(bot) then return false end
-        local chancePass = (startChance >= 100) or (math.random(0, 100) <= startChance)
+
+        -- Phase-aware startChance boost for conversion behaviors:
+        -- In EARLY game, conversion roles should strongly prefer converting over killing.
+        local effectiveChance = startChance
+        if config.isConversion then
+            local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+            if ra then
+                local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+                if PHASE then
+                    local phase = ra:GetPhase()
+                    if phase == PHASE.EARLY then
+                        -- Almost always attempt conversion in early game
+                        effectiveChance = math.max(effectiveChance * 8, 90)
+                    elseif phase == PHASE.MID then
+                        -- Strong boost in mid game
+                        effectiveChance = math.max(effectiveChance * 4, 60)
+                    end
+                    -- LATE/OVERTIME: use base startChance (killing becomes more important)
+                end
+            end
+        end
+
+        local chancePass = (effectiveChance >= 100) or (math.random(0, 100) <= effectiveChance)
         if config.validateStartBothConditions then
+            -- For conversion behaviors: if we already have a valid target, skip the chance gate
+            -- to ensure we follow through on conversion attempts.
+            if config.isConversion and ValidateTarget(bot) then
+                return true
+            end
             return ValidateTarget(bot) and chancePass
         end
         -- If this behavior uses a findTargetFn and alwaysStart is set, only validate when
@@ -234,10 +261,29 @@ function TTTBots.Behaviors.RegisterRoleWeapon(config)
         local eyeTrace = bot:GetEyeTrace()
         local tracedTarget = eyeTrace and eyeTrace.Entity
 
-        -- Optional witness check
+        -- Optional witness check (FOV-aware + earshot instead of old 360° VisibleVec)
         if witnessThresh then
-            local witnesses = lib.GetAllWitnessesBasic(targetPos, TTTBots.Roles.GetNonAllies(bot), bot)
-            if table.Count(witnesses) > witnessThresh then
+            local EARSHOT = 550
+            local FOV_ARC = 120
+            local nonAllies = TTTBots.Roles.GetNonAllies(bot)
+            local witnessSet = {}
+            for _, ply in pairs(nonAllies) do
+                if ply == NULL or not IsValid(ply) then continue end
+                if ply == bot or ply == target then continue end
+                if not lib.IsPlayerAlive(ply) then continue end
+                -- Check at both bot and target positions
+                for _, checkPos in ipairs({bot:EyePos(), targetPos}) do
+                    local d = ply:GetPos():Distance(checkPos)
+                    if d <= EARSHOT then
+                        witnessSet[ply] = true
+                    elseif d <= TTTBots.Lib.BASIC_VIS_RANGE then
+                        if lib.CanSeeArc and lib.CanSeeArc(ply, checkPos, FOV_ARC) then
+                            witnessSet[ply] = true
+                        end
+                    end
+                end
+            end
+            if table.Count(witnessSet) > witnessThresh then
                 inv:ResumeAutoSwitch()
                 loco:StopAttack()
                 return STATUS.RUNNING

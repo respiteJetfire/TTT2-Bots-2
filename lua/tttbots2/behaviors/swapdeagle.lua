@@ -66,7 +66,8 @@ TTTBots.Behaviors.RegisterRoleWeapon({
     equipFn      = function(inv) return inv:EquipSwapDeagleGun() end,
     findTargetFn = function(bot) return lib.FindCloseTarget(bot, nil, false, false, true, false) end,
     engageDistance = 1000,
-    startChance  = 25,  -- Cursed should be eager to use this
+    startChance  = 40,  -- Cursed should be eager to use this
+    isConversion = true,  -- Prefer converting in early game over killing
     validateStartBothConditions = true,
     equipFailureFails = false,
     clipEmptyFails = false,  -- Don't permanently fail; server-side refill handles cooldown

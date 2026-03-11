@@ -50,8 +50,19 @@ local chancesOf100 = {
     ComeHereEnd                = 50,
     JihadBombWarn              = 75,
     JihadBombUse               = 100,
+    DefectorConverted          = 90,
+    DefectorApproaching        = 60,
+    DefectorDropping           = 80,
     UseTraitorButton           = 60,  -- Activating a traitor button
     PlacedAnkh                 = 75,
+    AnkhStolen                 = 90,
+    AnkhRecovered              = 85,
+    AnkhDestroyed              = 80,
+    AnkhRevival                = 90,
+    GraverobberStoleAnkh       = 85,
+    AnkhSpotted                = 60,
+    DefendAnkh                 = 95,
+    HuntingAnkh                = 50,
     NewContract                = 75,
     ContractAccepted           = 75,
     -- -----------------------------------------------------------------------
@@ -193,6 +204,16 @@ local chancesOf100 = {
     CupidBetrayedTraitor       = 70,  -- Reaction when a traitor gets pulled to lovers
     CupidSpotted               = 85,  -- Non-cupid bot witnesses cupid using crossbow
     CupidLoverSpotted          = 70,  -- Non-cupid bot identifies a lover-team player
+    -- -----------------------------------------------------------------------
+    -- Amnesiac role events
+    -- -----------------------------------------------------------------------
+    AmnesiacRoleReceived           = 80,  -- Bot received the Amnesiac role at round start
+    AmnesiacSeekingCorpse          = 60,  -- Bot spots a body to investigate for role acquisition
+    AmnesiacConversionSuccess      = 90,  -- Bot just converted to a new role
+    AmnesiacConversionWitnessed    = 85,  -- Another bot witnesses the popup announcement
+    AmnesiacDesperateLate          = 75,  -- Late-round, still no conversion — urgency
+    AmnesiacNoBodiesAvailable      = 50,  -- No unconfirmed corpses exist
+    AmnesiacPostConversionDisguise = 70,  -- Bot is acting carefully after conversion popup
 }
 
 -- ---------------------------------------------------------------------------
@@ -1585,5 +1606,147 @@ hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetCupidFlags", function()
         if IsValid(bot) then
             bot._cupidLoverSpottedTime = nil
         end
+    end
+end)
+
+-- ===========================================================================
+-- Pharaoh / Graverobber / Ankh Chatter Hooks
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- AnkhSpotted — bots that see an ankh entity comment on it
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.AnkhSpotted", 8, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not ROLE_PHARAOH then return end
+
+    local ankhs = ents.FindByClass("ttt_ankh")
+    if #ankhs == 0 then return end
+
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        -- Don't spot your own ankh
+        local role = bot:GetSubRole()
+        if role == ROLE_PHARAOH or role == ROLE_GRAVEROBBER then
+            if PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then continue end
+        end
+
+        for _, ankh in pairs(ankhs) do
+            if not IsValid(ankh) then continue end
+            local dist = bot:GetPos():Distance(ankh:GetPos())
+            if dist > 500 then continue end
+            if not bot:Visible(ankh) then continue end
+
+            -- Rate-limit per bot
+            if (CurTime() - (bot._lastAnkhSpottedChat or 0)) < 30 then continue end
+            bot._lastAnkhSpottedChat = CurTime()
+
+            local chatter = bot:BotChatter()
+            if chatter then
+                chatter:On("AnkhSpotted", {}, false, 0)
+            end
+            break
+        end
+        break -- one bot per sweep
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetAnkhFlags", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then
+            bot._lastAnkhSpottedChat = nil
+            bot._ankhStolenChatFired = nil
+            bot._ankhRecoveredChatFired = nil
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- AnkhStolen / AnkhRecovered / GraverobberStoleAnkh —
+-- Hook into PHARAOH_HANDLER ankh conversion events
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTT2AnkhOwnershipTransferred", "TTTBots.Chatter.AnkhConversion", function(ankh, newOwner, oldOwner)
+    if not TTTBots.Match.RoundActive then return end
+    if not (IsValid(ankh) and IsValid(newOwner)) then return end
+
+    -- If a Graverobber stole the ankh
+    if IsValid(newOwner) and newOwner:IsBot() and newOwner:GetSubRole() == ROLE_GRAVEROBBER then
+        local chatter = newOwner:BotChatter()
+        if chatter then
+            chatter:On("GraverobberStoleAnkh", {}, true) -- team-only
+        end
+    end
+
+    -- If the Pharaoh (original owner) lost their ankh
+    if IsValid(oldOwner) and oldOwner:IsBot() and oldOwner:GetSubRole() == ROLE_PHARAOH then
+        local chatter = oldOwner:BotChatter()
+        if chatter then
+            chatter:On("AnkhStolen", {}, false)
+        end
+    end
+
+    -- If a Pharaoh re-converted their stolen ankh
+    if IsValid(newOwner) and newOwner:IsBot() and newOwner:GetSubRole() == ROLE_PHARAOH then
+        if IsValid(oldOwner) and oldOwner:GetSubRole() == ROLE_GRAVEROBBER then
+            local chatter = newOwner:BotChatter()
+            if chatter then
+                chatter:On("AnkhRecovered", {}, false)
+            end
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- AnkhDestroyed — react when an ankh entity is destroyed
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTT2AnkhDestroyed", "TTTBots.Chatter.AnkhDestroyed", function(ankh, attacker)
+    if not TTTBots.Match.RoundActive then return end
+
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        -- Only bots who can see the destruction or own the ankh
+        local canSee = IsValid(ankh) and bot:Visible(ankh)
+        local isOwner = IsValid(ankh) and ankh:GetOwner() == bot
+
+        if canSee or isOwner then
+            local chatter = bot:BotChatter()
+            if chatter then
+                chatter:On("AnkhDestroyed", {}, false, 0)
+            end
+            break -- one speaker
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- AnkhRevival — react when a player revives via ankh
+-- Note: The PostRevival behavior also fires this, but this hook covers
+-- non-bot observers witnessing the revival.
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTT2AnkhRevive", "TTTBots.Chatter.AnkhRevival", function(revivedPlayer)
+    if not TTTBots.Match.RoundActive then return end
+    if not IsValid(revivedPlayer) then return end
+
+    -- If the revived player is a bot, they fire their own chatter in PostRevival
+    -- Here we handle observer reactions
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if bot == revivedPlayer then continue end
+
+        -- Check if the bot can see the revival location
+        if bot:GetPos():Distance(revivedPlayer:GetPos()) > 600 then continue end
+
+        local chatter = bot:BotChatter()
+        if chatter and math.random(1, 3) == 1 then
+            chatter:On("AnkhSpotted", {}, false, 1) -- observers comment on seeing someone revive
+        end
+        break
     end
 end)

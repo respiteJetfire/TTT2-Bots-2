@@ -88,6 +88,31 @@ function Stalk.CheckForBetterTarget(bot)
     end
 end
 
+--- Check if the bot has any conversion weapons that haven't been used yet.
+--- Used to suppress stalking (killing) in early game for conversion-capable roles.
+---@param bot Bot
+---@return boolean
+function Stalk.HasConversionWeapon(bot)
+    if not IsValid(bot) then return false end
+    local registry = TTTBots.Behaviors.RoleWeaponRegistry
+    if not registry then return false end
+
+    for behaviorName, config in pairs(registry) do
+        if config.isConversion then
+            -- Check if the bot actually has this conversion weapon
+            local hasIt = false
+            if config.getWeaponFn then
+                local inv = bot:BotInventory()
+                if inv then hasIt = config.getWeaponFn(inv) ~= nil end
+            elseif config.hasWeaponFn then
+                hasIt = config.hasWeaponFn(bot)
+            end
+            if hasIt then return true end
+        end
+    end
+    return false
+end
+
 --- Validate the behavior before we can start it (or continue running)
 --- Returning false when the behavior was just running will still call OnEnd.
 ---@param bot Bot
@@ -104,7 +129,30 @@ function Stalk.Validate(bot)
         local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
         if PHASE then
             local phase = ra:GetPhase()
-            if phase == PHASE.LATE or phase == PHASE.OVERTIME then
+
+            -- EARLY game suppression: if the bot has a conversion weapon, strongly
+            -- discourage stalking (killing) so the tree falls through to Convert behaviors.
+            -- Infected hosts are exempt — their "stalk" IS the conversion mechanic.
+            if phase == PHASE.EARLY then
+                local isInfectedHost = TTTBots.Roles.IsInfectedHost
+                    and TTTBots.Roles.IsInfectedHost(bot)
+                if not isInfectedHost and Stalk.HasConversionWeapon(bot) then
+                    -- 90% chance to skip stalking in early game when conversion is available
+                    if math.random(1, 10) <= 9 then
+                        return false
+                    end
+                end
+            elseif phase == PHASE.MID then
+                -- MID game: moderate suppression for conversion-capable bots
+                local isInfectedHost = TTTBots.Roles.IsInfectedHost
+                    and TTTBots.Roles.IsInfectedHost(bot)
+                if not isInfectedHost and Stalk.HasConversionWeapon(bot) then
+                    -- 50% chance to skip stalking in mid game when conversion is available
+                    if math.random(1, 10) <= 5 then
+                        return false
+                    end
+                end
+            elseif phase == PHASE.LATE or phase == PHASE.OVERTIME then
                 -- Infected hosts are exempt from the phase gate — stalking IS their core mechanic
                 local isInfectedHost = TTTBots.Roles.IsInfectedHost
                     and TTTBots.Roles.IsInfectedHost(bot)
@@ -135,6 +183,56 @@ function Stalk.OnStart(bot)
     return STATUS.RUNNING
 end
 
+--- Check if the target is looking towards the bot (within a forward arc).
+--- Returns true if the target's aim direction faces the bot within the given arc.
+---@param target Player
+---@param bot Bot
+---@param arc number Degrees of full cone (e.g. 90 = 45° each side)
+---@return boolean
+local function isTargetLookingAtBot(target, bot, arc)
+    if not IsValid(target) or not IsValid(bot) then return false end
+    local forward = target:GetAimVector()
+    local toBot = (bot:EyePos() - target:EyePos()):GetNormalized()
+    local angle = math.deg(math.acos(math.Clamp(forward:Dot(toBot), -1, 1)))
+    return angle <= (arc / 2)
+end
+
+--- Collect witnesses who are actually looking at the area (FOV-aware) or are
+--- dangerously close (earshot). This replaces the old 360° VisibleVec check
+--- that counted players as witnesses even when they had their backs turned.
+---@param bot Bot
+---@param pos Vector The position to check (usually the bot's eye position)
+---@param nonAllies table<Player> The non-ally player list
+---@return table<Player> witnesses
+local function getRealisticWitnesses(bot, pos, nonAllies)
+    local witnesses = {}
+    local EARSHOT_RANGE = 550  -- players this close would hear gunfire regardless of LOS
+    local FOV_ARC = 120        -- generous FOV cone for "actually looking this way"
+
+    for _, ply in pairs(nonAllies) do
+        if ply == NULL or not IsValid(ply) then continue end
+        if ply == bot then continue end
+        if not lib.IsPlayerAlive(ply) then continue end
+
+        local dist = ply:GetPos():Distance(pos)
+
+        -- Earshot check: very close players will hear the fight even through walls
+        if dist <= EARSHOT_RANGE then
+            table.insert(witnesses, ply)
+            continue
+        end
+
+        -- Beyond earshot, only count as witness if they can see AND are actually
+        -- looking towards the position (FOV-aware check via CanSeeArc)
+        if dist <= TTTBots.Lib.BASIC_VIS_RANGE then
+            if lib.CanSeeArc and lib.CanSeeArc(ply, pos, FOV_ARC) then
+                table.insert(witnesses, ply)
+            end
+        end
+    end
+    return witnesses
+end
+
 --- Called when OnStart or OnRunning returns STATUS.RUNNING. Return STATUS.RUNNING to continue running.
 ---@param bot Bot
 ---@return BStatus
@@ -153,31 +251,53 @@ function Stalk.OnRunning(bot)
     loco:LookAt(targetEyes)
     loco:SetGoal()
 
-    local witnesses = lib.GetAllWitnessesBasic(targetPos, TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot), bot)
+    -- Abort the attack if the target is already looking at the bot.
+    -- Stalking should be an ambush — don't lunge while they're staring at us.
+    -- In LATE/OVERTIME phases we're more desperate and accept a wider facing angle.
+    local ra = bot:BotRoundAwareness()
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+    local phase = (ra and PHASE) and ra:GetPhase() or nil
+
+    local targetFacingArc = 90 -- default: abort if target faces within 45° of bot
+    if phase and (phase == PHASE.LATE or phase == PHASE.OVERTIME) then
+        targetFacingArc = 50 -- more desperate: only abort if staring almost directly at us
+    end
+    if isTargetLookingAtBot(target, bot, targetFacingArc) then
+        return STATUS.RUNNING -- Wait for them to look away
+    end
+
+    -- Build the witness list using FOV-aware + earshot checks at the BOT's position
+    -- (we care about who can see/hear the bot attacking, not just who can see the target)
+    local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot)
+    local witnessesAtBot = getRealisticWitnesses(bot, bot:EyePos(), nonAllies)
+    local witnessesAtTarget = getRealisticWitnesses(bot, targetPos, nonAllies)
+
+    -- Merge both witness lists (union) — if anyone can see/hear either position, it's risky
+    local witnessSet = {}
+    for _, w in ipairs(witnessesAtBot) do witnessSet[w] = true end
+    for _, w in ipairs(witnessesAtTarget) do witnessSet[w] = true end
+    -- Remove the target from the witness set (they're the victim, not a bystander witness)
+    witnessSet[target] = nil
+    local witnessCount = table.Count(witnessSet)
 
     -- Phase-aware witness threshold: EARLY phase requires zero witnesses,
     -- MID allows 1, LATE/OVERTIME allows 1-2.
     local maxWitnesses = 1
     local attackChance = 3 -- 1-in-N chance per tick (adds randomness)
-    local ra = bot:BotRoundAwareness()
-    if ra then
-        local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
-        if PHASE then
-            local phase = ra:GetPhase()
-            if phase == PHASE.EARLY then
-                maxWitnesses = 0  -- Must be completely alone
-                attackChance = 5  -- Lower chance: 1-in-5
-            elseif phase == PHASE.MID then
-                maxWitnesses = 1
-                attackChance = 3
-            else
-                maxWitnesses = 2
-                attackChance = 2  -- More aggressive in LATE/OVERTIME
-            end
+    if phase then
+        if phase == PHASE.EARLY then
+            maxWitnesses = 0  -- Must be completely alone
+            attackChance = 5  -- Lower chance: 1-in-5
+        elseif phase == PHASE.MID then
+            maxWitnesses = 1
+            attackChance = 3
+        else
+            maxWitnesses = 2
+            attackChance = 2  -- More aggressive in LATE/OVERTIME
         end
     end
 
-    if table.Count(witnesses) <= maxWitnesses then
+    if witnessCount <= maxWitnesses then
         if math.random(1, attackChance) == 1 then
             bot:SetAttackTarget(target, "STALK_ATTACK", 4)
             return STATUS.SUCCESS

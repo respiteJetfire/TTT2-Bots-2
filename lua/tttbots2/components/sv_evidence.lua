@@ -43,6 +43,10 @@ BotEvidence.EvidenceWeights = {
     CURSE_WITNESSED     = 3,    -- Saw someone become Cursed (neutral, but noteworthy)
     CURSE_SWAP_WITNESSED = 2,   -- Witnessed a Cursed role swap event
     CURSE_APPROACHING   = 1,    -- Cursed player approaching (low weight, just awareness)
+    -- Clairvoyant role events
+    CLAIRVOYANT_INTEL   = 3,    -- Clairvoyant detected player as having a special role
+    -- Clown role events
+    CLOWN_TRANSFORMED   = 10,   -- The Clown transformed into Killer Clown (public event)
 }
 
 --- Minimum total evidence weight before bot considers suspect KOS-worthy.

@@ -356,6 +356,39 @@ local function noticeTraitorWeapons(bot)
 end
 
 -- ===========================================================================
+-- Ankh-based hostility (Pharaoh / Graverobber integration)
+-- ===========================================================================
+
+--- Pharaoh bots attack known ankh threats; Graverobber bots target Pharaohs
+--- guarding their ankh when attempting to capture.
+---@param bot Bot
+local function ankhBasedHostility(bot)
+    if not ROLE_PHARAOH then return end
+
+    -- Pharaoh: attack anyone the DefendAnkh monitor has identified as a threat
+    if bot:GetSubRole() == ROLE_PHARAOH and bot.ankhThreatSource then
+        local threat = bot.ankhThreatSource
+        if IsValid(threat) and lib.IsPlayerAlive(threat) and bot:Visible(threat) then
+            Arb.RequestAttackTarget(bot, threat, "DEFEND_ANKH", PRI.PLAYER_REQUEST)
+        end
+    end
+
+    -- Graverobber: target the Pharaoh if they're near the ankh we're trying to capture
+    if bot:GetSubRole() == ROLE_GRAVEROBBER then
+        local targetAnkh = bot.targetAnkh or bot.ankhConvertingEntity
+        if IsValid(targetAnkh) then
+            local ankhOwner = targetAnkh:GetOwner()
+            if IsValid(ankhOwner) and ankhOwner:GetSubRole() == ROLE_PHARAOH
+            and lib.IsPlayerAlive(ankhOwner)
+            and bot:GetPos():Distance(targetAnkh:GetPos()) < 300
+            and bot:Visible(ankhOwner) then
+                Arb.RequestAttackTarget(bot, ankhOwner, "ANKH_GUARDIAN_THREAT", PRI.ROLE_HOSTILITY)
+            end
+        end
+    end
+end
+
+-- ===========================================================================
 -- Combined prevent wrapper
 -- ===========================================================================
 
@@ -373,6 +406,17 @@ end
 --- Run all hostility policy checks on a single bot.
 ---@param bot Bot
 local function runHostilityPolicy(bot)
+    -- -----------------------------------------------------------------------
+    -- Defector guard: defectors cannot deal gun damage, so all attack policies
+    -- are meaningless and would only cause the bot to waste time aiming a
+    -- useless weapon. Only run prevent (clear) policies and observation.
+    -- -----------------------------------------------------------------------
+    if ROLE_DEFECTOR and bot:GetSubRole() == ROLE_DEFECTOR then
+        preventAttackAll(bot)
+        personalSpace(bot)
+        return
+    end
+
     -- Skip if the bot is fighting an NPC that isn't one of our bots
     if not (bot.attackTarget ~= nil and bot.attackTarget:IsNPC() and not table.HasValue(TTTBots.Bots, bot.attackTarget)) then
         attackKOSedByAll(bot)
@@ -382,6 +426,7 @@ local function runHostilityPolicy(bot)
         attackZombies(bot)
         attackUnknowns(bot)
         continueMassacre(bot)
+        ankhBasedHostility(bot)
         preventAttackAll(bot)
         personalSpace(bot)
         noticeTraitorWeapons(bot)
@@ -390,6 +435,18 @@ end
 
 -- Export for the coordinator
 TTTBots.Morality.RunHostilityPolicy = runHostilityPolicy
+
+-- ===========================================================================
+-- Anti-grief: Innocent-team bots should not damage friendly ankhs (G-9)
+-- ===========================================================================
+
+hook.Add("TTT2PharaohPreventDamageToAnkh", "TTTBots_AntiGriefAnkh", function(attacker)
+    if not IsValid(attacker) then return end
+    if not attacker:IsBot() then return end
+    if attacker:GetTeam() == TEAM_INNOCENT then
+        return true -- Prevent damage — innocent bots should not shoot their own team's ankh
+    end
+end)
 
 -- ===========================================================================
 -- Timer — "Common Sense" tick (1 second interval)

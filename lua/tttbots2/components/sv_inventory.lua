@@ -178,14 +178,16 @@ function BotInventory:GetWeaponInfo(wep)
     info.slot = self.kindHash[wep.Kind] or "unknown"
     -- Hold type of the weapon
     info.hold_type = wep:GetHoldType()
-    -- If the weapon is a gun
-    info.is_gun = info.max_ammo > 0
-    -- If the bot needs to reload this weapon (urgent)
-    info.needs_reload = info.clip == 0
-    -- If the bot should reload this weapon (non-urgent)
-    info.should_reload = info.clip < info.max_ammo
-    -- If the bot has bullets for this weapon
-    info.has_bullets = info.ammo > 0
+    -- Clipless weapon: fires from reserve ammo, no magazine (e.g. Doom SSG with ClipSize 0/-1)
+    info.is_clipless = (info.max_ammo <= 0 and info.ammo > 0 and info.ammo_type >= 0)
+    -- If the weapon is a gun (either has a magazine OR fires from reserve ammo)
+    info.is_gun = info.max_ammo > 0 or info.is_clipless
+    -- If the bot needs to reload this weapon (urgent) — clipless weapons never need reloading
+    info.needs_reload = not info.is_clipless and info.clip == 0
+    -- If the bot should reload this weapon (non-urgent) — clipless weapons never need reloading
+    info.should_reload = not info.is_clipless and info.clip < info.max_ammo
+    -- If the bot has bullets for this weapon (reserve ammo, or clip ammo for clipped weapons)
+    info.has_bullets = info.ammo > 0 or info.clip > 0
     -- Name of the weapon
     info.print_name = wep:GetPrintName()
 

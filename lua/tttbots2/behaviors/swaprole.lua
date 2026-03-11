@@ -29,10 +29,10 @@ local STATUS = TTTBots.STATUS
 local function GetSwapChance(bot)
     local alive = #TTTBots.Lib.GetAlivePlayers()
     local total = player.GetCount()
-    if total <= 0 then return 50 end
-    -- Base 35%, scales toward ~95% when few players remain
+    if total <= 0 then return 70 end
+    -- Base 50%, scales toward ~100% when few players remain
     local ratio = 1 - (alive / total)
-    return math.Clamp(35 + ratio * 60, 35, 95)
+    return math.Clamp(50 + ratio * 50, 50, 100)
 end
 
 --- Score a potential swap target. Higher = more desirable.

@@ -25,6 +25,29 @@ local ATTACKMODE = {
 
 --- Validate the behavior
 function Attack.Validate(bot)
+    -- Respawn grace: suppress attacking so the bot can equip weapons first.
+    -- Exception: self-defense targets (priority 5) override the grace period.
+    if (bot.respawnGraceUntil or 0) > CurTime() then
+        local pri = bot.attackTargetPriority or 0
+        if pri < (TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SELF_DEFENSE or 5) then
+            return false
+        end
+    end
+    -- If the bot fled because it ran out of ammo, don't re-engage the same
+    -- target until the cooldown expires or the bot has a ranged weapon again.
+    if IsValid(bot.attackTarget) and IsValid(bot.fleeFromTarget)
+        and bot.attackTarget == bot.fleeFromTarget
+        and (bot.fleeFromTargetUntil or 0) > CurTime() then
+        local inv = bot:BotInventory()
+        if inv and inv:HasNoWeaponAvailable(true) then
+            bot:SetAttackTarget(nil, "STILL_UNARMED")
+            return false
+        else
+            -- Bot found a weapon — clear the flee state.
+            bot.fleeFromTarget = nil
+            bot.fleeFromTargetUntil = nil
+        end
+    end
     return Attack.ValidateTarget(bot)
 end
 
@@ -40,6 +63,7 @@ function Attack.Seek(bot, targetPos)
     local loco = bot:BotLocomotor() ---@type CLocomotor
     local inv = bot:BotInventory() ---@type CInventory
     if not (loco and inv) then return end
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
     bot:BotLocomotor().stopLookingAround = false
     loco:StopAttack()
     inv:ReloadIfNecessary()
@@ -50,7 +74,7 @@ function Attack.Seek(bot, targetPos)
     local lastSeenTime = memory:GetLastSeenTime(target)
     local timeNow = CurTime()
     local secsSince = timeNow - lastSeenTime
-    local isAlive = target:Health() > 0
+    local isAlive = target:Health() > 0 and not target:IsSpec() and TTTBots.Lib.IsPlayerAlive(target)
     if not isAlive then
         bot:SetAttackTarget(nil, "BEHAVIOR_END")
         return
@@ -65,6 +89,16 @@ function Attack.Seek(bot, targetPos)
             -- We have arrived at (or are very near) the last-known position but
             -- the target isn't visible. Sweep nearby nav areas to flush them out
             -- rather than jumping to a random wander destination.
+            -- Ensure the bot always has a sweep goal, even before the first
+            -- CallEveryNTicks fires, so it doesn't stand still staring.
+            if not state.hasSweepGoal then
+                local currentArea = navmesh.GetNearestNavArea(bot:GetPos())
+                local nearbyAreas = currentArea and currentArea:GetAdjacentAreas() or {}
+                if #nearbyAreas > 0 then
+                    loco:SetGoal(nearbyAreas[math.random(1, #nearbyAreas)]:GetCenter())
+                end
+                state.hasSweepGoal = true
+            end
             lib.CallEveryNTicks(
                 bot,
                 function()
@@ -87,6 +121,7 @@ function Attack.Seek(bot, targetPos)
                             loco:SetGoal(wanderArea:GetCenter())
                         end
                     end
+                    state.hasSweepGoal = true
                 end,
                 math.ceil(TTTBots.Tickrate * 2)
             )
@@ -127,18 +162,27 @@ function Attack.Seek(bot, targetPos)
         end
     else
         -- No known position at all — wander to find them.
+        -- Immediately set a wander goal so the bot doesn't stand idle waiting for
+        -- the first CallEveryNTicks to fire.
+        if not state.hasWanderGoal then
+            local wanderArea = TTTBots.Behaviors.Wander.GetAnyRandomNav(bot)
+            if IsValid(wanderArea) then
+                loco:SetGoal(wanderArea:GetCenter())
+            end
+            state.hasWanderGoal = true
+        end
         lib.CallEveryNTicks(
             bot,
             function()
                 local wanderArea = TTTBots.Behaviors.Wander.GetAnyRandomNav(bot)
                 if not IsValid(wanderArea) then return end
                 loco:SetGoal(wanderArea:GetCenter())
+                state.hasWanderGoal = true
             end,
             math.ceil(TTTBots.Tickrate * 5)
         )
     end
 
-    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
     state.wasPathing = true --- Used to one-time stop loco when we start engaging
 end
 
@@ -322,6 +366,16 @@ function Attack.Engage(bot, targetPos)
     loco.stopLookingAround = true
     local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
 
+    -- If we're forced to melee because all guns are empty, signal cover/retreat.
+    -- (The actual abort happens in OnRunning's ammo check, but this gives an
+    -- early "coverTarget" signal so SeekCover can start routing.)
+    if usingMelee and inv:HasNoWeaponAvailable(false) then
+        local isHothead = bot.HasTrait and bot:HasTrait("hothead")
+        if not isHothead then
+            bot.coverTarget = target
+        end
+    end
+
     local tooFarToAttack = false --- Used to prevent attacking when we are using a melee weapon and are too far away
     local distToTarget = bot:GetPos():Distance(target:GetPos())
     if state.wasPathing and not usingMelee then
@@ -349,15 +403,11 @@ function Attack.Engage(bot, targetPos)
         if (Attack.LookingCloseToTarget(bot, target)) then
             if not Attack.WillShootingTeamkill(bot, target) then -- make sure we aren't about to teamkill by mistake!!
                 loco:StartAttack()
+            else
+                -- Bystander in line of fire — stop shooting and strafe to find a clear angle
+                loco:StopAttack()
+                loco:Strafe()
             end
-
-            -- lib.CallEveryNTicks(
-            --     bot,
-            --     function()
-            --         loco:SetRandomStrafe()
-            --     end,
-            --     math.ceil(TTTBots.Tickrate * 1)
-            -- )
         end
     else
         loco:StopAttack()
@@ -474,16 +524,97 @@ function Attack.PredictMovement(target, mult)
     return predictionRelative
 end
 
---- Returns true if shooting now would result in possibly shooting someone who isn't our target.
+--- The minimum distance (in units) a bystander must be from the line of fire
+--- to be considered "in the way".
+local LOF_RADIUS = 48 -- roughly player half-width
+
+--- Returns true if shooting now risks hitting an unsuspected bystander.
+--- Checks the full line of fire between the bot's eyes and the target, not
+--- just the single eye-trace hit.  Players the bot already suspects
+--- (suspicion >= Sus threshold) are ignored — the bot is willing to shoot
+--- through someone it considers likely hostile.
 function Attack.WillShootingTeamkill(bot, target)
-    -- Get the eye trace of our bot.
+    if not (IsValid(bot) and IsValid(target)) then return false end
+
+    -- 1) Quick check: direct eye-trace hit
     local eyeTrace = bot:GetEyeTrace()
-    local ent = eyeTrace.Entity
-    if not ent then return false end                                 -- We are not looking at anything important, we can shoot
-    if ent == target then return false end                           -- We are looking at our target, we can shoot
-    if IsValid(ent) and not ent:IsPlayer() then return false end     -- We are looking at something that is not a player, we can shoot
-    if not TTTBots.Roles.IsAllies(bot, target) then return false end -- We are not looking at a teammate, we can shoot
-    return true                                                      -- We are looking at a teammate, we cannot shoot
+    local hitEnt = eyeTrace.Entity
+
+    -- If the trace hit our target directly, nothing is in the way.
+    if hitEnt == target then return false end
+
+    -- 2) Gather geometry for the line-of-fire corridor
+    local origin = bot:EyePos()
+    local targetPos = Attack.GetPreferredBodyTarget(bot, bot:BotInventory():GetHeldWeaponInfo() or {}, target)
+    local fireDir = (targetPos - origin)
+    local fireDist = fireDir:Length()
+    if fireDist < 1 then return false end
+    fireDir:Normalize()
+
+    -- 3) Get suspicion thresholds & morality once
+    local morality = bot.components and bot.components.morality
+    local susThreshold = TTTBots.Components.Morality
+        and TTTBots.Components.Morality.Thresholds
+        and TTTBots.Components.Morality.Thresholds.Sus or 3
+
+    -- 4) Check every alive player (except bot & target) for proximity to the
+    --    line of fire.  We project each player onto the ray and see if they
+    --    fall within LOF_RADIUS of it AND are between the bot and the target.
+    local alivePlayers = TTTBots.Match.AlivePlayers or {}
+    for _, ply in ipairs(alivePlayers) do
+        if not IsValid(ply) then continue end
+        if ply == bot or ply == target then continue end
+        if not TTTBots.Lib.IsPlayerAlive(ply) then continue end
+
+        local plyCenter = ply:WorldSpaceCenter() or (ply:GetPos() + Vector(0, 0, 36))
+        local toPlayer = plyCenter - origin
+
+        -- How far along the shot direction is this player?
+        local projDist = toPlayer:Dot(fireDir)
+        -- Must be between us and the target (with a small margin behind the target)
+        if projDist < 0 or projDist > fireDist + 32 then continue end
+
+        -- Perpendicular distance from the line of fire
+        local closestPointOnRay = origin + fireDir * projDist
+        local perpDist = (plyCenter - closestPointOnRay):Length()
+        if perpDist > LOF_RADIUS then continue end
+
+        -- This player IS in the line of fire. Decide if we care.
+        -- NPCs in the way — always hesitate (could be a friendly NPC).
+        if not ply:IsPlayer() then return true end
+
+        -- If this bystander is someone we already suspect, we don't hesitate.
+        if morality then
+            local sus = morality:GetSuspicion(ply)
+            if sus >= susThreshold then continue end
+        end
+
+        -- Allies (perceived) — always hesitate.
+        local isPerceivedAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, ply))
+            or TTTBots.Roles.IsAllies(bot, ply)
+        if isPerceivedAlly then return true end
+
+        -- Unknown / low-suspicion player in the line of fire — hesitate.
+        -- The bot doesn't suspect them enough to risk friendly fire.
+        return true
+    end
+
+    -- 5) Also catch the simple case: direct trace hit a live player who isn't
+    --    our target and isn't suspected.  (Belt-and-suspenders with the ray
+    --    check above, but handles edge cases in hull geometry.)
+    if IsValid(hitEnt) and hitEnt:IsPlayer() and hitEnt ~= target then
+        if not TTTBots.Lib.IsPlayerAlive(hitEnt) then return false end
+        if morality then
+            local sus = morality:GetSuspicion(hitEnt)
+            if sus >= susThreshold then return false end
+        end
+        local isPerceivedAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, hitEnt))
+            or TTTBots.Roles.IsAllies(bot, hitEnt)
+        if isPerceivedAlly then return true end
+        return true -- unknown player, don't risk it
+    end
+
+    return false
 end
 
 function Attack.LookingCloseToTarget(bot, target)
@@ -572,12 +703,12 @@ function Attack.ValidateTarget(bot)
         and not isAlly
     )
 
-    local NPCPass = {
+    local NPCPass = (
         hasTarget
         and targetIsValid
         and botIsAlive
         and targetIsNPCAndAlive
-    }
+    )
 
     if not (checkPassed or NPCPass) then
         print(bot:Nick() .. " failed to validate attack target behavior.")
@@ -614,6 +745,24 @@ function Attack.OnRunning(bot)
     if target == bot then
         bot:SetAttackTarget(nil, "BEHAVIOR_END")
         return STATUS.FAILURE
+    end
+
+    -- ── Out-of-ammo abort ──────────────────────────────────────────────────
+    -- If the bot has no ranged weapon with ammo and is forced to melee,
+    -- abort the fight so it can retreat and find a weapon instead.
+    -- "Hothead" bots will keep swinging regardless.
+    local inv = bot:BotInventory()
+    if inv and inv:HasNoWeaponAvailable(true) then
+        local isHothead = bot.HasTrait and bot:HasTrait("hothead")
+        if not isHothead then
+            -- Flag the bot as retreating so the Retreat behavior picks up.
+            bot.isRetreating = true
+            -- Remember who we were fighting so we can avoid them while unarmed.
+            bot.fleeFromTarget = target
+            bot.fleeFromTargetUntil = CurTime() + 20
+            bot:SetAttackTarget(nil, "OUT_OF_AMMO")
+            return STATUS.FAILURE
+        end
     end
 
     local isNPC = target:IsNPC()

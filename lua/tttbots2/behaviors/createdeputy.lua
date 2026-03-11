@@ -9,9 +9,10 @@ TTTBots.Behaviors.RegisterRoleWeapon({
     stateKey     = "DeputyTarget",
     getWeaponFn  = function(inv) return inv:GetDeputyGun() end,
     equipFn      = function(inv) return inv:EquipDeputyGun() end,
-    findTargetFn = function(bot) return lib.FindCloseTarget(bot, nil, false, false, true, false) end,
+    findTargetFn = function(bot) return lib.FindCloseInnocentTarget(bot) end,
     engageDistance = 1000,
-    startChance  = 2,
+    startChance  = 25,
+    isConversion = true,  -- Prefer converting in early game
     validateStartBothConditions = true,
     equipFailureFails = true,
     chatterEvent = "CreatingDeputy",

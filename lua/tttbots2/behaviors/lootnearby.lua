@@ -97,6 +97,9 @@ local function FindBestDroppedWeapon(bot)
     local bestEnt = nil
     -- Must beat current best by a margin of 10 DPS.
     local bestScore = ScoreCurrentBest(bot) + 10
+    -- Blacklist: weapons we recently dropped to avoid swap loops.
+    local blacklist = bot.lootBlacklist or {}
+    local now = CurTime()
 
     for _, ent in ipairs(nearby) do
         if not IsValid(ent) then continue end
@@ -104,6 +107,8 @@ local function FindBestDroppedWeapon(bot)
         if not string.find(class, "weapon_") then continue end
         -- Only pick up world-dropped weapons (no owner).
         if IsValid(ent:GetOwner()) then continue end
+        -- Skip weapons we recently dropped (prevents pickup-drop-pickup loops).
+        if blacklist[ent] and blacklist[ent] > now then continue end
 
         local score = ScoreDroppedWeapon(ent, bot)
         if score > bestScore then
@@ -121,6 +126,8 @@ function LootNearby.Validate(bot)
     if not lib.IsPlayerAlive(bot) then return false end
     -- No looting during combat.
     if IsValid(bot.attackTarget) then return false end
+    -- Post-loot cooldown: prevent rapid re-looting (swap loops).
+    if (bot.lootCooldownUntil or 0) > CurTime() then return false end
     -- If we already have a valid loot target, keep using it (don't thrash targets every tick).
     if IsValid(bot.lootTarget) and not IsValid(bot.lootTarget:GetOwner()) then
         return true
@@ -178,9 +185,38 @@ function LootNearby.OnRunning(bot)
         return STATUS.RUNNING
     end
 
-    -- Close enough — do a server-side pickup (reliable, like GetWeapons does).
+    -- Close enough — pick up using TTT2's SafePickupWeapon for proper slot handling.
     loco:StopMoving()
     loco:LookAt(targetPos)
+
+    -- If we've been trying for too long (3s), drop the blocking weapon first.
+    local elapsed = CurTime() - (bot.lootStartTime or CurTime())
+    if elapsed >= 3 and target.Kind then
+        local weapons = bot:GetWeapons()
+        for _, wep in pairs(weapons) do
+            if IsValid(wep) and wep.Kind == target.Kind and wep.AllowDrop then
+                -- Blacklist the weapon we're about to drop so we don't immediately pick it back up.
+                bot.lootBlacklist = bot.lootBlacklist or {}
+                bot.lootBlacklist[wep] = CurTime() + 10
+                if bot.SafeDropWeapon then
+                    bot:SafeDropWeapon(wep, true)
+                else
+                    bot:DropWeapon(wep)
+                end
+                break
+            end
+        end
+    end
+
+    -- Try TTT2's SafePickupWeapon (handles slot conflicts, drops blocking wep).
+    if bot.SafePickupWeapon then
+        local result = bot:SafePickupWeapon(target, false, true, true, nil)
+        if IsValid(result) then
+            return STATUS.SUCCESS
+        end
+    end
+
+    -- Fallback: raw Give() + Remove() for non-TTT2 environments.
     local class = target:GetClass()
     if class and class ~= "" then
         local given = bot:Give(class)
@@ -189,15 +225,21 @@ function LootNearby.OnRunning(bot)
             return STATUS.SUCCESS
         end
     end
-    -- Fallback: try +use if Give() didn't work (e.g. custom weapon entity).
+
+    -- Fallback: try +use if nothing else worked (e.g. custom weapon entity).
     loco:SetUse(true)
-    return STATUS.SUCCESS
+    return STATUS.RUNNING
 end
 
 function LootNearby.OnSuccess(bot)
+    -- After a successful loot, impose a cooldown so the bot doesn't immediately
+    -- re-evaluate and start a swap loop with the weapon it just dropped.
+    bot.lootCooldownUntil = CurTime() + 5
 end
 
 function LootNearby.OnFailure(bot)
+    -- Short cooldown on failure too, to avoid thrashing.
+    bot.lootCooldownUntil = CurTime() + 2
 end
 
 function LootNearby.OnEnd(bot)

@@ -24,9 +24,9 @@ local bTree = {
     _prior.Convert,
     _prior.Support,
     _bh.Roledefib,
-    _prior.Deception,   -- AlibiBuilding, FakeInvestigate, PlausibleIgnorance (EARLY blend-in)
+    _prior.Deception,   -- AlibiBuilding, FakeInvestigate, PlausibleIgnorance (blend in while seeking convert targets)
     _prior.Restore,
-    _bh.Stalk,          -- Stalk isolated targets (after deception is exhausted)
+    _bh.Stalk,          -- Stalk isolated targets (suppressed in EARLY game when conversion available)
     _prior.Investigate,
     _prior.Minge,
     _prior.Patrol

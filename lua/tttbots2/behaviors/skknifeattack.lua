@@ -193,9 +193,43 @@ function SKKnife.OnRunning(bot)
 
     -- If close enough and visible, attempt knife engagement
     if dist <= KNIFE_ENGAGE_DIST and bot:Visible(huntTarget) then
-        -- Check witnesses before committing
-        local witnesses = lib.GetAllWitnessesBasic(targetPos, TTTBots.Roles.GetNonAllies(bot), bot)
-        local witnessCount = table.Count(witnesses)
+        -- Abort if the target is looking right at us — a knife stalk should be a surprise
+        local targetFwd = huntTarget:GetAimVector()
+        local toBot = (bot:EyePos() - huntTarget:EyePos()):GetNormalized()
+        local facingAngle = math.deg(math.acos(math.Clamp(targetFwd:Dot(toBot), -1, 1)))
+        if facingAngle <= 45 then
+            -- Target is staring at us — hold off, keep stalking
+            return STATUS.RUNNING
+        end
+
+        -- FOV-aware + earshot witness check (replaces old 360° VisibleVec)
+        local EARSHOT = 550
+        local FOV_ARC = 120
+        local nonAllies = TTTBots.Roles.GetNonAllies(bot)
+        local witnessSet = {}
+        for _, ply in pairs(nonAllies) do
+            if ply == NULL or not IsValid(ply) then continue end
+            if ply == bot or ply == huntTarget then continue end
+            if not lib.IsPlayerAlive(ply) then continue end
+            local d = ply:GetPos():Distance(bot:EyePos())
+            if d <= EARSHOT then
+                witnessSet[ply] = true
+            elseif d <= TTTBots.Lib.BASIC_VIS_RANGE then
+                if lib.CanSeeArc and lib.CanSeeArc(ply, bot:EyePos(), FOV_ARC) then
+                    witnessSet[ply] = true
+                end
+            end
+            -- Also check witnesses at the target's position
+            local dt = ply:GetPos():Distance(targetPos)
+            if dt <= EARSHOT then
+                witnessSet[ply] = true
+            elseif dt <= TTTBots.Lib.BASIC_VIS_RANGE then
+                if lib.CanSeeArc and lib.CanSeeArc(ply, targetPos, FOV_ARC) then
+                    witnessSet[ply] = true
+                end
+            end
+        end
+        local witnessCount = table.Count(witnessSet)
 
         if witnessCount <= MAX_WITNESSES then
             -- Equip knife, pause auto-switch, look at target, attack

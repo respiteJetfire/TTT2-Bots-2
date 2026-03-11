@@ -109,7 +109,7 @@ hook.Add("TTT2UpdateSubrole", "TTTBots.CursedCoordinator.DetectCurseChange", fun
             if ply:IsBot() then
                 -- The behavior tree automatically switches via GetTreeFor() live lookup
                 -- But we should fire a chatter event about the successful swap
-                local chatter = ply:BotChatter and ply:BotChatter()
+                local chatter = ply.BotChatter and ply:BotChatter()
                 if chatter and chatter.On then
                     -- This bot just escaped the curse
                     -- CursedSwapSuccess is already fired by the SwapRole behavior,
@@ -183,7 +183,7 @@ hook.Add("PlayerSpawn", "TTTBots.CursedCoordinator.RespawnAwareness", function(p
         if ply:GetSubRole() ~= ROLE_CURSED then return end
 
         -- Fire respawn chatter
-        local chatter = ply:BotChatter and ply:BotChatter()
+        local chatter = ply.BotChatter and ply:BotChatter()
         if chatter and chatter.On then
             chatter:On("CursedRespawned", {})
         end

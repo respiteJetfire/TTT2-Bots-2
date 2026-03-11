@@ -12,7 +12,8 @@ TTTBots.Behaviors.RegisterRoleWeapon({
     findTargetFn = function(bot) return lib.FindCloseTarget(bot, nil, false, false, true, true) end,
     engageDistance = 1000,
     minDistance    = 300,
-    startChance  = 5,
+    startChance  = 20,
+    isConversion = true,  -- Prefer converting in early game over killing
     validateStartBothConditions = true,
     chatterEvent = "CreatingCursed",
     chatterTeamOnly = true,

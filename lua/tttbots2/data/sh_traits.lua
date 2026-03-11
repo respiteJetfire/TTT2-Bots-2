@@ -581,7 +581,7 @@ TTTBots.Traits = {
     },
     defector = {
         name = "defector",
-        description = "Will buy the defector deagle if available in their shop.",
+        description = "Will buy the defector jihad conversion item if available in their shop, then drop it for an innocent to pick up.",
         conflicts = {},
         traitor_only = true,
         effects = {
@@ -677,6 +677,32 @@ TTTBots.Traits = {
         traitor_only = true,
         effects = {
             gimmick = true
+        }
+    },
+    theatrical = {
+        name = "theatrical",
+        description = "Clown-oriented trait: more likely to minge, use voice commands, and be social. Makes for an entertaining pre-transformation Clown.",
+        conflicts = { "calculated" },
+        traitor_only = false,
+        archetype = A.Casual,
+        effects = {
+            mingeRate = 2.0,
+            textchat = 1.5,
+            follower = true,       -- likes to follow players for social interaction
+            followerAlways = true,
+        }
+    },
+    calculated = {
+        name = "calculated",
+        description = "Clown-oriented trait: more likely to group up, stockpile weapons, and play safe. Makes for a strategic pre-transformation Clown.",
+        conflicts = { "theatrical" },
+        traitor_only = false,
+        archetype = A.Tryhard,
+        effects = {
+            mingeRate = 0.5,
+            lovesCrowds = true,    -- prefer populated areas for safety
+            investigateCorpse = 1.5,
+            focus = 1.3,
         }
     },
 }

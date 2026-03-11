@@ -56,6 +56,10 @@ BotMorality.SUSPICIONVALUES = {
     CurseSwapWitnessed = 2,  -- We witnessed a Cursed role swap event
     CursedApproaching = 1,   -- Cursed player approaching us (awareness, low suspicion)
     CursedImmune = 0,        -- Cursed is damage-immune (information, no suspicion change)
+    -- Pharaoh / Graverobber / Ankh events
+    AnkhConversionWitnessed = 10,  -- We saw someone converting (holding USE on) an ankh
+    AnkhDestructionWitnessed = 5,  -- We saw someone shooting/damaging an ankh
+    AnkhLoiteringNearby = 2,       -- Non-owner player loitering near an ankh (per interval)
 }
 
 BotMorality.SuspicionDescriptions = {
@@ -706,5 +710,107 @@ hook.Add("TTTBots.UseRoleChecker.Result", "TTTBots.Morality.TestedClean", functi
     for _, bot in ipairs(witnesses) do
         if not (bot:IsBot() and bot.components and bot.components.morality) then continue end
         bot.components.morality:SetTestedClean(target)
+    end
+end)
+
+-- ===========================================================================
+-- Ankh-related suspicion monitoring (M-1, M-2, M-3)
+-- ===========================================================================
+
+--- M-1: Witness ankh conversion — if an innocent bot sees someone using (converting)
+--- an ankh, that's highly suspicious. Pharaohs know the converter is hostile.
+--- M-2: Witness ankh damage — if a bot sees someone shooting an ankh, raise suspicion.
+--- M-3: Proximity suspicion — non-owner players loitering near an ankh are suspicious.
+
+timer.Create("TTTBots.Morality.AnkhSuspicion", 2, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not ROLE_PHARAOH then return end
+
+    local ankhs = ents.FindByClass("ttt_ankh")
+    if #ankhs == 0 then return end
+
+    for _, ankh in pairs(ankhs) do
+        if not IsValid(ankh) then continue end
+        local ankhPos = ankh:GetPos()
+        local owner = ankh:GetOwner()
+
+        -- M-1: Check for conversion in progress (someone using the ankh)
+        -- Check both ankh.last_activator (human player USE) and ankh._tttbots_converter
+        -- (bot conversion via CaptureAnkh behavior, which bypasses ENT:Use())
+        local activator = ankh.last_activator or ankh._tttbots_converter
+        if IsValid(activator) and activator:IsPlayer() and lib.IsPlayerAlive(activator) then
+            -- Find witness bots who can see this
+            local witnesses = lib.GetAllWitnessesBasic(activator:EyePos(), TTTBots.Match.AlivePlayers, activator)
+            for _, witness in ipairs(witnesses) do
+                if not (IsValid(witness) and witness:IsBot() and witness.components and witness.components.morality) then continue end
+                if witness == activator then continue end
+
+                local morality = witness.components.morality
+                if not TTTBots.Roles.GetRoleFor(witness):GetUsesSuspicion() then continue end
+
+                -- Witnessing ankh conversion is highly suspicious
+                morality:ChangeSuspicion(activator, "AnkhConversionWitnessed")
+
+                -- Feed evidence log
+                local evidence = witness:BotEvidence()
+                if evidence then
+                    evidence:AddEvidence({
+                        type    = "ANKH_CONVERSION",
+                        subject = activator,
+                        detail  = "converting an ankh",
+                    })
+                end
+
+                -- If the witness is the Pharaoh who owns this ankh, KOS the converter
+                if witness == owner and owner:GetSubRole() == ROLE_PHARAOH then
+                    Arb.RequestAttackTarget(witness, activator, "DEFEND_ANKH", PRI.PLAYER_REQUEST)
+                end
+            end
+        end
+
+        -- M-3: Non-owner players loitering near the ankh
+        local nearbyEnts = ents.FindInSphere(ankhPos, 200)
+        for _, ent in pairs(nearbyEnts) do
+            if not (IsValid(ent) and ent:IsPlayer() and lib.IsPlayerAlive(ent)) then continue end
+            if ent == owner then continue end -- Owner standing near their own ankh is fine
+
+            -- Only the Pharaoh bot who owns the ankh gets suspicious of loiterers
+            if not (IsValid(owner) and owner:IsBot() and owner.components and owner.components.morality) then continue end
+            if not TTTBots.Roles.GetRoleFor(owner):GetUsesSuspicion() then continue end
+            if not owner:Visible(ent) then continue end
+
+            owner.components.morality:ChangeSuspicion(ent, "AnkhLoiteringNearby")
+        end
+    end
+end)
+
+--- M-2: Witness ankh damage — hook into entity damage to detect ankh attacks
+hook.Add("EntityTakeDamage", "TTTBots.Morality.AnkhDamageWitness", function(target, dmginfo)
+    if not TTTBots.Match.RoundActive then return end
+    if not ROLE_PHARAOH then return end
+    if not (IsValid(target) and target:GetClass() == "ttt_ankh") then return end
+
+    local attacker = dmginfo:GetAttacker()
+    if not (IsValid(attacker) and attacker:IsPlayer() and lib.IsPlayerAlive(attacker)) then return end
+
+    -- Find witness bots
+    local witnesses = lib.GetAllWitnessesBasic(attacker:EyePos(), TTTBots.Match.AlivePlayers, attacker)
+    for _, witness in ipairs(witnesses) do
+        if not (IsValid(witness) and witness:IsBot() and witness.components and witness.components.morality) then continue end
+        if witness == attacker then continue end
+
+        local morality = witness.components.morality
+        if not TTTBots.Roles.GetRoleFor(witness):GetUsesSuspicion() then continue end
+
+        morality:ChangeSuspicion(attacker, "AnkhDestructionWitnessed")
+
+        local evidence = witness:BotEvidence()
+        if evidence then
+            evidence:AddEvidence({
+                type    = "ANKH_DAMAGE",
+                subject = attacker,
+                detail  = "shooting/damaging an ankh",
+            })
+        end
     end
 end)

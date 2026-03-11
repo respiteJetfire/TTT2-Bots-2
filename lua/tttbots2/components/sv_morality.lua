@@ -216,6 +216,7 @@ function BotMorality:ResetRoundState()
     bot.selfDefenseKills    = nil
     bot.lastKillTime        = nil
     bot.pendingAccusations  = nil
+    bot.respawnGraceUntil   = nil
 
     -- Reset arbitration state (attack target priority & reason)
     Arb.ResetState(bot)
@@ -233,6 +234,49 @@ hook.Add("TTTPrepareRound", "TTTBots.Morality.PrepareRoundReset", function()
         if not (IsValid(bot) and bot.components and bot.components.morality) then continue end
         bot.components.morality:ResetRoundState()
     end
+end)
+
+-- ===========================================================================
+-- Respawn grace period — clear stale combat state so bots equip first
+-- ===========================================================================
+
+--- Seconds after a mid-round respawn during which the bot won't initiate
+--- attacks (it needs time to pick up weapons / heal). Self-defense (priority 5)
+--- still overrides this.
+local RESPAWN_GRACE_SECONDS = 5
+
+hook.Add("PlayerSpawn", "TTTBots.Morality.RespawnGrace", function(ply)
+    if not IsValid(ply) then return end
+    if not ply:IsBot() then return end
+    if not TTTBots.Match.IsRoundActive() then return end
+
+    -- Delay slightly so that role data, inventory, etc. are initialised.
+    timer.Simple(0, function()
+        if not IsValid(ply) then return end
+        if not TTTBots.Match.IsRoundActive() then return end
+
+        -- Clear any attack target that survived death (stale from pre-death)
+        if ply.attackTarget ~= nil then
+            ply:SetAttackTarget(nil, "RESPAWN_CLEAR")
+        end
+        ply.grudge = nil
+
+        -- Clear stale behavior so the tree re-evaluates from scratch
+        if ply.lastBehavior then
+            pcall(function()
+                ply.lastBehavior.OnEnd(ply)
+            end)
+            ply.lastBehavior = nil
+        end
+
+        -- Set grace period: blocks low-priority attack requests so the bot
+        -- has time to pick up weapons and find health first.
+        ply.respawnGraceUntil = CurTime() + RESPAWN_GRACE_SECONDS
+
+        Arb.DebugTarget(ply, string.format(
+            "RESPAWN_GRACE set for %.1fs (until %.1f)",
+            RESPAWN_GRACE_SECONDS, ply.respawnGraceUntil))
+    end)
 end)
 
 -- ===========================================================================

@@ -42,13 +42,37 @@ end
 
 ---@param bot Bot
 function GetWeapons.Validate(bot)
+    -- When fleeing (out-of-ammo), also seek weapons even if we technically
+    -- have a primary/secondary — we need one with actual ammo.
+    local isFleeing = IsValid(bot.fleeFromTarget) and (bot.fleeFromTargetUntil or 0) > CurTime()
+    local inv = bot:BotInventory()
+    local desperateForWeapon = isFleeing and inv and inv:HasNoWeaponAvailable(false)
+
+    if not (GetWeapons.NeedsWeapon(bot) or desperateForWeapon) then return false end
+
     return (
-        GetWeapons.NeedsWeapon(bot)
-        and (
-            GetWeapons.AssignTargetWeapon(bot)
-            or bot.botTargetWeapon ~= nil
-        )
+        GetWeapons.AssignTargetWeapon(bot)
+        or bot.botTargetWeapon ~= nil
     )
+end
+
+--- Drop the weapon occupying the given slot kind so we can pick up a new one.
+---@param bot Bot
+---@param slotKind number The weapon Kind (2=secondary, 3=primary, 7=special)
+function GetWeapons.DropBlockingWeapon(bot, slotKind)
+    local weapons = bot:GetWeapons()
+    for _, wep in pairs(weapons) do
+        if IsValid(wep) and wep.Kind == slotKind and wep.AllowDrop then
+            -- Use TTT2's SafeDropWeapon if available, otherwise manual drop.
+            if bot.SafeDropWeapon then
+                bot:SafeDropWeapon(wep, true)
+            else
+                bot:DropWeapon(wep)
+            end
+            return true
+        end
+    end
+    return false
 end
 
 ---Sets the bot.botTargetWeapon field to the nearest weapon, else nil. Returns true if it found one.
@@ -79,6 +103,7 @@ end
 ---@param bot Bot
 ---@return BStatus
 function GetWeapons.OnStart(bot)
+    bot.getWeaponsStartTime = CurTime()
     return STATUS.RUNNING
 end
 
@@ -88,6 +113,9 @@ end
 local DIRECT_WALK_DIST = 120
 -- Distance at which the server-side Give() pickup is attempted.
 local PICKUP_DIST_GW = 60
+
+-- How long (seconds) before the bot drops its current weapon to make room.
+local DROP_BLOCKING_TIMEOUT = 3
 
 ---@param bot Bot
 ---@return BStatus
@@ -103,20 +131,40 @@ function GetWeapons.OnRunning(bot)
     local targetPos = target:GetPos()
     local dist = bot:GetPos():Distance(targetPos)
 
-    -- Close enough — pick up directly server-side.
+    -- Close enough — pick up using TTT2's SafePickupWeapon for proper slot handling.
     if dist <= PICKUP_DIST_GW then
         loco:StopMoving()
         loco:SetUse(true)
         loco:LookAt(targetPos)
+
+        -- If we've been trying for too long, drop the blocking weapon first.
+        local elapsed = CurTime() - (bot.getWeaponsStartTime or CurTime())
+        if elapsed >= DROP_BLOCKING_TIMEOUT and target.Kind then
+            GetWeapons.DropBlockingWeapon(bot, target.Kind)
+        end
+
+        -- Try TTT2's SafePickupWeapon (handles slot conflicts, drops blocking wep).
+        if bot.SafePickupWeapon then
+            local result = bot:SafePickupWeapon(target, false, true, true, nil)
+            if IsValid(result) then
+                bot.botTargetWeapon = nil
+                return STATUS.SUCCESS
+            end
+        end
+
+        -- Fallback: raw Give() + Remove() for non-TTT2 environments.
         local class = target:GetClass()
         if class ~= "" then
             local given = bot:Give(class)
             if IsValid(given) then
                 target:Remove()
+                bot.botTargetWeapon = nil
+                return STATUS.SUCCESS
             end
         end
-        bot.botTargetWeapon = nil
-        return STATUS.SUCCESS
+
+        -- Pickup failed but we're in range — keep trying.
+        return STATUS.RUNNING
     end
 
     -- Inside the direct-walk zone: bypass pathfinding (which would clear the
@@ -137,6 +185,7 @@ end
 ---@param bot Bot
 function GetWeapons.OnEnd(bot)
     bot:BotLocomotor():StopMoving()
+    bot.getWeaponsStartTime = nil
 end
 
 ---@param bot Bot

@@ -43,6 +43,8 @@ Events.NAMES = {
     INFECTION_OCCURRED = "INFECTION_OCCURRED",    -- payload: { host, victim, zombieCount }
     ZOMBIE_SPOTTED     = "ZOMBIE_SPOTTED",        -- payload: { witness, zombie }
     HOST_DIED          = "HOST_DIED",             -- payload: { host, killer }
+    -- Amnesiac role events
+    AMNESIAC_CONVERTED = "AMNESIAC_CONVERTED",    -- payload: { player, oldRole, newRole, newRoleName }
 }
 
 --- Subscribe to an event.

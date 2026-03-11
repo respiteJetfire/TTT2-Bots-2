@@ -26,7 +26,8 @@ TTTBots.Behaviors.RegisterRoleWeapon({
     equipDirectFn = GetMedicGun,
     findTargetFn = function(bot) return lib.FindCloseTarget(bot, nil, false, false, true, true) end,
     engageDistance = 1000,
-    startChance  = 5,
+    startChance  = 20,
+    isConversion = true,  -- Prefer converting in early game over killing
     validateStartBothConditions = true,
     validateExtraFn = function(bot) return TTTBots.Lib.IsTTT2() end,
 })

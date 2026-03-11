@@ -232,6 +232,8 @@ local function runHoldLastStand(bot, job)
 end
 
 --- DEPLOY_CHECKER: detective walks to a strategic spot and fires the role-checker weapon to place it.
+local DEPLOY_CHECKER_TIMEOUT = 12 -- seconds before giving up on placement
+
 local function runDeployChecker(bot, job)
     local deployPos = job.TargetObj
     if not deployPos then return STATUS.FAILURE end
@@ -240,7 +242,22 @@ local function runDeployChecker(bot, job)
     -- or the detective no longer has the weapon, consider the job done.
     if not bot:HasWeapon("weapon_ttt_traitorchecker") then
         IC.DetectiveDeployedChecker = true
+        local loco = bot:BotLocomotor()
+        if loco then loco:StopAttack() end
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("DeployedRoleChecker", {})
+        end
         return STATUS.SUCCESS
+    end
+
+    -- Safety: give up after timeout so the detective doesn't get stuck.
+    if not job._deployStartedAt then
+        job._deployStartedAt = CurTime()
+    elseif (CurTime() - job._deployStartedAt) > DEPLOY_CHECKER_TIMEOUT then
+        local loco = bot:BotLocomotor()
+        if loco then loco:StopAttack() end
+        return STATUS.FAILURE
     end
 
     local loco = bot:BotLocomotor()
@@ -254,22 +271,18 @@ local function runDeployChecker(bot, job)
         return STATUS.RUNNING
     end
 
-    -- Close enough — equip and fire to place the checker
+    -- Close enough — equip the weapon and aim at the ground to place.
     bot:SelectWeapon("weapon_ttt_traitorchecker")
-    if loco then loco:StartAttack() end
-    -- Mark as deployed after a brief placement tick
-    if not job._placedAt then
-        job._placedAt = CurTime()
-    elseif (CurTime() - job._placedAt) > 0.5 then
-        if loco then loco:StopAttack() end
-        IC.DetectiveDeployedChecker = true
-        local chatter = bot:BotChatter()
-        if chatter and chatter.On then
-            chatter:On("DeployedRoleChecker", {})
-        end
-        return STATUS.SUCCESS
+    if loco then
+        -- Look at a point on the ground ahead so the placement trace succeeds.
+        local eyePos = bot:EyePos()
+        local fwd = bot:GetForward()
+        local groundTarget = eyePos + fwd * 80 - Vector(0, 0, 40)
+        loco:LookAt(groundTarget, 2)
+        loco:StartAttack()
     end
 
+    -- Keep running — we succeed once HasWeapon becomes false (weapon consumed by placement).
     return STATUS.RUNNING
 end
 

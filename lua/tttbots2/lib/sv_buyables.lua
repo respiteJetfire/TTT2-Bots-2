@@ -85,7 +85,7 @@ end
 ---@return Buyable|nil - The buyable that was purchased, or nil if none was bought.
 function TTTBots.Buyables.TryDeferredBuy(bot, eventName)
     if not IsValid(bot) then return nil end
-    local roleString = bot:GetRoleStringRaw and bot:GetRoleStringRaw()
+    local roleString = bot.GetRoleStringRaw and bot:GetRoleStringRaw()
     if not roleString then return nil end
 
     local options = TTTBots.Buyables.GetBuyablesFor(roleString)

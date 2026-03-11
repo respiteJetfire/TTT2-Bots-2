@@ -11,6 +11,9 @@ UseRoleChecker.UseRange = 100 --- The range at which we can use a health checker
 
 UseRoleChecker.TargetClass = "ttt_traitorchecker"
 
+--- Maximum time (seconds) the detective will spend trying to place before giving up.
+UseRoleChecker.PlaceTimeout = 8
+
 local STATUS = TTTBots.STATUS
 
 
@@ -64,7 +67,10 @@ function UseRoleChecker.Validate(bot)
 
     -- Detective bots should almost always use/place the role checker when they have one —
     -- don't gate them behind the stochastic roll.
+    -- Skip if the detective already deployed this round (tracked by InnocentCoordinator).
     if hasRoleChecker and bot:GetBaseRole() == ROLE_DETECTIVE then
+        local IC = TTTBots.InnocentCoordinator
+        if IC and IC.DetectiveDeployedChecker then return false end
         return true
     end
 
@@ -84,14 +90,11 @@ function UseRoleChecker.OnStart(bot)
     if UseRoleChecker.HasRoleChecker(bot) then
         local inventory = bot:BotInventory()
         inventory:PauseAutoSwitch()
+        bot._checkerPlaceStartedAt = CurTime()
         return STATUS.RUNNING
     end
 
     bot.isGoingToChecker = true
-
-    -- if TTTBots.Match.CheckedPlayers[bot] then
-    --     return STATUS.SUCCESS
-    -- end
 
     local checker = UseRoleChecker.GetNearestChecker(bot)
     bot.targetChecker = checker
@@ -100,8 +103,21 @@ function UseRoleChecker.OnStart(bot)
     return STATUS.RUNNING
 end
 
+--- Compute a placement position on the ground a short distance in front of the bot.
+---@param bot Player
+---@return Vector
+function UseRoleChecker.GetPlacementLookPos(bot)
+    local fwd = bot:GetForward()
+    -- Point ~80 units ahead and 40 units below eye level so the trace hits the floor.
+    local eyePos = bot:EyePos()
+    return eyePos + fwd * 80 - Vector(0, 0, 40)
+end
+
 function UseRoleChecker.PlaceRoleChecker(bot)
     local locomotor = bot:BotLocomotor()
+    -- Aim at a point on the ground ahead of the bot so the weapon's placement trace succeeds.
+    local placePos = UseRoleChecker.GetPlacementLookPos(bot)
+    locomotor:LookAt(placePos, 2)
     bot:SelectWeapon("weapon_ttt_traitorchecker")
     locomotor:StartAttack()
 end
@@ -110,16 +126,33 @@ end
 function UseRoleChecker.OnRunning(bot)
 
     if UseRoleChecker.HasRoleChecker(bot) then
+        -- Safety: give up after PlaceTimeout seconds so we don't loop forever.
+        if bot._checkerPlaceStartedAt and (CurTime() - bot._checkerPlaceStartedAt) > UseRoleChecker.PlaceTimeout then
+            return STATUS.FAILURE
+        end
+
         -- Detective (or whoever carries the weapon) places the checker on the ground.
         UseRoleChecker.PlaceRoleChecker(bot)
-        -- Once the weapon has been fired (held for >0.3s), consider it placed and succeed.
-        if not bot._checkerPlacedAt then
-            bot._checkerPlacedAt = CurTime()
-        elseif (CurTime() - bot._checkerPlacedAt) > 0.3 then
-            bot._checkerPlacedAt = nil
-            return STATUS.SUCCESS
-        end
+        -- Keep attacking until the weapon is consumed (placed successfully).
+        -- The weapon entity is removed from inventory once placement succeeds,
+        -- so we just keep running until HasRoleChecker becomes false.
         return STATUS.RUNNING
+    end
+
+    -- If the bot *had* the checker but no longer does, it was successfully placed.
+    if bot._checkerPlaceStartedAt then
+        -- Mark as deployed so we don't re-enter this behavior.
+        local IC = TTTBots.InnocentCoordinator
+        if IC then IC.DetectiveDeployedChecker = true end
+
+        local locomotor = bot:BotLocomotor()
+        locomotor:StopAttack()
+
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("DeployedRoleChecker", {})
+        end
+        return STATUS.SUCCESS
     end
 
     if bot:GetBaseRole() == ROLE_DETECTIVE then
@@ -167,6 +200,7 @@ function UseRoleChecker.OnEnd(bot)
     bot.isGoingToChecker = nil
     bot.targetChecker = nil
     bot._checkerPlacedAt = nil
+    bot._checkerPlaceStartedAt = nil
     local locomotor = bot:BotLocomotor()
     local inventory = bot:BotInventory()
     inventory:ResumeAutoSwitch()

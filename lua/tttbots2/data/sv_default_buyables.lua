@@ -114,31 +114,36 @@ Registry.CursedDeagle = {
     Name = "Cursed Deagle",
     Class = "weapon_ttt2_cursed_deagle",
     Price = 1,
-    Priority = 4,
+    Priority = 5,
     RandomChance = 1, -- 1 since chance is calculated in CanBuy
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
-        return testPlyHasTrait(ply, "cursed", 12)
+        return testPlyHasTrait(ply, "cursed", 6)
     end,
     Roles = KillerRoles,
     PrimaryWeapon = true,
 }
 
 ---@type Buyable
-Registry.DefectorDeagle = {
-    Name = "Defector Deagle",
-    Class = "weapon_ttt2_defector_deagle",
+--- Defector Jihad conversion item — bought by traitors and dropped for an
+--- innocent to pick up, converting them to the defector role.
+--- The weapon class is weapon_ttt_defector_jihad (the conversion item from the
+--- ttt_defector_role addon). This is NOT the actual jihad bomb — that is
+--- weapon_ttt_jihad_bomb, which the converted defector receives automatically.
+Registry.DefectorJihad = {
+    Name = "Defector Jihad (Conversion Item)",
+    Class = "weapon_ttt_defector_jihad",
     Price = 1,
-    Priority = 4,
+    Priority = 5,
     RandomChance = 1, -- 1 since chance is calculated in CanBuy
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
-        return testPlyHasTrait(ply, "defector", 12)
+        return testPlyHasTrait(ply, "defector", 4)
     end,
     Roles = GetRolesByTeam(TEAM_TRAITOR),
-    PrimaryWeapon = true,
+    PrimaryWeapon = false,
 }
 
 ---@type Buyable
@@ -146,12 +151,12 @@ Registry.MedicDeagle = {
     Name = "Medic Deagle",
     Class = "weapon_ttt2_medic_deagle",
     Price = 1,
-    Priority = 4,
+    Priority = 5,
     RandomChance = 1, -- 1 since chance is calculated in CanBuy
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
-        return testPlyHasTrait(ply, "medic", 12)
+        return testPlyHasTrait(ply, "medic", 6)
     end,
     Roles = KillerRoles,
     PrimaryWeapon = true,
@@ -162,12 +167,12 @@ Registry.DoctorDeagle = {
     Name = "Doctor Deagle",
     Class = "weapon_ttt2_doctor_deagle",
     Price = 1,
-    Priority = 4,
+    Priority = 5,
     RandomChance = 1, -- 1 since chance is calculated in CanBuy
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
-        return testPlyHasTrait(ply, "doctor", 12)
+        return testPlyHasTrait(ply, "doctor", 6)
     end,
     Roles = { "detective", "survivalist", "sheriff", "deputy", "decipherer", "sniffer", "doctor", "banker", "vigilante" },
     PrimaryWeapon = true,
@@ -578,20 +583,6 @@ Registry.SmartPistol = {
 }
 
 ---@type Buyable
---- This is a custom buyable with the weapon name 'weapon_ttt_defector_jihad'' into the shop of the defector
-Registry.DefectorJihad = {
-    Name = "Defector Jihad",
-    Class = "weapon_ttt_defector_jihad",
-    Price = 0,
-    Priority = 5,
-    RandomChance = 1,
-    ShouldAnnounce = false,
-    AnnounceTeam = false,
-    Roles = { "defector" },
-    PrimaryWeapon = false,
-}
-
----@type Buyable
 --- This is a custom buyable with the weapon name 'weapon_snake_gun' into the shop of the traitor
 Registry.SnakeGun = {
     Name = "Snake Gun",
@@ -742,6 +733,80 @@ Registry.SKDisguiser = {
     AnnounceTeam = false,
     TTT2 = true,
     Roles = { "serialkiller" },
+}
+
+-- ============================================================
+-- Killer Clown — Buyable Equipment
+-- ============================================================
+-- The Killer Clown has SHOP_TRAITOR fallback, giving full traitor shop access.
+-- Typically has 2 credits at transformation (1 from Clown base + 1 activation).
+-- Prioritize immediate combat effectiveness — weapons first, then utility.
+
+---@type Buyable
+--- Body Armor for Killer Clown — immediate survivability boost post-transformation.
+Registry.KCBodyArmor = {
+    Name = "Body Armor (Killer Clown)",
+    Class = "item_ttt_armor",
+    Price = 1,
+    Priority = 4,
+    SituationalScore = function(ply)
+        -- High value — the Killer Clown is a public target, needs survivability
+        local base = 7
+        local aliveCount = #getAlivePlayers()
+        if aliveCount > 5 then base = base + 2 end
+        -- Extra value if Killer Clown has taken damage or low armor
+        if ply:Armor() < 30 then base = base + 3 end
+        return base
+    end,
+    RandomChance = 1,  -- Always try to buy
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    TTT2 = true,
+    Roles = { "killerclown" },
+}
+
+---@type Buyable
+--- Radar for Killer Clown — essential for hunting remaining players.
+Registry.KCRadar = {
+    Name = "Radar (Killer Clown)",
+    Class = "item_ttt_radar",
+    Price = 1,
+    Priority = 5,
+    SituationalScore = function(ply)
+        -- Very high value — the Killer Clown needs to find and hunt everyone
+        local base = 8
+        local aliveCount = #getAlivePlayers()
+        if aliveCount > 4 then base = base + 2 end
+        return base
+    end,
+    RandomChance = 1,  -- Always try to buy
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    TTT2 = true,
+    Roles = { "killerclown" },
+}
+
+---@type Buyable
+--- C4 for Killer Clown — area denial / ambush tool.
+Registry.KCC4 = {
+    Name = "C4 (Killer Clown)",
+    Class = "weapon_ttt_c4",
+    Price = 1,
+    Priority = 2,
+    SituationalScore = function(ply)
+        local base = 3
+        local aliveCount = #getAlivePlayers()
+        -- C4 is more valuable with more targets alive
+        if aliveCount > 5 then base = base + 3 end
+        return base
+    end,
+    CanBuy = function(ply)
+        return testPlyHasTrait(ply, "planter", 4)
+    end,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    Roles = { "killerclown" },
 }
 
 -- ---@type Buyable

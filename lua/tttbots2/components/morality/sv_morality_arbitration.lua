@@ -42,6 +42,9 @@ Arb.REASON_LABELS = {
     CAPTURE_ANKH            = "Ankh capture — forcing target",
     CREATE_MARKER           = "Marker creation — forcing target",
     FOLLOW_PLAN_ATTACK      = "Follow plan — coordinated attack",
+    DEFEND_ANKH             = "Defending own ankh from attacker/converter",
+    ANKH_GUARDIAN_THREAT     = "Graverobber targeting Pharaoh guarding ankh",
+    ANKH_CONVERSION_WITNESS  = "Witnessed ankh conversion — hostile act",
 
     -- Priority 3 — Role/team hostility policy
     ROLE_ENEMY              = "Target is a declared role enemy",
@@ -73,6 +76,7 @@ Arb.REASON_LABELS = {
     -- Priority 0 — Clears
     BEHAVIOR_END            = "Behavior ended — clearing target",
     ROUND_RESET             = "Round reset — clearing all targets",
+    RESPAWN_CLEAR           = "Respawn — clearing stale pre-death target",
     CEASEFIRE               = "Ceasefire — clearing target",
     LEGACY                  = "Legacy call (no reason provided)",
 }
@@ -110,9 +114,26 @@ function Arb.RequestAttackTarget(bot, target, reason, priority)
     priority = priority or Arb.PRIORITY.OPPORTUNISTIC
     reason   = reason   or "LEGACY"
 
+    -- Defector guard: defectors cannot deal gun damage so attack targets
+    -- are meaningless. Only self-defense retreat (handled elsewhere) matters.
+    if ROLE_DEFECTOR and bot:GetSubRole() == ROLE_DEFECTOR then
+        Arb.DebugTarget(bot, string.format("DEFECTOR_BLOCKED set %s (reason=%s) — defector cannot deal gun damage",
+            IsValid(target) and (target.Nick and target:Nick() or tostring(target)) or "nil", reason))
+        return false
+    end
+
     -- Clearing via this path should use RequestClearTarget instead, but handle gracefully.
     if target == nil then
         return Arb.RequestClearTarget(bot, reason, priority)
+    end
+
+    -- Respawn grace gate: recently respawned bots need time to equip before
+    -- fighting. Only self-defense (pri 5) overrides this.
+    if (bot.respawnGraceUntil or 0) > CurTime() and priority < Arb.PRIORITY.SELF_DEFENSE then
+        Arb.DebugTarget(bot, string.format("RESPAWN_GRACE_BLOCKED set %s (pri %d, reason=%s, grace until %.1f)",
+            IsValid(target) and (target.Nick and target:Nick() or tostring(target)) or "nil",
+            priority, reason, bot.respawnGraceUntil))
+        return false
     end
 
     -- Karma awareness gate: block attacks that would risk auto-kick

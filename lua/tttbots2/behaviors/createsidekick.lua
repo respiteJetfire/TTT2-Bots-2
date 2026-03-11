@@ -11,8 +11,9 @@ TTTBots.Behaviors.RegisterRoleWeapon({
     equipFn      = function(inv) return inv:EquipJackalGun() end,
     findTargetFn = function(bot) return lib.FindIsolatedTarget(bot) end,
     engageDistance = 1000,
-    witnessThreshold = 1,
-    startChance  = 2,
+    witnessThreshold = 2,
+    startChance  = 25,
+    isConversion = true,  -- Prefer converting in early game over killing
     chatterEvent = "CreatingSidekick",
     chatterTeamOnly = true,
 })

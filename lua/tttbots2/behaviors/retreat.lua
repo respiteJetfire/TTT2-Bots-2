@@ -105,6 +105,14 @@ function Retreat.Validate(bot)
     -- Sustain retreat state flagged by SeekCover (health < 25%).
     if bot.isRetreating then return true end
 
+    -- Fleeing because we ran out of ammo (set by AttackTarget).
+    if IsValid(bot.fleeFromTarget) and (bot.fleeFromTargetUntil or 0) > CurTime() then
+        local invCheck = bot:BotInventory()
+        if invCheck and invCheck:HasNoWeaponAvailable(false) then
+            return true
+        end
+    end
+
     return false
 end
 
@@ -122,7 +130,19 @@ function Retreat.OnRunning(bot)
 
     local now = CurTime()
     local loco = bot:BotLocomotor()
-    local attacker = bot.attackTarget or bot.coverTarget
+    local attacker = bot.attackTarget or bot.coverTarget or bot.fleeFromTarget
+
+    -- If retreating due to out-of-ammo, succeed early once we have a weapon again.
+    if IsValid(bot.fleeFromTarget) and (bot.fleeFromTargetUntil or 0) > CurTime() then
+        local invCheck = bot:BotInventory()
+        if invCheck and not invCheck:HasNoWeaponAvailable(false) then
+            -- We found a weapon! Clear flee state and stop retreating.
+            bot.fleeFromTarget = nil
+            bot.fleeFromTargetUntil = nil
+            bot.isRetreating = false
+            return STATUS.SUCCESS
+        end
+    end
 
     -- Succeeded once safe distance is reached.
     if IsValid(attacker) then
@@ -175,6 +195,9 @@ end
 function Retreat.OnEnd(bot)
     bot.isRetreating = false
     bot.retreatGoal = nil
+    -- Don't clear fleeFromTarget here — the attack-target validator still
+    -- needs it to prevent re-engaging the same enemy while unarmed.
+    -- It will self-expire via fleeFromTargetUntil.
     local loco = bot:BotLocomotor()
     if loco then
         loco.shouldSprint = false

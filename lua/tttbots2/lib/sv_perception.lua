@@ -116,7 +116,8 @@ function TTTBots.Perception.IsPerceivedAlly(observer, target)
 end
 
 --- Get the perceived role string of the target from the observer's viewpoint.
---- Traitors see spy as "traitor". Spy sees traitors by their real role.
+--- Traitors see spy as "traitor". Traitors see clown as "jester".
+--- Spy sees traitors by their real role.
 ---@param observer Player
 ---@param target Player
 ---@return string  role string
@@ -127,6 +128,15 @@ function TTTBots.Perception.GetPerceivedRole(observer, target)
     if TTTBots.Perception.IsTraitorTeam(observer)
        and TTTBots.Perception.IsSpy(target) then
         return "traitor"
+    end
+
+    -- Traitor team observer looking at a Clown → perceive as "jester"
+    -- Mirrors TTT2SpecialRoleSyncing hook "TTT2RoleClown"
+    if ROLE_CLOWN
+       and TTTBots.Perception.IsTraitorTeam(observer)
+       and target.GetRoleStringRaw
+       and target:GetRoleStringRaw() == "clown" then
+        return "jester"
     end
 
     -- Everyone else sees real role
@@ -143,6 +153,15 @@ function TTTBots.Perception.GetPerceivedTeam(observer, target)
     if TTTBots.Perception.IsTraitorTeam(observer)
        and TTTBots.Perception.IsSpy(target) then
         return TEAM_TRAITOR
+    end
+
+    -- Traitors see Clown as being on TEAM_JESTER (mirrors TTT2SpecialRoleSyncing)
+    if ROLE_CLOWN
+       and TTTBots.Perception.IsTraitorTeam(observer)
+       and IsValid(target)
+       and target.GetRoleStringRaw
+       and target:GetRoleStringRaw() == "clown" then
+        return TEAM_JESTER or "jesters"
     end
 
     return target:GetTeam()
@@ -283,13 +302,27 @@ function TTTBots.Perception.IsCoverBlown(spy)
     return state.blown
 end
 
--- Override the main IsPerceivedAlly to account for blown cover
+-- Override the main IsPerceivedAlly to account for blown cover and Clown perception
 local _originalIsPerceivedAlly = TTTBots.Perception.IsPerceivedAlly
 function TTTBots.Perception.IsPerceivedAlly(observer, target)
     -- If the target is a spy whose cover has been blown, traitors no longer see them as ally
     if TTTBots.Perception.IsTraitorTeam(observer)
        and TTTBots.Perception.IsSpy(target)
        and TTTBots.Perception.IsCoverBlown(target) then
+        return false
+    end
+
+    -- Clown perception: Traitor bots see the Clown as a Jester (neutral/non-threat)
+    -- This mirrors the game's TTT2SpecialRoleSyncing hook ("TTT2RoleClown")
+    -- which makes the Clown appear as ROLE_JESTER to traitor-team observers.
+    -- NeutralOverride already prevents attacks, but this ensures perception consistency.
+    if ROLE_CLOWN
+       and TTTBots.Perception.IsTraitorTeam(observer)
+       and IsValid(target)
+       and target.GetRoleStringRaw
+       and target:GetRoleStringRaw() == "clown" then
+        -- Traitors perceive Clown as neutral (like a Jester) — not an ally, not an enemy
+        -- Return false (not ally) but the NeutralOverride on the Clown role prevents attacks
         return false
     end
 
