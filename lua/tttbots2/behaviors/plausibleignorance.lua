@@ -78,6 +78,10 @@ function PlausibleIgnorance.Validate(bot)
     if not isDeceptiveHostile(bot) then return false end
     if bot.attackTarget then return false end
 
+    -- Suppress deception when ≤15 seconds remain — no time for subtlety
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    if ra and ra:IsEndgame() then return false end
+
     -- Cooldown check
     if (CurTime() - (bot.lastExcuseTime or 0)) < EXCUSE_COOLDOWN then return false end
 

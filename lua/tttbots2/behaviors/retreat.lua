@@ -89,6 +89,10 @@ function Retreat.Validate(bot)
     -- Hothead/aggressive personalities never retreat.
     if bot.HasTrait and (bot:HasTrait("hothead") or bot:HasTrait("aggressive")) then return false end
 
+    -- Respect post-retreat cooldown to prevent rapid retreat→attack→retreat loops.
+    -- Exception: if health is critically low (< 20), always allow retreat.
+    if (bot.retreatCooldownUntil or 0) > CurTime() and bot:Health() >= 20 then return false end
+
     local attacker = bot.attackTarget or bot.coverTarget
     local inCombat = IsValid(attacker)
     local inv = bot:BotInventory()
@@ -192,9 +196,15 @@ end
 function Retreat.OnFailure(bot)
 end
 
+--- How many seconds after a retreat completes before the bot can retreat again.
+local POST_RETREAT_COOLDOWN = 8
+
 function Retreat.OnEnd(bot)
     bot.isRetreating = false
     bot.retreatGoal = nil
+    -- Set a cooldown to prevent the bot from immediately re-entering Retreat
+    -- when FollowPlan or another behavior re-sets the attack target.
+    bot.retreatCooldownUntil = CurTime() + POST_RETREAT_COOLDOWN
     -- Don't clear fleeFromTarget here — the attack-target validator still
     -- needs it to prevent re-engaging the same enemy while unarmed.
     -- It will self-expire via fleeFromTargetUntil.

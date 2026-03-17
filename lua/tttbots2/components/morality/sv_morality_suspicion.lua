@@ -447,6 +447,22 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
         if personality then
             personality:OnPressureEvent("Hurt")
         end
+        -- Verbally call out / accuse the attacker (rate-limited per attacker to 10s)
+        local now = CurTime()
+        self.lastShotChatterTime = self.lastShotChatterTime or {}
+        if (now - (self.lastShotChatterTime[attacker] or 0)) >= 10 then
+            self.lastShotChatterTime[attacker] = now
+            local chatter = self.bot:BotChatter()
+            if chatter and chatter.On and TTTBots.Roles.GetRoleFor(self.bot):GetUsesSuspicion() then
+                local sus = self:GetSuspicion(attacker)
+                local args = { player = attacker:Nick(), playerEnt = attacker }
+                if sus >= self.Thresholds.KOS then
+                    chatter:On("CallKOS", args)
+                else
+                    chatter:On("BeingShotAt", args)
+                end
+            end
+        end
         return -- self is victim, skip bystander suspicion logic below
     end
     -- Bystander logic: skip if attacker is an ally hurting the victim
@@ -479,6 +495,23 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
     local victimSus = self:GetSuspicion(victim)
     if victimIsPolice or victimSus < BotMorality.Thresholds.Trust then
         self:ChangeSuspicion(attacker, "HurtTrusted", impact * attackerSusMod)
+        -- Verbally accuse the attacker for shooting a trusted ally (rate-limited per attacker to 10s)
+        local now = CurTime()
+        self.lastAllyDefChatterTime = self.lastAllyDefChatterTime or {}
+        if (now - (self.lastAllyDefChatterTime[attacker] or 0)) >= 10 then
+            self.lastAllyDefChatterTime[attacker] = now
+            local chatter = self.bot:BotChatter()
+            if chatter and chatter.On and TTTBots.Roles.GetRoleFor(self.bot):GetUsesSuspicion() then
+                local sus = self:GetSuspicion(attacker)
+                local args = { player = attacker:Nick(), playerEnt = attacker, attacker = attacker:Nick(), attackerEnt = attacker, victim = victim:Nick(), victimEnt = victim }
+                if sus >= self.Thresholds.KOS then
+                    chatter:On("CallKOS", { player = attacker:Nick(), playerEnt = attacker })
+                    Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.SUSPICION_THRESHOLD)
+                else
+                    chatter:On("WitnessAllyShot", args)
+                end
+            end
+        end
     elseif attackerIsPolice or attackerSus < BotMorality.Thresholds.Trust then
         self:ChangeSuspicion(victim, "HurtByTrusted", impact * victimSusMod)
     elseif attackerSus > BotMorality.Thresholds.KOS then

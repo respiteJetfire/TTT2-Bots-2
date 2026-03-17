@@ -37,8 +37,13 @@ function RequestUseRoleChecker.GetNearestChecker(bot)
 end
 
 function RequestUseRoleChecker.UseChecker(bot, checker)
-    -- print("bot is using checker")
-    checker:Use(bot)
+    -- Force the bot to look directly at the checker entity first.
+    -- The checker's ENT:Use checks ply:GetEyeTrace().Entity != self and
+    -- rejects the use if the player isn't looking at it.
+    local loco = bot:BotLocomotor()
+    if loco then loco:LookAt(checker:GetPos()) end
+    -- Use the 4-arg form so the entity receives proper activator/caller/useType
+    checker:Use(bot, bot, USE_ON, 0)
 end
 
 --- Validate the behavior
@@ -98,7 +103,43 @@ function RequestUseRoleChecker.OnRunning(bot)
         TTTBots.Match.CheckedPlayers[bot] = TTTBots.Match.CheckedPlayers[bot] or {}
         local role = bot:GetSubRole()
         TTTBots.Match.CheckedPlayers[bot][role] = true
-        -- print("Checked player " .. bot:Nick() .. " as " .. role)
+
+        -- Determine the tester result based on the bot's actual team
+        local isInnocent = (bot:GetTeam() == TEAM_INNOCENT)
+        local resultStr = isInnocent and "innocent" or "traitor"
+
+        -- Fire the hook so the morality/suspicion system picks up the result
+        hook.Run("TTTBots.UseRoleChecker.Result", bot, bot, resultStr)
+
+        -- If innocent: update own suspicion, evidence, memory and dequeue from coordinator
+        if isInnocent then
+            local morality = bot:BotMorality()
+            if morality then
+                morality:SetTestedClean(bot)
+            end
+
+            local evidence = bot:BotEvidence()
+            if evidence then
+                evidence:ConfirmInnocent(bot, "passed_role_tester_self")
+            end
+
+            local mem = bot:BotMemory()
+            if mem then
+                mem:AddWitnessEvent("tester", bot:Nick() .. " passed the role tester and is confirmed innocent")
+            end
+
+            local IC = TTTBots.InnocentCoordinator
+            if IC then
+                IC.DequeueBot(bot)
+                IC.ClearJobFor(bot)
+            end
+
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On then
+                chatter:On("DeclareInnocent", { player = bot:Nick() })
+            end
+        end
+
         return STATUS.SUCCESS
         end
 

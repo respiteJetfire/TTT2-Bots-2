@@ -176,6 +176,12 @@ local ACT_RUNNING_HASH = {
             if FollowPlan.Debug then print(string.format("%s's target is invalid or dead.", bot:Nick())) end
             return STATUS.FAILURE
         end
+        -- Seed the target's position into memory so AttackTarget.Seek has a
+        -- last-known position to path toward and won't immediately abort.
+        local memory = bot.components and bot.components.memory
+        if memory and memory:GetLastSeenTime(target) == 0 then
+            memory:UpdateKnownPositionFor(target, target:GetPos())
+        end
         bot:SetAttackTarget(target, "FOLLOW_PLAN_ATTACK", 4)
         return STATUS.RUNNING
     end,
@@ -240,12 +246,20 @@ local ACT_RUNNING_HASH = {
 ACT_RUNNING_HASH[ACTIONS.ATTACK] = ACT_RUNNING_HASH[ACTIONS.ATTACKANY]
 --- Called when the behavior's last state is running
 function FollowPlan.OnRunning(bot)
-    if TTTBots.Match.RoundActive == false then return STATUS.FAILURE end
     local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
-    if state.Job == nil then return STATUS.FAILURE end
+    if TTTBots.Match.RoundActive == false then
+        state.shouldClear = true
+        return STATUS.FAILURE
+    end
+    if state.Job == nil then
+        state.shouldClear = true
+        return STATUS.FAILURE
+    end
     local status = ACT_RUNNING_HASH[state.Job.Action](bot, state.Job)
     if status == STATUS.RUNNING then
         botChatterWhenJobStart(bot, state.Job)
+    elseif status == STATUS.FAILURE or status == STATUS.SUCCESS then
+        state.shouldClear = true
     end
     -- printf("Running job %s for bot %s. Status is %s", state.Job.Action, bot:Nick(), tostring(status))
     return status
@@ -253,17 +267,28 @@ end
 
 --- Called when the behavior returns a success state
 function FollowPlan.OnSuccess(bot)
-    -- print(string.format("%s completed job", bot:Nick()))
+    -- Job completed normally — mark for cleanup.
+    TTTBots.Behaviors.GetState(bot, "FollowPlan").shouldClear = true
 end
 
 --- Called when the behavior returns a failure state
 function FollowPlan.OnFailure(bot)
-    -- print(string.format("%s failed job", bot:Nick()))
+    -- The tree engine also calls OnFailure when the behavior is preempted by a
+    -- higher-priority node.  We only want to wipe the job when OnRunning itself
+    -- returned FAILURE, not when we were merely interrupted.  OnRunning sets
+    -- shouldClear = true before returning FAILURE; preemption does not.
 end
 
---- Called when the behavior ends
+--- Called when the behavior ends (could be success, failure, OR interruption).
+--- Only clear state when the behavior completed/failed on its own.  If it was
+--- preempted, preserve the job so the bot can resume it later instead of
+--- fetching a brand-new ATTACKANY every time, which causes a
+--- FollowPlan→UseGrenade→Retreat thrashing loop.
 function FollowPlan.OnEnd(bot)
-    TTTBots.Behaviors.ClearState(bot, "FollowPlan")
+    local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    if state.shouldClear then
+        TTTBots.Behaviors.ClearState(bot, "FollowPlan")
+    end
 end
 
 -- Hook for PlayerSay to force give ourselves a follow job if a teammate traitor says in team chat to "follow"

@@ -46,6 +46,18 @@ function GuardAnkh.Validate(bot)
         return false
     end
 
+    -- Graverobbers abandon ankh guarding in late/overtime — they should hunt remaining targets
+    if bot:GetSubRole() == ROLE_GRAVEROBBER then
+        local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+        if ra then
+            local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+            local phase = ra:GetPhase()
+            if PHASE and (phase == PHASE.LATE or phase == PHASE.OVERTIME) then
+                return false -- Let the behavior tree fall through to Stalk/combat
+            end
+        end
+    end
+
     -- Must actually control an ankh
     if not PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then
         return false

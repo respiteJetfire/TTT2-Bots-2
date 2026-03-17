@@ -273,6 +273,19 @@ function BotInventory:GetSpecialPrimary()
     end
 end
 
+--- Returns the role-preferred weapon entity if the bot's role data specifies one
+--- and the bot actually carries it. Used to ensure weapons like the Doomguy SSG
+--- (slot 'special', not in BuyablesPrimaryWeapons) are included in ammo checks.
+---@return Weapon|nil
+function BotInventory:GetRolePreferredWeapon()
+    local roleData = TTTBots.Roles and TTTBots.Roles.GetRoleFor(self.bot)
+    if not (roleData and roleData.GetPreferredWeapon) then return nil end
+    local preferred = roleData:GetPreferredWeapon()
+    if not preferred then return nil end
+    local wep = self.bot:GetWeapon(preferred)
+    return IsValid(wep) and wep or nil
+end
+
 ---Return true if the bot has a valid WeaponInfo wep and it has > 0 bullets in the clip. Tests for nil.
 ---@param wepInfo WeaponInfo?
 ---@return boolean
@@ -289,6 +302,7 @@ end
 ---@return boolean
 function BotInventory:HasNoWeaponAvailable(attackMode)
     local toCheck = {
+        self:GetRolePreferredWeapon(),
         self:GetSpecialPrimary(),
         self:GetPrimary(),
         self:GetSecondary()
@@ -298,7 +312,10 @@ function BotInventory:HasNoWeaponAvailable(attackMode)
         if not IsValid(v) then continue end
         local wInfo = self:GetWeaponInfo(v)
         local hasReserve = wInfo.has_bullets
-        local hasAmmo = wInfo.clip > 0
+        -- For clipless weapons (e.g. Doomguy SSG with ClipSize=0), the "clip"
+        -- is always 0 but the weapon fires from reserve ammo — treat reserve as
+        -- equivalent to "in clip" for the purpose of the attackMode check.
+        local hasAmmo = wInfo.is_clipless and wInfo.ammo > 0 or wInfo.clip > 0
 
         if attackMode then
             if hasReserve and hasAmmo then return false end
@@ -309,6 +326,59 @@ function BotInventory:HasNoWeaponAvailable(attackMode)
 
     return true
 end
+
+-- ── Ammo-sufficiency helpers ──────────────────────────────────────────────
+
+--- Returns the estimated total damage this bot can still deal across all
+--- weapons (special-primary, primary, secondary), counting both clip and
+--- reserve ammo.
+---@return number totalDamage
+function BotInventory:EstimateTotalDamageAvailable()
+    local total = 0
+    local candidates = {
+        self:GetRolePreferredWeapon(),
+        self:GetSpecialPrimary(),
+        self:GetPrimary(),
+        self:GetSecondary(),
+    }
+    for _, wep in ipairs(candidates) do
+        if not IsValid(wep) then continue end
+        local info = self:GetWeaponInfo(wep)
+        if not info or not info.is_gun then continue end
+        -- Shots available = shots in clip + reserve bullets
+        local shotsInClip    = math.max(info.clip or 0, 0)
+        local reserveShots   = math.max(info.ammo or 0, 0)
+        local dmg            = info.damage or 1
+        local numShots       = info.numshots or 1
+        local totalShots     = shotsInClip + reserveShots
+        total = total + totalShots * dmg * numShots
+    end
+    return total
+end
+
+--- Returns true if the bot has enough ammo to reasonably expect to kill
+--- `target`.  The required damage is the target's current HP multiplied by
+--- a witness-pressure factor: each local witness adds 20% more buffer shots
+--- (witnesses make it harder to land clean hits).
+---
+--- `witnessCount` should be the number of non-ally players currently able
+--- to see the engagement area.
+---@param target Player
+---@param witnessCount number
+---@return boolean sufficient
+function BotInventory:HasEnoughAmmoToKill(target, witnessCount)
+    if not IsValid(target) then return false end
+    local targetHP = target:Health()
+    if targetHP <= 0 then return true end -- Already dead, vacuously true
+
+    -- Each witness adds 20% extra required damage (evasion/suppression buffer).
+    local witnessMult = 1 + (math.max(witnessCount or 0, 0) * 0.2)
+    local requiredDamage = targetHP * witnessMult
+
+    return self:EstimateTotalDamageAvailable() >= requiredDamage
+end
+
+-- ── End ammo-sufficiency helpers ────────────────────────────────────────────
 
 ---Equip the debug_forceweapon convar class if it is set. Returns true if it is set and we equipped it, false if not.
 ---@return boolean
@@ -569,15 +639,11 @@ end
 ---@return WeaponInfo?
 function BotInventory:GetSlaveGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_slavedeagle")
-    -- print("Has weapon: " .. tostring(hasWeapon))
-    local weapon
-    if self.bot:HasWeapon("weapon_ttt2_slavedeagle") then
-        weapon="weapon_ttt2_slavedeagle"
-    end
     if not hasWeapon then return end
-    local wep = self.bot:GetWeapon(weapon)
+    local wep = self.bot:GetWeapon("weapon_ttt2_slavedeagle")
     if not IsValid(wep) then return end
-    return wep:Ammo1() > 0 and wep or nil
+    -- Role deagles use Primary.Ammo = "" so Ammo1() is always 0; check Clip1() instead
+    return wep:Clip1() > 0 and wep or nil
 end
 
 
@@ -599,42 +665,37 @@ end
 ---@return WeaponInfo?
 function BotInventory:GetJackalGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_sidekickdeagle")
-    -- print("Has weapon: " .. tostring(hasWeapon))
-    local weapon
-    if self.bot:HasWeapon("weapon_ttt2_sidekickdeagle") then
-        weapon="weapon_ttt2_sidekickdeagle"
-    end
-
     if not hasWeapon then return end
-    local wep = self.bot:GetWeapon(weapon)
+    local wep = self.bot:GetWeapon("weapon_ttt2_sidekickdeagle")
     if not IsValid(wep) then return end
-    return wep:Ammo1() > 0 and wep or nil
+    -- Role deagles use Primary.Ammo = "" so Ammo1() is always 0; check Clip1() instead
+    return wep:Clip1() > 0 and wep or nil
 end
 
 --- Return the priest gun (weapon_ttt2_holydeagle) if it has >0 shots. If not, then return nil.
 ---@return WeaponInfo?
 function BotInventory:GetPriestGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_holydeagle")
-    -- print("Has weapon: " .. tostring(hasWeapon))
     if not hasWeapon then return end
 
     local wep = self.bot:GetWeapon("weapon_ttt2_holydeagle")
     if not IsValid(wep) then return end
 
-    return wep:Ammo1() > 0 and wep or nil
+    -- Role deagles use Primary.Ammo = "" so Ammo1() is always 0; check Clip1() instead
+    return wep:Clip1() > 0 and wep or nil
 end
 
 --- Return the deputy deagle (weapon_ttt2_deputydeagle) if it has >0 shots. If not, then return nil.
 ---@return WeaponInfo?
 function BotInventory:GetDeputyGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_deputydeagle")
-    -- print("Has weapon: " .. tostring(hasWeapon))
     if not hasWeapon then return end
 
     local wep = self.bot:GetWeapon("weapon_ttt2_deputydeagle")
     if not IsValid(wep) then return end
 
-    return wep:Ammo1() > 0 and wep or nil
+    -- Role deagles use Primary.Ammo = "" so Ammo1() is always 0; check Clip1() instead
+    return wep:Clip1() > 0 and wep or nil
 end
 
 --- Return the contract (weapon_ttt2_contract).
@@ -673,14 +734,13 @@ end
 ---@return WeaponInfo?
 function BotInventory:GetCursedGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_cursed_deagle")
-    -- print("Has weapon: " .. tostring(hasWeapon))
     if not hasWeapon then return nil end
 
-    local weapon = "weapon_ttt2_cursed_deagle"
-    local wep = self.bot:GetWeapon(weapon)
+    local wep = self.bot:GetWeapon("weapon_ttt2_cursed_deagle")
     if not IsValid(wep) then return nil end
 
-    return wep:Ammo1() > 0 and wep or nil
+    -- Role deagles use Primary.Ammo = "" so Ammo1() is always 0; check Clip1() instead
+    return wep:Clip1() > 0 and wep or nil
 end
 
 --- Return the Standard Medigun (weapon_ttt_medigun).
@@ -701,14 +761,13 @@ end
 ---@return WeaponInfo?
 function BotInventory:GetSwapDeagleGun()
     local hasWeapon = self.bot:HasWeapon("weapon_ttt2_role_swap_deagle")
-    -- print("Has weapon: " .. tostring(hasWeapon))
     if not hasWeapon then return nil end
 
-    local weapon = "weapon_ttt2_role_swap_deagle"
-    local wep = self.bot:GetWeapon(weapon)
+    local wep = self.bot:GetWeapon("weapon_ttt2_role_swap_deagle")
     if not IsValid(wep) then return nil end
 
-    return wep:Ammo1() > 0 and wep or nil
+    -- Role deagles use Primary.Ammo = "" so Ammo1() is always 0; check Clip1() instead
+    return wep:Clip1() > 0 and wep or nil
 end
 
 --- Equip the SwapDeagle if we have it. Returns true if we equipped it, false if we didn't.

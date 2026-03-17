@@ -30,6 +30,16 @@ function HuntAnkh.Validate(bot)
     if bot:GetSubRole() ~= ROLE_GRAVEROBBER then return false end
     if PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then return false end
 
+    -- Don't hunt for ankhs in late/overtime — abandon the objective and engage remaining targets
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    if ra then
+        local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+        local phase = ra:GetPhase()
+        if PHASE and (phase == PHASE.LATE or phase == PHASE.OVERTIME) then
+            return false -- Fall through to Stalk/FightBack/combat behaviors
+        end
+    end
+
     -- If there's already a visible ankh, CaptureAnkh will handle it
     local ankhs = ents.FindByClass("ttt_ankh")
     for _, ankh in pairs(ankhs) do

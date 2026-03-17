@@ -1290,6 +1290,95 @@ Registry.DetectiveDefibrillator = {
 	Roles = { "detective", "survivalist", "sheriff", "deputy" },
 }
 
+-- ============================================================
+-- TTT2 Weapons — Newly Supported Equipment
+-- ============================================================
+
+---@type Buyable
+--- Deployable turret NPC that auto-targets players.
+Registry.Turret = {
+    Name = "Turret",
+    Class = "weapon_ttt_turret",
+    Price = 1,
+    Priority = 2,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        return testPlyHasTrait(ply, "planter", 5)
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Timestop weapon — freezes nearby enemies in place.
+Registry.Timestop = {
+    Name = "Timestop",
+    Class = "weapon_ttt_timestop",
+    Price = 1,
+    Priority = 2,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        return testPlyHasTrait(ply, "gimmick", 4)
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Peacekeeper / "High Noon" weapon — charges visible enemies and fires lethal homing shots.
+Registry.Peacekeeper = {
+    Name = "Peacekeeper",
+    Class = "weapon_ttt_peacekeeper",
+    Price = 1,
+    Priority = 2,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        return testPlyHasTrait(ply, "heavy", 4)
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Role Change Deagle — detective fires at an enemy to randomly change their role within their team.
+Registry.RoleChangeDeagle = {
+    Name = "Role Change Deagle",
+    Class = "weapon_ttt2_role_change_deagle",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        return testPlyHasTrait(ply, "gimmick", 4)
+    end,
+    Roles = { "detective", "survivalist", "sheriff", "deputy", "decipherer", "sniffer", "banker", "vigilante" },
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Infinite Ammo passive item — grants unlimited ammunition.
+Registry.InfiniShoot = {
+    Name = "Infinite Ammo",
+    Class = "item_ttt_infinishoot",
+    Price = 1,
+    Priority = 2,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        return testPlyHasTrait(ply, "heavy", 4)
+    end,
+    TTT2 = true,
+    Roles = KillerRoles,
+}
+
 for key, data in pairs(Registry) do
 	TTTBots.Buyables.RegisterBuyable(data)
 end

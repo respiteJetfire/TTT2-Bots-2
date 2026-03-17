@@ -19,6 +19,7 @@ local _prior = TTTBots.Behaviors.PriorityNodes
 local bTree = {
     _prior.Chatter,
     _prior.FightBack,
+    _bh.MesmeristDefib,  -- Revive kills as Thralls, witness-safe, kill-priority
     _prior.Requests,
     _prior.Support,
     _prior.Convert,

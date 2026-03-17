@@ -23,6 +23,68 @@ local ATTACKMODE = {
     Engaging = 3, -- We have a target and we know where they are, and we trying to shoot
 }
 
+--- Count local witnesses (non-ally alive players who can see the bot's position).
+--- Used for ammo-sufficiency calculations.
+---@param bot Bot
+---@return number witnessCount
+local function CountLocalWitnesses(bot)
+    local pos = bot:GetPos()
+    local count = 0
+    local alivePlayers = TTTBots.Match.AlivePlayers or {}
+    for _, ply in ipairs(alivePlayers) do
+        if not IsValid(ply) then continue end
+        if ply == bot then continue end
+        if not TTTBots.Lib.IsPlayerAlive(ply) then continue end
+        -- Only count players who are not allies and can see the bot's position
+        if TTTBots.Roles and TTTBots.Roles.IsAllies(bot, ply) then continue end
+        if ply:VisibleVec(pos) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+--- Check whether the bot has enough ammo to take on its current attack target.
+--- If not, attempt a traitor deferred-buy, then flag a flee-from-target retreat.
+--- Returns true if ammo is sufficient (or the check is waived), false to abort.
+---@param bot Bot
+---@return boolean sufficient
+local function CheckAmmoSufficiency(bot)
+    local target = bot.attackTarget
+    if not IsValid(target) then return true end -- No target → nothing to check
+
+    local inv = bot:BotInventory()
+    if not inv then return true end
+
+    -- If the bot has NO ranged weapon at all, the existing out-of-ammo path
+    -- in OnRunning handles this. Only do the pre-check when we DO have a gun.
+    if inv:HasNoWeaponAvailable(false) then return true end
+
+    local witnessCount = CountLocalWitnesses(bot)
+    if inv:HasEnoughAmmoToKill(target, witnessCount) then return true end
+
+    -- ── Insufficient ammo ──────────────────────────────────────────────────
+    -- Hothead bots charge regardless.
+    if bot.HasTrait and bot:HasTrait("hothead") then return true end
+
+    -- Traitor bots try to buy a weapon before giving up.
+    local isTraitor = bot.GetRoleStringRaw and bot:GetRoleStringRaw() == "traitor"
+    if isTraitor and TTTBots.Buyables then
+        local bought = TTTBots.Buyables.TryDeferredBuy(bot, "LOW_AMMO")
+        if bought then
+            -- Got a fresh weapon — re-check ammo with the new loadout
+            if inv:HasEnoughAmmoToKill(target, witnessCount) then return true end
+        end
+    end
+
+    -- Not enough ammo: flee from target until we rearm.
+    bot.isRetreating = true
+    bot.fleeFromTarget = target
+    bot.fleeFromTargetUntil = CurTime() + 20
+    bot:SetAttackTarget(nil, "LOW_AMMO")
+    return false
+end
+
 --- Validate the behavior
 function Attack.Validate(bot)
     -- Respawn grace: suppress attacking so the bot can equip weapons first.
@@ -48,6 +110,9 @@ function Attack.Validate(bot)
             bot.fleeFromTargetUntil = nil
         end
     end
+    -- Pre-engagement ammo check: ensure we have enough ammo to kill the target
+    -- given the current witness pressure before committing to the fight.
+    if not CheckAmmoSufficiency(bot) then return false end
     return Attack.ValidateTarget(bot)
 end
 
@@ -66,18 +131,36 @@ function Attack.Seek(bot, targetPos)
     local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
     bot:BotLocomotor().stopLookingAround = false
     loco:StopAttack()
-    inv:ReloadIfNecessary()
+    -- Only reload during seek if the weapon actually uses a clip. Clipless weapons
+    -- (e.g. Doomguy SSG that fires directly from reserve ammo) should never be
+    -- reloaded, and calling ReloadIfNecessary on them causes constant reload spam.
+    local heldInfo = inv and inv:GetHeldWeaponInfo()
+    if not (heldInfo and heldInfo.is_clipless) then
+        inv:ReloadIfNecessary()
+    end
 
     ---@type CMemory
     local memory = bot.components.memory
     local lastKnownPos = memory:GetSuspectedPositionFor(target) or memory:GetKnownPositionFor(target)
     local lastSeenTime = memory:GetLastSeenTime(target)
     local timeNow = CurTime()
-    local secsSince = timeNow - lastSeenTime
+    local secsSince = lastSeenTime > 0 and (timeNow - lastSeenTime) or 0
     local isAlive = target:Health() > 0 and not target:IsSpec() and TTTBots.Lib.IsPlayerAlive(target)
     if not isAlive then
         bot:SetAttackTarget(nil, "BEHAVIOR_END")
         return
+    end
+
+    -- If the target was assigned without ever being seen (lastSeenTime==0, e.g. from
+    -- FollowPlan coordinator), seed their current position so the bot actually hunts
+    -- them rather than treating CurTime()-0 as a 45+ second stale and aborting.
+    if lastSeenTime == 0 and IsValid(target) then
+        local memory = bot.components.memory
+        if memory then
+            memory:UpdateKnownPositionFor(target, target:GetPos())
+            lastKnownPos = target:GetPos()
+            secsSince = 0
+        end
     end
 
     if secsSince > 45 then
@@ -443,7 +526,8 @@ function Attack.Engage(bot, targetPos)
     Attack.CheckCoverConditions(bot, target)
 
     -- During reload, backpedal toward cover direction.
-    if weapon.should_reload then
+    -- Clipless weapons (e.g. Doomguy SSG) never truly reload, so skip this.
+    if weapon.should_reload and not weapon.is_clipless then
         loco:SetForceBackward(true)
     end
 
@@ -533,8 +617,49 @@ local LOF_RADIUS = 48 -- roughly player half-width
 --- just the single eye-trace hit.  Players the bot already suspects
 --- (suspicion >= Sus threshold) are ignored — the bot is willing to shoot
 --- through someone it considers likely hostile.
+---
+--- When the bot is actively defending itself (SELF_DEFENSE priority) or
+--- attacking a confirmed-hostile KOSedByAll / infected-zombie target, the
+--- teamkill check is relaxed so the bot doesn't freeze up in a crowd.
 function Attack.WillShootingTeamkill(bot, target)
     if not (IsValid(bot) and IsValid(target)) then return false end
+
+    -- High-priority combat: relax the bystander check so the bot actually
+    -- shoots back at someone who is shooting them, or fires on a KOSedByAll
+    -- target even if another player is partly in the way.
+    local pri = bot.attackTargetPriority or 0
+    local Arb = TTTBots.Morality
+    local SELF_DEF = Arb and Arb.PRIORITY and Arb.PRIORITY.SELF_DEFENSE or 5
+    local ROLE_HOST = Arb and Arb.PRIORITY and Arb.PRIORITY.ROLE_HOSTILITY or 3
+    if pri >= SELF_DEF then
+        -- Self-defense: only stop if an actual *ally* is in the path.
+        -- We still run the ally check below but skip the "unknown bystander" hesitation.
+        -- Fall through with a narrowed check by forcing a direct trace-only path.
+        local eyeTrace = bot:GetEyeTrace()
+        local hitEnt   = eyeTrace.Entity
+        if hitEnt == target then return false end
+        if not (IsValid(hitEnt) and hitEnt:IsPlayer() and hitEnt ~= target) then return false end
+        if not TTTBots.Lib.IsPlayerAlive(hitEnt) then return false end
+        local isPerceivedAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, hitEnt))
+            or TTTBots.Roles.IsAllies(bot, hitEnt)
+        return isPerceivedAlly  -- only block if a true ally is directly in the way
+    end
+
+    -- KOSedByAll targets (Doomguy, infected zombies): allow shooting through
+    -- unknown bystanders — hesitate only for perceived allies.
+    local targetRole = TTTBots.Roles.GetRoleFor(target)
+    local targetIsKOSedByAll = targetRole and targetRole.GetKOSedByAll and targetRole:GetKOSedByAll()
+    local targetIsZombie = TTTBots.Roles.IsInfectedZombie and TTTBots.Roles.IsInfectedZombie(target)
+    if targetIsKOSedByAll or targetIsZombie then
+        local eyeTrace = bot:GetEyeTrace()
+        local hitEnt   = eyeTrace.Entity
+        if hitEnt == target then return false end
+        if not (IsValid(hitEnt) and hitEnt:IsPlayer() and hitEnt ~= target) then return false end
+        if not TTTBots.Lib.IsPlayerAlive(hitEnt) then return false end
+        local isPerceivedAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, hitEnt))
+            or TTTBots.Roles.IsAllies(bot, hitEnt)
+        return isPerceivedAlly
+    end
 
     -- 1) Quick check: direct eye-trace hit
     local eyeTrace = bot:GetEyeTrace()

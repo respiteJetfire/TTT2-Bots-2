@@ -65,6 +65,10 @@ function FakeInvestigate.Validate(bot)
     if not isDeceptiveHostile(bot) then return false end
     if bot.attackTarget then return false end
 
+    -- Suppress deception when ≤15 seconds remain — no time for corpse bluffing
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    if ra and ra:IsEndgame() then return false end
+
     -- Don't walk to our own kill immediately — wait for a bit so it's less obvious
     local lastKillTime = bot.lastKillTime or 0
     if (CurTime() - lastKillTime) < DELAY_BEFORE_VISIT then return false end

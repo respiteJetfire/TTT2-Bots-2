@@ -3494,28 +3494,80 @@ local LoadLang = function()
     -- -------------------------------------------------------------------------
     -- BeingShotAt — Bot is being shot at, before combat system activates
     -- -------------------------------------------------------------------------
-    RegisterCategory("BeingShotAt", P.IMPORTANT, "Bot is being shot at and reacts before fighting back")
-    Line("Hey! Who's shooting at me?!", A.Default)
-    Line("Stop shooting! Who is that?!", A.Default)
-    Line("I'm getting shot! Show yourself!", A.Default)
+    RegisterCategory("BeingShotAt", P.IMPORTANT, "Bot is being shot at by {{player}} and reacts before fighting back")
+    Line("{{player}}, stop shooting at me!", A.Default)
+    Line("Hey! {{player}} is shooting at me?!", A.Default)
+    Line("I'm getting shot by {{player}}! Back off!", A.Default)
 
-    Line("WHO THE HELL IS SHOOTING AT ME", A.Hothead)
-    Line("STOP IT! I WILL KILL YOU!", A.Hothead)
+    Line("{{player}} WHY ARE YOU SHOOTING AT ME", A.Hothead)
+    Line("STOP IT {{player}}! I WILL END YOU!", A.Hothead)
+    Line("{{player}} YOU'RE DEAD IF YOU DON'T STOP!", A.Hothead)
 
-    Line("ayo who's shooting lmao", A.Casual)
-    Line("yo stop shooting at me bro wtf", A.Casual)
+    Line("ayo {{player}} why are you shooting me lmao", A.Casual)
+    Line("yo stop shooting at me {{player}} wtf", A.Casual)
+    Line("{{player}} chill out bro i'm friendly", A.Casual)
 
-    Line("Hostile fire detected. Identifying shooter.", A.Stoic)
-    Line("Taking fire. Assessing threat.", A.Stoic)
+    Line("Hostile fire from {{player}}. Identifying intent.", A.Stoic)
+    Line("Taking fire from {{player}}. Assessing threat.", A.Stoic)
 
-    Line("ow!! stop that!! who's doing that!!", A.Dumb)
-    Line("hey that hurts!! cut it out!!", A.Dumb)
+    Line("ow!! {{player}} stop that!!", A.Dumb)
+    Line("{{player}} hey that hurts!! cut it out!!", A.Dumb)
 
-    Line("Please stop shooting! I'm innocent!", A.Nice)
-    Line("Hey, easy! I haven't done anything!", A.Nice)
+    Line("Please stop shooting, {{player}}! I'm innocent!", A.Nice)
+    Line("Hey {{player}}, easy! I haven't done anything!", A.Nice)
+    Line("Why are you shooting me, {{player}}? I'm on your side!", A.Nice)
 
-    Line("You're shooting at the wrong person.", A.Tryhard)
-    Line("Wasting ammo on me? Bold move.", A.Tryhard)
+    Line("{{player}}, you're shooting at the wrong person.", A.Tryhard)
+    Line("Wasting ammo on me, {{player}}? Bold move.", A.Tryhard)
+    Line("Friendly fire from {{player}}. Recommending ceasefire.", A.Tryhard)
+
+    Line("{{player}} is suspicious... and now they're shooting me.", A.Sus)
+    Line("Of course it's {{player}} shooting me.", A.Sus)
+    Line("{{player}} firing at me. Noted.", A.Sus)
+
+    Line("{{player}} is shooting me! Someone help!", A.Teamer)
+    Line("Team, {{player}} is firing at me!", A.Teamer)
+    Line("Help! {{player}} is attacking me!", A.Teamer)
+
+    Line("Whatever, {{player}} can keep shooting. I don't care.", A.Bad)
+    Line("{{player}} shooting me. Great.", A.Bad)
+
+    -- -------------------------------------------------------------------------
+    -- WitnessAllyShot — Bot sees a trusted innocent being shot at
+    -- -------------------------------------------------------------------------
+    RegisterCategory("WitnessAllyShot", P.CRITICAL, "Bot witnesses {{attacker}} shooting at trusted ally {{victim}}")
+    Line("{{attacker}} is shooting {{victim}}! Stop!", A.Default)
+    Line("Hey! {{attacker}} just shot {{victim}}!", A.Default)
+    Line("Leave {{victim}} alone, {{attacker}}!", A.Default)
+
+    Line("{{attacker}} STOP SHOOTING {{victim}}!", A.Hothead)
+    Line("BACK OFF {{victim}}, {{attacker}}! I SAW THAT!", A.Hothead)
+    Line("{{attacker}} IS SHOOTING {{victim}}! KOS!", A.Hothead)
+
+    Line("yo {{attacker}} why are you shooting {{victim}} wtf", A.Casual)
+    Line("bro {{attacker}} just shot {{victim}}", A.Casual)
+    Line("{{attacker}} shooting {{victim}}, sus af", A.Casual)
+
+    Line("{{attacker}} is attacking {{victim}}. Flagging as hostile.", A.Stoic)
+    Line("Observed: {{attacker}} firing on {{victim}}. Suspicious.", A.Stoic)
+
+    Line("{{attacker}} is hurting {{victim}}!! that's not nice!!", A.Dumb)
+    Line("hey {{attacker}} stop shooting {{victim}}!!", A.Dumb)
+
+    Line("Please stop, {{attacker}}! {{victim}} is innocent!", A.Nice)
+    Line("{{attacker}}, why are you shooting {{victim}}? Back off!", A.Nice)
+
+    Line("{{attacker}} firing on {{victim}}. This is not optimal. KOS.", A.Tryhard)
+    Line("Flagging {{attacker}}: unprovoked fire on ally {{victim}}.", A.Tryhard)
+
+    Line("I saw that, {{attacker}}... shooting {{victim}} of all people.", A.Sus)
+    Line("{{attacker}} going after {{victim}}. Very interesting.", A.Sus)
+
+    Line("Team, {{attacker}} is shooting our ally {{victim}}!", A.Teamer)
+    Line("Everyone, {{attacker}} attacked {{victim}}! KOS!", A.Teamer)
+
+    Line("{{attacker}} shooting {{victim}}, whatever.", A.Bad)
+    Line("Great, {{attacker}} is hurting {{victim}}. Do something.", A.Bad)
 
     -- -------------------------------------------------------------------------
     -- FindFriendBody — Bot finds the body of a player they trusted

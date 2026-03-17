@@ -73,8 +73,11 @@ function FalseKOS.Validate(bot)
     if not isDeceptiveHostile(bot) then return false end
     if bot.attackTarget then return false end
 
+    -- Suppress deception when ≤15 seconds remain — engage targets directly
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    if ra and ra:IsEndgame() then return false end
+
     -- Phase gate: only MID or LATE (not EARLY — too suspicious; not OVERTIME — too obvious)
-    local ra = bot:BotRoundAwareness()
     if ra then
         local PHASE = TTTBots.Components.RoundAwareness.PHASE
         local phase = ra:GetPhase()

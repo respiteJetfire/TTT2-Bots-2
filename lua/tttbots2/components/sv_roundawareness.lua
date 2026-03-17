@@ -279,6 +279,22 @@ function BotRoundAwareness:IsPhase(phase)
     return self.phase == phase
 end
 
+--- Returns the estimated seconds remaining in the round.
+--- Based on round duration ConVar minus elapsed seconds.
+---@return number secondsRemaining
+function BotRoundAwareness:GetSecondsRemaining()
+    local elapsed = TTTBots.Match.Time()
+    local remaining = self.roundDurationSecs - elapsed
+    return math.max(remaining, 0)
+end
+
+--- Returns true if 15 or fewer seconds remain in the round.
+--- Used to suppress deceptive/subtle behaviors and force direct engagement.
+---@return boolean
+function BotRoundAwareness:IsEndgame()
+    return self:GetSecondsRemaining() <= 15
+end
+
 ---------------------------------------------------------------------------
 -- Player meta accessor
 ---------------------------------------------------------------------------

@@ -170,6 +170,7 @@ L.label_tttbots_chatter_openrouter_site_url = "Site URL (Attribution)"
 L.label_tttbots_chatter_openrouter_site_name = "Site Name (Attribution)"
 
 -- Voice / TTS labels
+L.label_tttbots_chatter_enable_tts = "Enable TTS Voice Chat"
 L.label_tttbots_chatter_voice_chance = "Voice Chat Chance (%)"
 L.label_tttbots_chatter_voice_tts_provider = "TTS Provider"
 L.label_tttbots_chatter_voice_url_mode = "URL Mode (Faster Streaming)"

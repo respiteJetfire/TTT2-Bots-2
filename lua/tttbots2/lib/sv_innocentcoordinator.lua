@@ -167,6 +167,15 @@ function IC.SelectStrategy()
         return S.BODY_RECOVERY
     end
 
+    -- Tester Queue: if a role checker exists on the map OR the detective still
+    -- needs to deploy one, organise bots into an orderly testing queue.
+    -- This takes priority over patrol when a tester is available.
+    local testerExists = IC._FindTesterPos() ~= nil
+    local detNeedsDeploy = IC.GetDetectiveBotWithChecker() ~= nil
+    if testerExists or detNeedsDeploy then
+        return S.TESTER_QUEUE
+    end
+
     -- Patrol Routes: primary active strategy — keeps bots moving around the map.
     -- Used whenever there are enough participants to spread out (3+).
     if nParticipants >= 3 then
@@ -185,16 +194,24 @@ IC._cachedTesterPos = nil
 IC._testerCacheTime = 0
 
 --- Find the world position of a role-checker entity, with 10s cache.
+--- Supports both custom ttt_traitorchecker and any future ttt_role_checker entities.
 ---@return Vector|nil
 function IC._FindTesterPos()
     if (CurTime() - IC._testerCacheTime) < 10 and IC._cachedTesterPos then
         return IC._cachedTesterPos
     end
-    for _, ent in ipairs(ents.GetAll()) do
-        if IsValid(ent) and string.find(ent:GetClass(), "ttt_role_checker", 1, true) then
-            IC._cachedTesterPos  = ent:GetPos()
-            IC._testerCacheTime  = CurTime()
-            return IC._cachedTesterPos
+    -- Search for known role-checker / tester entity classes
+    local checkerClasses = {
+        "ttt_traitorchecker",
+        "ttt_role_checker",
+    }
+    for _, cls in ipairs(checkerClasses) do
+        for _, ent in ipairs(ents.FindByClass(cls)) do
+            if IsValid(ent) then
+                IC._cachedTesterPos  = ent:GetPos()
+                IC._testerCacheTime  = CurTime()
+                return IC._cachedTesterPos
+            end
         end
     end
     IC._cachedTesterPos = nil

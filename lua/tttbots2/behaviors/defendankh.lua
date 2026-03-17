@@ -43,13 +43,17 @@ function DefendAnkh.IsAnkhUnderThreat(ankh)
         return true
     end
 
-    -- Check if enemy players are very close to the ankh
+    -- Check if a Graverobber is actively converting (but does NOT yet own) the ankh
     local nearbyPlayers = ents.FindInSphere(ankh:GetPos(), 150)
     for _, ent in pairs(nearbyPlayers) do
-        if IsValid(ent) and ent:IsPlayer() and ent ~= ankh:GetOwner() and lib.IsPlayerAlive(ent) then
-            if ent:GetSubRole() == ROLE_GRAVEROBBER then
-                return true
-            end
+        if not (IsValid(ent) and ent:IsPlayer() and ent ~= ankh:GetOwner() and lib.IsPlayerAlive(ent)) then continue end
+        if ent:GetSubRole() ~= ROLE_GRAVEROBBER then continue end
+
+        -- Only a threat if the Graverobber does NOT already own this ankh
+        -- (if they already own it, the ankh:GetOwner() would be them, but let's be explicit)
+        local alreadyOwns = PHARAOH_HANDLER and PHARAOH_HANDLER:PlayerControlsAnAnkh(ent)
+        if not alreadyOwns then
+            return true
         end
     end
 
@@ -60,20 +64,28 @@ end
 function DefendAnkh.Validate(bot)
     if not TTTBots.Match.IsRoundActive() then return false end
 
-    -- Must be Pharaoh (defending their own ankh from theft)
+    -- Must be Pharaoh (defending or reclaiming their own ankh)
     if bot:GetSubRole() ~= ROLE_PHARAOH then
         return false
     end
 
-    -- Must control an ankh
-    if not PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then
-        return false
+    -- Case 1: Pharaoh still controls the ankh — defend it from threat
+    if PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then
+        local ankh = DefendAnkh.GetOwnAnkh(bot)
+        if not IsValid(ankh) then return false end
+        return DefendAnkh.IsAnkhUnderThreat(ankh)
     end
 
-    local ankh = DefendAnkh.GetOwnAnkh(bot)
-    if not IsValid(ankh) then return false end
+    -- Case 2: Pharaoh's ankh was stolen — the Graverobber who stole it is a threat
+    -- The ankh still exists in the world (owned by the Graverobber)
+    local ply_id = bot:SteamID64()
+    local ankhData = PHARAOH_HANDLER and PHARAOH_HANDLER.ankhs and PHARAOH_HANDLER.ankhs[ply_id]
+    if ankhData and ankhData.current_owner_id ~= ply_id and IsValid(ankhData.ankh) then
+        -- Ankh was stolen and is still placed in the world — go reclaim it
+        return true
+    end
 
-    return DefendAnkh.IsAnkhUnderThreat(ankh)
+    return false
 end
 
 --- Called when the behavior is started
@@ -88,10 +100,45 @@ end
 
 --- Called when the behavior's last state is running
 function DefendAnkh.OnRunning(bot)
+    local locomotor = bot:BotLocomotor()
+
+    -- Case 2: Ankh was stolen — find the thief and engage them
+    local ply_id = bot:SteamID64()
+    local ankhData = PHARAOH_HANDLER and PHARAOH_HANDLER.ankhs and PHARAOH_HANDLER.ankhs[ply_id]
     local ankh = DefendAnkh.GetOwnAnkh(bot)
+
+    if not PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) and ankhData and ankhData.current_owner_id ~= ply_id then
+        local stolenAnkh = ankhData.ankh
+        if not IsValid(stolenAnkh) then return STATUS.FAILURE end
+
+        -- Navigate to the stolen ankh
+        locomotor:SetGoal(stolenAnkh:GetPos())
+
+        -- Find and attack the thief
+        local plys = player.GetAll()
+        for i = 1, #plys do
+            local ply = plys[i]
+            if ply:SteamID64() == ankhData.current_owner_id and lib.IsPlayerAlive(ply) then
+                local Arb = TTTBots.Morality
+                local PRI = Arb.PRIORITY
+                if bot:Visible(ply) then
+                    Arb.RequestAttackTarget(bot, ply, "DEFEND_ANKH", PRI.PLAYER_REQUEST)
+                end
+                locomotor:LookAt(ply:GetPos())
+                break
+            end
+        end
+
+        -- If ankh is back under control (reclaimed) or the thief is gone, succeed
+        if PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) or ankhData.current_owner_id == ply_id then
+            return STATUS.SUCCESS
+        end
+        return STATUS.RUNNING
+    end
+
+    -- Case 1: Pharaoh still controls the ankh — defend it from threat
     if not IsValid(ankh) then return STATUS.FAILURE end
 
-    local locomotor = bot:BotLocomotor()
     local distToAnkh = bot:GetPos():Distance(ankh:GetPos())
 
     -- Sprint to the ankh

@@ -47,6 +47,7 @@ Arb.REASON_LABELS = {
     ANKH_CONVERSION_WITNESS  = "Witnessed ankh conversion — hostile act",
 
     -- Priority 3 — Role/team hostility policy
+    RESTLESS_AGGRESSION     = "Restless armed with ranged weapon — attacking on sight",
     ROLE_ENEMY              = "Target is a declared role enemy",
     KOS_ALL                 = "Role KOS-all non-allies",
     KOSED_BY_ALL            = "Target is KOS'd by all",
@@ -67,6 +68,7 @@ Arb.REASON_LABELS = {
     SUS_THRESHOLD           = "Suspicion reached KOS threshold",
     SUS_ROLE_GUESS          = "Role guess — non-innocent predicted",
     ALLY_DEFENSE            = "Ally was attacked — defending",
+    KOS_LIST_TARGET         = "Target has been KOS'd by a credible caller",
 
     -- Priority 1 — Opportunistic
     OPPORTUNISTIC_ATTACK    = "Traitor random nearby attack",

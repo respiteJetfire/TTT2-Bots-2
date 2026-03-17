@@ -31,9 +31,10 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
     if not bot:Alive()   then return end
     if bot:IsSpec()      then return end
 
+    local ttsEnabled = TTTBots.Lib.GetConVarBool("chatter_enable_tts")
     local voiceChatChance = (TTTBots.Lib.GetConVarFloat("chatter_voice_chance") or 50) / 100
 
-    if math.random() <= voiceChatChance then
+    if ttsEnabled and math.random() <= voiceChatChance then
         print("SpeakingBot: ", TTTBots.Match.speakingBot)
 
         -- Another bot is already talking → fall back to text

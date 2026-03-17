@@ -32,6 +32,10 @@ function SpyBlend.Validate(bot)
     if not TTTBots.Match.IsRoundActive() then return false end
     if bot.attackTarget ~= nil then return false end
 
+    -- Suppress cover maintenance when ≤15 seconds remain — drop the act and engage targets
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    if ra and ra:IsEndgame() then return false end
+
     -- Don't blend if cover is already blown
     if TTTBots.Perception.IsCoverBlown(bot) then return false end
 

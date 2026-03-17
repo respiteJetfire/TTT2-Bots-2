@@ -56,10 +56,13 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.CreateDoctor,
         _bh.CreateCursed,
         _bh.CreateDeputy,
+        _bh.CreateSidekick,
+        _bh.CreateSlave,
         _bh.SwapDeagle,
         _bh.SwapRole,
         _bh.CopyRole,
         _bh.DropContract,
+        _bh.RoleChangeDeagle,
     },
 
     --- Lock doors after kills to trap bodies
@@ -100,6 +103,11 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.Defib,
         _bh.Healgun,
         _bh.Roledefib
+    },
+    --- Deploy turrets, use timestop, use peacekeeper
+    TacticalEquipment = {
+        _bh.UseTurret,
+        _bh.UseTimestop,
     },
     --- DNA Scanner usage for detective roles
     DNAScanner = {
@@ -145,12 +153,14 @@ TTTBots.Behaviors.DefaultTrees = {
     },
     traitor = {
         _bh.Jihad,
+        _bh.UsePeacekeeper,
         _prior.Grenades,
         _prior.Chatter,
         _prior.FightBack,
         _prior.SelfDefense,
         _prior.Requests,
         _prior.Convert,
+        _prior.TacticalEquipment,
         _prior.TrapPlayer,
         _prior.Support,
         _bh.Roledefib,
@@ -174,6 +184,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Accuse,
         _bh.FollowInnocentPlan,
         _prior.Support,
+        _prior.TacticalEquipment,
         _prior.DNAScanner,
         _prior.Convert,
         _bh.Defuse,

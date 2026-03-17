@@ -229,6 +229,8 @@ bot_sh_cvar("coordinator", "1",
 
 
 --- Voice Cvars
+bot_sh_cvar("chatter_enable_tts", "1",
+    "Globally enable or disable all TTS (Text-to-Speech) voice output for bots. Set to 0 to silence all bot voice chat without changing other voice settings.")
 bot_sh_cvar("chatter_voice_chance", "50",
     "The % chance (therefore 0-100) that a bot will use a voice in voice chat.")
 bot_sh_cvar("chatter_voice_good_tts_chance", "0",

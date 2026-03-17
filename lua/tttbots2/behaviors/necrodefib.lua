@@ -1,8 +1,9 @@
 --- necrodefib.lua
 --- Dedicated defib behavior for the Necromancer's `weapon_ttth_necrodefi`.
---- Unlike the generic Defib behavior, this uses the weapon's actual attack
---- mechanics so that the base defibrillator's OnRevive → AddZombie() callback
---- fires correctly, converting the dead player into a zombie.
+--- Directly invokes the weapon's BeginRevival/FinishRevival server-side (mirroring
+--- how the generic Defib behavior calls Revive() directly) so the eye-trace check
+--- in weapon_ttt_defibrillator:Think() never has a chance to cancel the revival.
+--- OnRevive → AddZombie() still fires normally via weapon_ttth_necrodefi:OnRevive.
 --- Includes witness checking, corpse prioritization, and round-phase awareness.
 
 ---@class BNecroDefib
@@ -25,17 +26,19 @@ local STATUS = TTTBots.STATUS
 
 --- Maximum range to search for corpses.
 local SEARCH_RANGE = 3000
---- How close the bot needs to be to the corpse spine to begin defibbing.
+--- How close the bot needs to be to the corpse to begin defibbing.
 local CLOSE_THRESHOLD = 80
 --- How far the bot can drift before we cancel a started revive.
 local CANCEL_THRESHOLD = 200
 --- Behavior timeout in seconds.
 local BEHAVIOR_TIMEOUT = 45
---- Maximum witnesses allowed before the bot aborts (early game).
-local MAX_WITNESSES_EARLY = 1
+--- Maximum witnesses allowed before the bot waits (early game).
+local MAX_WITNESSES_EARLY = 0
 --- Maximum witnesses allowed in late/overtime phases (more aggressive).
-local MAX_WITNESSES_LATE = 3
---- Revive time for the necro defi (default 3s, matches cvar ttt_necro_defibrillator_revive_time).
+local MAX_WITNESSES_LATE = 2
+--- How long to loiter near the corpse waiting for witnesses to clear (seconds).
+local WITNESS_WAIT_TIMEOUT = 15
+--- Revive hold duration: matches ttt_necro_defibrillator_revive_time (default 3s) plus a small buffer.
 local REVIVE_HOLD_TIME = 3.5
 
 -- ---------------------------------------------------------------------------
@@ -116,20 +119,63 @@ local function getMaxWitnesses(bot)
 end
 
 --- Find the best corpse to revive. Necromancers revive ANY dead player (not ally-only).
---- Prefers isolated corpses with fewer witnesses.
+--- Priority order:
+---   1. Corpses this bot personally killed (tttbots_killedBy tag) — convert own
+---      victims immediately to keep the kill quiet and grow the zombie army.
+---   2. Closest other revivable corpse within range as fallback.
 ---@param bot Bot
 ---@return Player? target
 ---@return Entity? ragdoll
 function NecroDefib.FindBestCorpse(bot)
-    -- First try: visible corpses within range
-    local closest, rag = lib.GetClosestRevivable(bot, false, true, true, SEARCH_RANGE)
-    if closest and rag then
-        return closest, rag
+    local corpses = lib.GetRevivableCorpses()
+    if not corpses or #corpses == 0 then return nil, nil end
+
+    local botPos = bot:GetPos()
+    local cTime = CurTime()
+
+    local bestKilledTarget, bestKilledRag, bestKilledDist = nil, nil, math.huge
+    local bestFallbackTarget, bestFallbackRag, bestFallbackDist = nil, nil, math.huge
+
+    for _, rag in ipairs(corpses) do
+        if not lib.IsValidBody(rag) then continue end
+
+        local deadply = player.GetBySteamID64(rag.sid64)
+        if not IsValid(deadply) then continue end
+        if (deadply.reviveCooldown or 0) > cTime then continue end
+
+        -- Skip bodies already claimed by another bot
+        if TTTBots.Match.MarkedForDefib[deadply]
+            and TTTBots.Match.MarkedForDefib[deadply] ~= bot then
+            continue
+        end
+
+        local dist = botPos:Distance(rag:GetPos())
+        if dist > SEARCH_RANGE then continue end
+
+        -- Did this bot kill this person?
+        local killedByMe = (rag.tttbots_killedBy == bot)
+            or (deadply.tttbots_killedBy == bot)
+
+        if killedByMe then
+            if dist < bestKilledDist then
+                bestKilledDist = dist
+                bestKilledTarget = deadply
+                bestKilledRag = rag
+            end
+        else
+            if dist < bestFallbackDist then
+                bestFallbackDist = dist
+                bestFallbackTarget = deadply
+                bestFallbackRag = rag
+            end
+        end
     end
 
-    -- Fallback: any corpse, no visibility filter
-    closest, rag = lib.GetClosestRevivable(bot, false, false, true, SEARCH_RANGE)
-    return closest, rag
+    -- Own kills take priority; otherwise use closest revivable
+    if bestKilledTarget then
+        return bestKilledTarget, bestKilledRag
+    end
+    return bestFallbackTarget, bestFallbackRag
 end
 
 -- ---------------------------------------------------------------------------
@@ -217,82 +263,135 @@ function NecroDefib.OnRunning(bot)
     if not (IsValid(target) and IsValid(rag)) then return STATUS.FAILURE end
     if not lib.IsValidBody(rag) then return STATUS.FAILURE end
 
+    -- If we already triggered BeginRevival, wait for the weapon to finish (state
+    -- transitions from DEFI_BUSY back to DEFI_IDLE on success, or DEFI_CHARGE on
+    -- error then back to DEFI_IDLE after errorTime).
+    if bot.necroDefibStartTime ~= nil then
+        local defiState = defi and defi.GetState and defi:GetState()
+        -- DEFI_IDLE == 0 (reset after success or after error cooldown expires)
+        if defiState == 0 then
+            -- Weapon has finished — either revive completed or failed.
+            -- Check whether the target was actually revived (IsTerror == alive).
+            if IsValid(target) and target:IsTerror() then
+                return STATUS.SUCCESS
+            end
+            -- Revive failed — bail out so Validate can pick a new corpse.
+            return STATUS.FAILURE
+        end
+
+        -- Still DEFI_BUSY (1) or DEFI_CHARGE (2) — keep crouching and waiting.
+        -- Hold +attack so weapon:Think() doesn't cancel the in-progress revival.
+        loco:StartAttack()
+
+        -- Safety timeout: if we've been waiting more than twice the revive time, give up.
+        if (CurTime() - bot.necroDefibStartTime) > (REVIVE_HOLD_TIME * 2) then
+            return STATUS.FAILURE
+        end
+        return STATUS.RUNNING
+    end
+
     local ragPos = NecroDefib.GetSpinePos(rag)
     -- Use a ground-level position for navigation so the navmesh lookup resolves
-    -- to the correct area.  The spine bone sits ~10-20 units above the floor,
-    -- which can map to a neighbouring nav area and stall the path follower.
+    -- to the correct area.  The spine bone sits ~10-20 units above the floor.
     local ragGroundPos = Vector(ragPos.x, ragPos.y, rag:GetPos().z)
 
     -- Navigate to the corpse (ground-level for pathing)
     loco:SetGoal(ragGroundPos)
-    loco:LookAt(ragPos)
 
-    -- Use XY distance so the spine's vertical offset doesn't shrink the
-    -- effective threshold and prevent the bot from starting the defib.
+    -- Aim at the ragdoll so the bot looks natural while approaching.
+    local lookTarget = ragGroundPos + Vector(0, 0, 16)
+    loco:LookAt(lookTarget, 2)
+
+    -- XY-only distance so spine's vertical offset doesn't inflate the threshold.
     local dist = ragGroundPos:Distance(Vector(bot:GetPos().x, bot:GetPos().y, ragGroundPos.z))
-    local alreadyStarted = bot.necroDefibStartTime ~= nil
 
-    if dist < CLOSE_THRESHOLD or (alreadyStarted and dist < CANCEL_THRESHOLD) then
-        -- Witness check before committing
-        if not alreadyStarted then
-            local witnessCount = countWitnesses(bot, ragPos)
-            local maxWitnesses = getMaxWitnesses(bot)
-            if witnessCount > maxWitnesses then
-                -- Too many witnesses, wait
-                return STATUS.RUNNING
+    if dist < CLOSE_THRESHOLD then
+        -- Witness check: loiter near the body until the area clears
+        local witnessCount = countWitnesses(bot, ragPos)
+        local maxWitnesses = getMaxWitnesses(bot)
+        if witnessCount > maxWitnesses then
+            if not bot.necroDefiWitnessWaitStart then
+                bot.necroDefiWitnessWaitStart = CurTime()
+                loco:SetGoal()
+                loco:SetHalt(true)
+                loco.persistCrouch = true
+                loco:Crouch(true)
             end
-        end
 
-        -- Close enough — equip the necro defi and hold attack
+            if (CurTime() - bot.necroDefiWitnessWaitStart) > WITNESS_WAIT_TIMEOUT then
+                return STATUS.FAILURE
+            end
+
+            return STATUS.RUNNING
+        end
+        -- Area is clear — reset wait timer
+        bot.necroDefiWitnessWaitStart = nil
+
+        -- Close enough — equip the necro defi and position for the revive.
         inventory:PauseAutoSwitch()
         bot:SetActiveWeapon(defi)
-        loco:SetGoal()  -- stop moving
+        loco:SetGoal()
         loco:SetHalt(true)
         loco:PauseAttackCompat()
         loco.persistCrouch = true
         loco:Crouch(true)
         loco:PauseRepel()
-        -- Look at ground level of corpse, not elevated spine
-        local lookTarget = ragGroundPos + Vector(0, 0, 5)
-        loco:LookAt(lookTarget, 2)
 
-        -- Start the defib hold timer
-        if bot.necroDefibStartTime == nil then
-            bot.necroDefibStartTime = CurTime()
-            -- Use the locomotor attack system to hold +attack on the weapon
-            -- The weapon_ttt_defibrillator base class detects the corpse and begins reviving
-            loco:StartAttack()
-        end
-
-        -- Wait for the revive time (weapon handles the actual revive via its Think/Attack)
-        if bot.necroDefibStartTime + REVIVE_HOLD_TIME < CurTime() then
-            -- The weapon should have handled the revive by now via OnRevive → AddZombie
-            loco:StopAttack()
-            return STATUS.SUCCESS
+        -- Directly call BeginRevival on the weapon (server-side).
+        -- This bypasses the weapon:PrimaryAttack eye-trace requirement that causes
+        -- bots to loop indefinitely (eye trace rarely hits the exact ragdoll entity).
+        -- weapon_ttth_necrodefi:OnRevive → AddZombie() will still fire normally.
+        if IsValid(defi) and defi.BeginRevival then
+            -- Guard: weapon must be idle before we start
+            local defiState = defi.GetState and defi:GetState() or 0
+            if defiState == 0 then
+                -- Run the OnReviveStart hook (checks ttt_necro_defibrillator_revive_zombies)
+                if defi.OnReviveStart and defi:OnReviveStart(target, bot) == false then
+                    -- Target is a zombie and reviving zombies is disabled — skip this corpse.
+                    return STATUS.FAILURE
+                end
+                -- Validate spawn space and headshot flag (mirrors PrimaryAttack checks)
+                local spawnPoint = plyspawn and plyspawn.MakeSpawnPointSafe and plyspawn.MakeSpawnPointSafe(target, rag:GetPos())
+                if defi.cvars and defi.cvars.reviveBraindead and not defi.cvars.reviveBraindead:GetBool() then
+                    if CORPSE and CORPSE.WasHeadshot and CORPSE.WasHeadshot(rag) then
+                        -- Braindead — can't revive; fail so we move on.
+                        return STATUS.FAILURE
+                    end
+                end
+                if not spawnPoint then
+                    -- No space to spawn — bail; we'll retry next tick with a fresh corpse search.
+                    return STATUS.FAILURE
+                end
+                -- Start the revive — weapon transitions to DEFI_BUSY and begins the timer.
+                loco:StartAttack()  -- hold +attack so weapon:Think() keeps the revival alive
+                defi:BeginRevival(rag, 0)
+                bot.necroDefibStartTime = CurTime()
+            end
         end
     else
-        -- Not close enough yet — reset if we haven't started
-        if not alreadyStarted then
-            inventory:ResumeAutoSwitch()
-            loco:ResumeAttackCompat()
-            loco:SetHalt(false)
-            loco:ResumeRepel()
-            loco:StopAttack()
-            loco.persistCrouch = false
-        end
-        bot.necroDefibStartTime = nil
+        -- Not close enough — keep walking toward the corpse.
+        inventory:ResumeAutoSwitch()
+        loco:ResumeAttackCompat()
+        loco:SetHalt(false)
+        loco:ResumeRepel()
+        loco:StopAttack()
+        loco.persistCrouch = false
     end
 
     return STATUS.RUNNING
 end
 
 function NecroDefib.OnSuccess(bot)
-    if TTTBots.Match.MarkedForDefib[bot.necroDefibTarget] then
+    if bot.necroDefibTarget and TTTBots.Match.MarkedForDefib[bot.necroDefibTarget] then
         TTTBots.Match.MarkedForDefib[bot.necroDefibTarget] = nil
     end
 end
 
 function NecroDefib.OnFailure(bot)
+    -- Set a short cooldown on the corpse so we don't immediately re-target it.
+    if IsValid(bot.necroDefibTarget) then
+        bot.necroDefibTarget.reviveCooldown = CurTime() + 10
+    end
 end
 
 function NecroDefib.OnEnd(bot)
@@ -303,6 +402,7 @@ function NecroDefib.OnEnd(bot)
     bot.necroDefibRag = nil
     bot.necroDefibStartTime = nil
     bot.necroDefibBehaviorStart = nil
+    bot.necroDefiWitnessWaitStart = nil
 
     local inventory, loco = bot:BotInventory(), bot:BotLocomotor()
     if not (inventory and loco) then return end

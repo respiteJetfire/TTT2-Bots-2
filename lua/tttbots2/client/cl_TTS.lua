@@ -331,6 +331,12 @@ net.Receive("SayTTSUrlStart", function()
     local url = net.ReadString()
     local teamOnly = net.ReadBool()
 
+    local enableTTS = GetConVar("ttt_bot_chatter_enable_tts")
+    if enableTTS and not enableTTS:GetBool() then
+        print("TTS globally disabled (chatter_enable_tts = 0)")
+        return
+    end
+
     playFileURL(ply, url, teamOnly)
 end)
 
@@ -342,6 +348,12 @@ net.Receive("SayTTSEL", function()
     local teamOnly = net.ReadBool()
     local FileID = net.ReadString()
     local ply = net.ReadEntity()
+
+    local enableTTS = GetConVar("ttt_bot_chatter_enable_tts")
+    if enableTTS and not enableTTS:GetBool() then
+        print("TTS globally disabled (chatter_enable_tts = 0)")
+        return
+    end
 
     -- if not IsValid(ply) then
     --     ply = LocalPlayer()
@@ -450,6 +462,12 @@ net.Receive("SayTTSBad", function()
     local teamOnly = net.ReadBool()
     local FileID = net.ReadString()
     local ply = net.ReadEntity()
+
+    local enableTTS = GetConVar("ttt_bot_chatter_enable_tts")
+    if enableTTS and not enableTTS:GetBool() then
+        print("TTS globally disabled (chatter_enable_tts = 0)")
+        return
+    end
 
     -- if not IsValid(ply) then
     --     ply = LocalPlayer()

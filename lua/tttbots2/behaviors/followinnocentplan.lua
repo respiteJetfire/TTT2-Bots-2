@@ -158,16 +158,59 @@ local function runQueueTest(bot, job)
         if loco then loco:SetGoal(testerPos) end
         if distToTester < 80 then
             -- Attempt to interact with the tester entity
+            -- Support both ttt_traitorchecker (DiskFragger's checker) and ttt_role_checker
             local tester = nil
             for _, ent in ipairs(ents.FindInSphere(testerPos, 100)) do
-                if IsValid(ent) and string.find(ent:GetClass(), "ttt_role_checker", 1, true) then
-                    tester = ent
-                    break
+                if IsValid(ent) then
+                    local cls = ent:GetClass()
+                    if cls == "ttt_traitorchecker" or cls == "ttt_role_checker" then
+                        tester = ent
+                        break
+                    end
                 end
             end
             if tester then
-                bot:KeyPress(IN_USE)
+                -- Make the bot look directly at the tester entity before using it
+                -- (the tester's Use function checks the player's eye trace)
+                local loco = bot:BotLocomotor()
+                if loco then loco:LookAt(tester:GetPos()) end
+                tester:Use(bot, bot, USE_ON, 0)
+                -- Mark as checked so bots don't re-queue via UseRoleChecker
+                TTTBots.Match.CheckedPlayers[bot] = TTTBots.Match.CheckedPlayers[bot] or {}
+                TTTBots.Match.CheckedPlayers[bot][bot:GetSubRole()] = true
+
+                -- Determine the tester result based on the bot's actual team
+                local isInnocent = (bot:GetTeam() == TEAM_INNOCENT)
+                local resultStr = isInnocent and "innocent" or "traitor"
+
+                -- Fire the hook so nearby bots update their suspicion/memory
+                hook.Run("TTTBots.UseRoleChecker.Result", bot, bot, resultStr)
+
+                -- If innocent: update own suspicion, evidence, memory
+                if isInnocent then
+                    local morality = bot:BotMorality()
+                    if morality then
+                        morality:SetTestedClean(bot)
+                    end
+
+                    local evidence = bot:BotEvidence()
+                    if evidence then
+                        evidence:ConfirmInnocent(bot, "passed_role_tester_self")
+                    end
+
+                    local mem = bot:BotMemory()
+                    if mem then
+                        mem:AddWitnessEvent("tester", bot:Nick() .. " passed the role tester and is confirmed innocent")
+                    end
+
+                    local chatter = bot:BotChatter()
+                    if chatter and chatter.On then
+                        chatter:On("DeclareInnocent", { player = bot:Nick() })
+                    end
+                end
+
                 IC.DequeueBot(bot)
+                IC.ClearJobFor(bot)
                 return STATUS.SUCCESS
             end
         end
@@ -242,6 +285,11 @@ local function runDeployChecker(bot, job)
     -- or the detective no longer has the weapon, consider the job done.
     if not bot:HasWeapon("weapon_ttt_traitorchecker") then
         IC.DetectiveDeployedChecker = true
+        -- Invalidate tester cache so the coordinator discovers the newly placed entity
+        IC._cachedTesterPos = nil
+        IC._testerCacheTime = 0
+        -- Force strategy re-evaluation so TesterQueue activates immediately
+        IC.SelectedStrategy = nil
         local loco = bot:BotLocomotor()
         if loco then loco:StopAttack() end
         local chatter = bot:BotChatter()

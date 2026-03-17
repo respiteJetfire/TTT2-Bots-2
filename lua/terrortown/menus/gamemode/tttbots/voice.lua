@@ -9,6 +9,11 @@ function CLGAMEMODESUBMENU:Populate(parent)
     -- General voice settings
     local form = vgui.CreateTTT2Form(parent, "header_tttbots_voice_general")
 
+    local enbTTS = form:MakeCheckBox({
+        serverConvar = "ttt_bot_chatter_enable_tts",
+        label = "label_tttbots_chatter_enable_tts",
+    })
+
     local enbVoice = form:MakeSlider({
         serverConvar = "ttt_bot_chatter_voice_chance",
         label = "label_tttbots_chatter_voice_chance",

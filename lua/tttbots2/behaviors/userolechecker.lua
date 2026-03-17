@@ -12,7 +12,7 @@ UseRoleChecker.UseRange = 100 --- The range at which we can use a health checker
 UseRoleChecker.TargetClass = "ttt_traitorchecker"
 
 --- Maximum time (seconds) the detective will spend trying to place before giving up.
-UseRoleChecker.PlaceTimeout = 8
+UseRoleChecker.PlaceTimeout = 15
 
 local STATUS = TTTBots.STATUS
 
@@ -44,8 +44,13 @@ function UseRoleChecker.GetNearestChecker(bot)
 end
 
 function UseRoleChecker.UseChecker(bot, checker)
-    -- print("bot is using checker")
-    checker:Use(bot)
+    -- Force the bot to look directly at the checker entity first.
+    -- The checker's ENT:Use checks ply:GetEyeTrace().Entity != self and
+    -- rejects the use if the player isn't looking at it.
+    local loco = bot:BotLocomotor()
+    if loco then loco:LookAt(checker:GetPos()) end
+    -- Use the 4-arg form so the entity receives proper activator/caller/useType
+    checker:Use(bot, bot, USE_ON, 0)
 end
 
 --- Validate the behavior
@@ -74,9 +79,11 @@ function UseRoleChecker.Validate(bot)
         return true
     end
 
-    -- Innocent / None bots have a small random chance to walk to a nearby checker
+    -- Innocent / None bots have a chance to walk to a nearby checker.
+    -- Increased from the original ~2.5% per tick to ~10% so the behavior actually triggers
+    -- within a reasonable time frame during a round.
     if not bot.isGoingToChecker then
-        local chance = (bot:GetTeam() == TEAM_NONE or bot:GetTeam() == TEAM_INNOCENT) and 5 or 1
+        local chance = (bot:GetTeam() == TEAM_NONE or bot:GetTeam() == TEAM_INNOCENT) and 20 or 3
         if math.random(0, 200) > chance then
             return false
         end
@@ -115,10 +122,26 @@ end
 
 function UseRoleChecker.PlaceRoleChecker(bot)
     local locomotor = bot:BotLocomotor()
-    -- Aim at a point on the ground ahead of the bot so the weapon's placement trace succeeds.
-    local placePos = UseRoleChecker.GetPlacementLookPos(bot)
-    locomotor:LookAt(placePos, 2)
-    bot:SelectWeapon("weapon_ttt_traitorchecker")
+
+    -- Compute and cache a stable look-at position so we don't keep chasing a
+    -- moving target as the bot's forward vector changes each frame.
+    if not bot._checkerPlaceTarget then
+        bot._checkerPlaceTarget = UseRoleChecker.GetPlacementLookPos(bot)
+    end
+    locomotor:LookAt(bot._checkerPlaceTarget, 2)
+
+    -- IMPORTANT: Only call SelectWeapon if the bot isn't already holding the
+    -- role checker. Calling SelectWeapon every tick resets the weapon's deploy
+    -- animation, preventing PrimaryAttack from ever firing.
+    local activeWep = bot:GetActiveWeapon()
+    if not IsValid(activeWep) or activeWep:GetClass() ~= "weapon_ttt_traitorchecker" then
+        bot:SelectWeapon("weapon_ttt_traitorchecker")
+        return -- Give one tick for the weapon to deploy before attacking.
+    end
+
+    -- Pause the attack-compatibility rate limiter so the fire isn't suppressed
+    -- on the one-out-of-N-ticks compat-skip frame.
+    locomotor:PauseAttackCompat()
     locomotor:StartAttack()
 end
 
@@ -143,7 +166,15 @@ function UseRoleChecker.OnRunning(bot)
     if bot._checkerPlaceStartedAt then
         -- Mark as deployed so we don't re-enter this behavior.
         local IC = TTTBots.InnocentCoordinator
-        if IC then IC.DetectiveDeployedChecker = true end
+        if IC then
+            IC.DetectiveDeployedChecker = true
+            -- Invalidate the tester position cache so the coordinator can
+            -- immediately discover the newly placed entity and assign queue jobs.
+            IC._cachedTesterPos = nil
+            IC._testerCacheTime = 0
+            -- Force strategy re-evaluation on next tick so TesterQueue activates
+            IC.SelectedStrategy = nil
+        end
 
         local locomotor = bot:BotLocomotor()
         locomotor:StopAttack()
@@ -180,7 +211,49 @@ function UseRoleChecker.OnRunning(bot)
         TTTBots.Match.CheckedPlayers[bot] = TTTBots.Match.CheckedPlayers[bot] or {}
         local role = bot:GetSubRole()
         TTTBots.Match.CheckedPlayers[bot][role] = true
-        -- print("Checked player " .. bot:Nick() .. " as " .. role)
+
+        -- Determine the tester result based on the bot's actual team
+        local isInnocent = (bot:GetTeam() == TEAM_INNOCENT)
+        local resultStr = isInnocent and "innocent" or "traitor"
+
+        -- Fire the hook so the morality/suspicion system picks up the result
+        hook.Run("TTTBots.UseRoleChecker.Result", bot, bot, resultStr)
+
+        -- If innocent: update own suspicion, evidence, memory and dequeue from coordinator
+        if isInnocent then
+            -- Mark self as tested clean in own morality
+            local morality = bot:BotMorality()
+            if morality then
+                morality:SetTestedClean(bot)
+            end
+
+            -- Confirm innocent in own evidence / trust network
+            local evidence = bot:BotEvidence()
+            if evidence then
+                evidence:ConfirmInnocent(bot, "passed_role_tester_self")
+            end
+
+            -- Record a witness event in memory for LLM context
+            local mem = bot:BotMemory()
+            if mem then
+                mem:AddWitnessEvent("tester", bot:Nick() .. " passed the role tester and is confirmed innocent")
+            end
+
+            -- Dequeue from the InnocentCoordinator tester queue
+            local IC = TTTBots.InnocentCoordinator
+            if IC then
+                IC.DequeueBot(bot)
+                -- Clear the bot's current IC job so it transitions to wander/groupup
+                IC.ClearJobFor(bot)
+            end
+
+            -- Announce the result
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On then
+                chatter:On("DeclareInnocent", { player = bot:Nick() })
+            end
+        end
+
         return STATUS.SUCCESS
         end
 
@@ -201,9 +274,11 @@ function UseRoleChecker.OnEnd(bot)
     bot.targetChecker = nil
     bot._checkerPlacedAt = nil
     bot._checkerPlaceStartedAt = nil
+    bot._checkerPlaceTarget = nil
     local locomotor = bot:BotLocomotor()
     local inventory = bot:BotInventory()
     inventory:ResumeAutoSwitch()
     locomotor:StopAttack()
+    locomotor:ResumeAttackCompat()
     locomotor:ResumeRepel()
 end

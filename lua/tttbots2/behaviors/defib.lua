@@ -171,7 +171,7 @@ function Defib.OnStart(bot)
     end
 
     local chatter = bot:BotChatter()
-    if chatter and chatter.On then
+    if chatter and chatter.On and IsValid(bot.defibTarget) then
         chatter:On("RevivingPlayer", {player = bot.defibTarget:Nick()})
     end
 

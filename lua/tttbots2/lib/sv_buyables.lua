@@ -158,3 +158,63 @@ end)
 
 -- Import default data
 include("tttbots2/data/sv_default_buyables.lua")
+
+-- ── LOW_AMMO deferred traitor weapon purchase ─────────────────────────────
+-- Registered as a DeferredEvent so it only fires via TryDeferredBuy("LOW_AMMO").
+-- Provides a mid-tier silent primary (M16 or MAC-10) with enough ammo to
+-- finish a kill when the bot's current loadout is running dry.
+-- Both weapons are silent which keeps a traitor from immediately exposing
+-- themselves while they're low on ammo.
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "LowAmmoM16",
+    Class           = "weapon_ttt_m16",
+    Price           = 1,
+    Priority        = 5,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "LOW_AMMO",
+    CanBuy = function(bot)
+        -- Only buy if we don't already have a decent primary with ammo.
+        local inv = bot and bot:BotInventory()
+        if not inv then return false end
+        local w, info = inv:GetPrimary()
+        if IsValid(w) and info and info.has_bullets then return false end
+        return TTTBots.Lib.WepClassExists("weapon_ttt_m16")
+    end,
+    SituationalScore = function(bot)
+        -- Score proportional to how empty the bot is.
+        local inv = bot and bot:BotInventory()
+        if not inv then return 0 end
+        local dmg = inv:EstimateTotalDamageAvailable()
+        -- If we have some damage available we don't need this urgently.
+        if dmg > 150 then return 0 end
+        return math.max(10 - (dmg / 15), 1)
+    end,
+})
+
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "LowAmmoMAC10",
+    Class           = "weapon_ttt_mac10",
+    Price           = 1,
+    Priority        = 4,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "LOW_AMMO",
+    CanBuy = function(bot)
+        local inv = bot and bot:BotInventory()
+        if not inv then return false end
+        local w, info = inv:GetPrimary()
+        if IsValid(w) and info and info.has_bullets then return false end
+        return TTTBots.Lib.WepClassExists("weapon_ttt_mac10")
+    end,
+    SituationalScore = function(bot)
+        local inv = bot and bot:BotInventory()
+        if not inv then return 0 end
+        local dmg = inv:EstimateTotalDamageAvailable()
+        if dmg > 150 then return 0 end
+        return math.max(8 - (dmg / 15), 1)
+    end,
+})
+-- ── End LOW_AMMO deferred buyables ───────────────────────────────────────

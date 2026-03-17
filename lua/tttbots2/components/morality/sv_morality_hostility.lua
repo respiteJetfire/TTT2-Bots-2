@@ -6,6 +6,9 @@
 
 local lib = TTTBots.Lib
 
+---@class CMorality : Component
+local BotMorality = TTTBots.Components.Morality
+
 local Arb = TTTBots.Morality  -- arbitration gateway
 local PRI = Arb.PRIORITY
 
@@ -87,35 +90,57 @@ local function attackEnemies(bot)
     end
 end
 
+--- Restless bots with a ranged weapon and ammo attack any visible non-ally
+--- unconditionally (super-aggressive). Bypasses all phase and witness gates.
+---@param bot Bot
+local function restlessRangedAggression(bot)
+    if not TEAM_RESTLESS then return end
+    if bot:GetTeam() ~= TEAM_RESTLESS then return end
+
+    local inv = bot:BotInventory()
+    if not inv then return end
+    -- Only trigger when the bot actually has a ranged weapon with ammo
+    if inv:HasNoWeaponAvailable(false) then return end
+
+    local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot)
+        or TTTBots.Roles.GetNonAllies(bot)
+    local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), nonAllies)
+    local closest = TTTBots.Lib.GetClosest(visible, bot:GetPos())
+    if closest and closest ~= NULL and TTTBots.Lib.IsPlayerAlive(closest) then
+        Arb.RequestAttackTarget(bot, closest, "RESTLESS_AGGRESSION", PRI.ROLE_HOSTILITY)
+    end
+end
+
 --- Attack any player that is on TEAM_INFECTED and is a zombie (converted infected).
 --- Uses role/team checks instead of fragile model-string comparison.
+--- All bots (not just killer roles) attack zombies because infected zombies are KOSedByAll.
 ---@param bot Bot
 local function attackZombies(bot)
     local visible = TTTBots.Lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot))
-    local isKillerRole = TTTBots.Roles.GetRoleFor(bot):GetStartsFights()
-    local kosZombies = TTTBots.Lib.GetConVarBool("kos_enemies")
 
+    -- Infected zombies are KOSedByAll — every bot should attack them on sight,
+    -- not just roles that start fights.  The only exception is allied bots
+    -- (e.g. the infected host itself or other infected zombies), which are
+    -- already excluded by GetPerceivedNonAllies / GetNonAllies above.
     local bestDist = math.huge
     local bestPly = nil
-    if isKillerRole or kosZombies then
-        for _, ply in pairs(visible) do
-            -- Check by team/role first, then fall back to model as a secondary signal
-            local isInfectedTeam = TEAM_INFECTED and ply.GetTeam and ply:GetTeam() == TEAM_INFECTED
-            local isZombieModel = ply:GetModel() == "models/player/corpse1.mdl"
-            local isInfectedZombie = TTTBots.Roles.IsInfectedZombie
-                and TTTBots.Roles.IsInfectedZombie(ply)
+    for _, ply in pairs(visible) do
+        -- Check by team/role first, then fall back to model as a secondary signal
+        local isInfectedTeam = TEAM_INFECTED and ply.GetTeam and ply:GetTeam() == TEAM_INFECTED
+        local isZombieModel = ply:GetModel() == "models/player/corpse1.mdl"
+        local isInfectedZombie = TTTBots.Roles.IsInfectedZombie
+            and TTTBots.Roles.IsInfectedZombie(ply)
 
-            if isInfectedTeam or isZombieModel or isInfectedZombie then
-                local dist = bot:GetPos():Distance(ply:GetPos())
-                if dist < bestDist then
-                    bestDist = dist
-                    bestPly = ply
-                end
+        if isInfectedTeam or isZombieModel or isInfectedZombie then
+            local dist = bot:GetPos():Distance(ply:GetPos())
+            if dist < bestDist then
+                bestDist = dist
+                bestPly = ply
             end
         end
-        if bestPly and bestPly ~= NULL and TTTBots.Lib.IsPlayerAlive(bestPly) then
-            Arb.RequestAttackTarget(bot, bestPly, "KOS_ZOMBIE", PRI.ROLE_HOSTILITY)
-        end
+    end
+    if bestPly and bestPly ~= NULL and TTTBots.Lib.IsPlayerAlive(bestPly) then
+        Arb.RequestAttackTarget(bot, bestPly, "KOS_ZOMBIE", PRI.ROLE_HOSTILITY)
     end
 end
 
@@ -164,6 +189,128 @@ local function attackNonAllies(bot)
             end
             Arb.RequestAttackTarget(bot, closest, "KOS_ALL", PRI.ROLE_HOSTILITY)
         end
+    end
+end
+
+--- Innocent-team bots attack the closest visible player who has been KOS'd by a
+--- credible caller (in Match.KOSList). The caller is considered credible when the
+--- bot's own suspicion of the caller is below the KOS threshold (i.e. the bot
+--- doesn't currently believe the caller is the traitor).
+--- Only runs for innocent-team bots that use suspicion (standard innocents,
+--- detectives, deputies, etc.).
+--- This is also exported so morality Think() can call it per-tick for instant
+--- on-sight KOS response.
+---@param bot Bot
+local function attackKOSListed(bot)
+    local kosList = TTTBots.Match.KOSList
+    if not kosList then return end
+
+    -- Only innocent-team bots react to chat-based KOS
+    if bot:GetTeam() ~= TEAM_INNOCENT then return end
+    local roleData = TTTBots.Roles.GetRoleFor(bot)
+    if not roleData:GetUsesSuspicion() then return end
+
+    local morality = bot:BotMorality()
+
+    -- Search ALL alive players for KOS targets — do NOT restrict to perceived
+    -- non-allies. A KOS target may appear innocent to the bot (e.g. a traitor
+    -- who hasn't been caught yet), so filtering to non-allies would silently
+    -- skip the target. We apply a direct visibility check per-target instead.
+
+    local bestDist   = math.huge
+    local bestTarget = nil
+
+    for target, callers in pairs(kosList) do
+        if not (IsValid(target) and lib.IsPlayerAlive(target)) then continue end
+        if target == bot then continue end
+
+        -- Target must be currently visible to the bot
+        if not bot:Visible(target) then continue end
+
+        -- Skip if the bot actually perceives this player as a confirmed ally
+        -- (e.g. traitor-side bot accidentally listed as KOS target is filtered here).
+        -- Use IsPerceivedAlly so the Spy/Clown perception layer is respected.
+        if TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, target) then
+            -- Only skip if the bot has NO suspicion of this player — a KOS call
+            -- should override weak ally-perception if suspicion is rising.
+            local targetSus = morality and morality:GetSuspicion(target) or 0
+            if targetSus < BotMorality.Thresholds.Sus then continue end
+        end
+
+        -- Check if at least one caller is credible (not believed to be traitor by this bot)
+        local hasCredibleCaller = false
+        for caller, _ in pairs(callers) do
+            if not IsValid(caller) then continue end
+            -- A caller is credible as long as the bot doesn't suspect them of being evil
+            local callerSus = morality and morality:GetSuspicion(caller) or 0
+            if callerSus < BotMorality.Thresholds.KOS then
+                hasCredibleCaller = true
+                break
+            end
+        end
+        if not hasCredibleCaller then continue end
+
+        local dist = bot:GetPos():Distance(target:GetPos())
+        if dist < bestDist then
+            bestDist   = dist
+            bestTarget = target
+        end
+    end
+
+    if bestTarget and bestTarget ~= NULL then
+        -- Seed last-known position into memory so AttackTarget's Seek mode can
+        -- hunt them down even if they move out of sight immediately after.
+        local mem = bot.components and bot.components.memory
+        if mem and mem.UpdateKnownPositionFor then
+            mem:UpdateKnownPositionFor(bestTarget, bestTarget:GetPos())
+        end
+        Arb.RequestAttackTarget(bot, bestTarget, "KOS_LIST_TARGET", PRI.SUSPICION_THRESHOLD)
+        return
+    end
+
+    -- Secondary pass: hunt a KOS target that is NOT currently visible.
+    -- Use OPPORTUNISTIC priority so the bot will pursue but won't override
+    -- an ongoing engagement or self-defense reaction.
+    local huntDist   = math.huge
+    local huntTarget = nil
+
+    for target, callers in pairs(kosList) do
+        if not (IsValid(target) and lib.IsPlayerAlive(target)) then continue end
+        if target == bot then continue end
+
+        -- Skip if the bot has a very high positive perception of this player
+        -- AND suspicion is still low (don't chase someone the bot trusts).
+        if TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, target) then
+            local targetSus = morality and morality:GetSuspicion(target) or 0
+            if targetSus < BotMorality.Thresholds.Sus then continue end
+        end
+
+        -- Require at least one credible caller
+        local hasCredibleCaller = false
+        for caller, _ in pairs(callers) do
+            if not IsValid(caller) then continue end
+            local callerSus = morality and morality:GetSuspicion(caller) or 0
+            if callerSus < BotMorality.Thresholds.KOS then
+                hasCredibleCaller = true
+                break
+            end
+        end
+        if not hasCredibleCaller then continue end
+
+        local dist = bot:GetPos():Distance(target:GetPos())
+        if dist < huntDist then
+            huntDist   = dist
+            huntTarget = target
+        end
+    end
+
+    if huntTarget and huntTarget ~= NULL then
+        -- Seed position so Seek mode works immediately
+        local mem = bot.components and bot.components.memory
+        if mem and mem.UpdateKnownPositionFor then
+            mem:UpdateKnownPositionFor(huntTarget, huntTarget:GetPos())
+        end
+        Arb.RequestAttackTarget(bot, huntTarget, "KOS_LIST_TARGET", PRI.OPPORTUNISTIC)
     end
 end
 
@@ -373,16 +520,53 @@ local function ankhBasedHostility(bot)
         end
     end
 
-    -- Graverobber: target the Pharaoh if they're near the ankh we're trying to capture
+    -- Pharaoh: if the Graverobber stole the Pharaoh's ankh, attack the Graverobber
+    -- who now owns it (DefendAnkh can't fire because PlayerControlsAnAnkh is false after theft)
+    if bot:GetSubRole() == ROLE_PHARAOH then
+        local ply_id = bot:SteamID64()
+        local ankhData = PHARAOH_HANDLER and PHARAOH_HANDLER.ankhs and PHARAOH_HANDLER.ankhs[ply_id]
+        if ankhData and ankhData.current_owner_id ~= ply_id and IsValid(ankhData.ankh) then
+            -- Ankh was stolen — find the thief and attack them
+            local plys = player.GetAll()
+            for i = 1, #plys do
+                local ply = plys[i]
+                if ply:SteamID64() == ankhData.current_owner_id and lib.IsPlayerAlive(ply) and bot:Visible(ply) then
+                    Arb.RequestAttackTarget(bot, ply, "DEFEND_ANKH", PRI.PLAYER_REQUEST)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Graverobber: target the Pharaoh if they're near the ankh we're trying to capture or own.
+    -- NOTE: bot._ankhConvertingEnt is set by CaptureAnkh.UseAnkh (not bot.ankhConvertingEntity).
     if bot:GetSubRole() == ROLE_GRAVEROBBER then
-        local targetAnkh = bot.targetAnkh or bot.ankhConvertingEntity
+        local targetAnkh = bot.targetAnkh or bot._ankhConvertingEnt
         if IsValid(targetAnkh) then
             local ankhOwner = targetAnkh:GetOwner()
+            -- If the ankh is owned by a Pharaoh who is guarding it, attack them
             if IsValid(ankhOwner) and ankhOwner:GetSubRole() == ROLE_PHARAOH
             and lib.IsPlayerAlive(ankhOwner)
             and bot:GetPos():Distance(targetAnkh:GetPos()) < 300
             and bot:Visible(ankhOwner) then
-                Arb.RequestAttackTarget(bot, ankhOwner, "ANKH_GUARDIAN_THREAT", PRI.ROLE_HOSTILITY)
+                Arb.RequestAttackTarget(bot, ankhOwner, "ANKH_GUARDIAN_THREAT", PRI.PLAYER_REQUEST)
+            end
+        end
+        -- Also: if we already own the ankh, attack the original Pharaoh who tries to reclaim it
+        if PHARAOH_HANDLER and PHARAOH_HANDLER:PlayerControlsAnAnkh(bot) then
+            local ankhs = ents.FindByClass("ttt_ankh")
+            for _, ankh in pairs(ankhs) do
+                if not IsValid(ankh) then continue end
+                if ankh:GetOwner() ~= bot then continue end
+                local nearbyPlayers = ents.FindInSphere(ankh:GetPos(), 250)
+                for _, ent in pairs(nearbyPlayers) do
+                    if not (IsValid(ent) and ent:IsPlayer() and ent ~= bot and lib.IsPlayerAlive(ent)) then continue end
+                    if ent:GetSubRole() ~= ROLE_PHARAOH then continue end
+                    if bot:Visible(ent) then
+                        Arb.RequestAttackTarget(bot, ent, "ANKH_GUARDIAN_THREAT", PRI.PLAYER_REQUEST)
+                        break
+                    end
+                end
             end
         end
     end
@@ -419,7 +603,9 @@ local function runHostilityPolicy(bot)
 
     -- Skip if the bot is fighting an NPC that isn't one of our bots
     if not (bot.attackTarget ~= nil and bot.attackTarget:IsNPC() and not table.HasValue(TTTBots.Bots, bot.attackTarget)) then
+        restlessRangedAggression(bot)
         attackKOSedByAll(bot)
+        attackKOSListed(bot)
         attackNPCs(bot)
         attackEnemies(bot)
         attackNonAllies(bot)
@@ -433,8 +619,11 @@ local function runHostilityPolicy(bot)
     end
 end
 
--- Export for the coordinator
-TTTBots.Morality.RunHostilityPolicy = runHostilityPolicy
+-- Export for the coordinator and per-tick callers
+TTTBots.Morality.RunHostilityPolicy       = runHostilityPolicy
+TTTBots.Morality.AttackKOSListed          = attackKOSListed
+TTTBots.Morality.AttackKOSedByAll         = attackKOSedByAll
+TTTBots.Morality.RestlessRangedAggression = restlessRangedAggression
 
 -- ===========================================================================
 -- Anti-grief: Innocent-team bots should not damage friendly ankhs (G-9)

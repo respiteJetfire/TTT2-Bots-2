@@ -297,6 +297,13 @@ function Stalk.OnRunning(bot)
         end
     end
 
+    -- Endgame override: ≤15 seconds remaining — abandon witness caution and engage immediately
+    local raComp = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    if raComp and raComp:IsEndgame() then
+        bot:SetAttackTarget(target, "STALK_ENDGAME", 5)
+        return STATUS.SUCCESS
+    end
+
     if witnessCount <= maxWitnesses then
         if math.random(1, attackChance) == 1 then
             bot:SetAttackTarget(target, "STALK_ATTACK", 4)

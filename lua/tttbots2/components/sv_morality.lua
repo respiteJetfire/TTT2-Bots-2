@@ -289,6 +289,25 @@ function BotMorality:Think()
     self:TickSuspicions()        -- from sv_morality_suspicion.lua
     self:SetRandomNearbyTarget() -- opportunistic (this file)
     self:TickIfLastAlive()       -- opportunistic (this file)
+
+    -- Per-tick on-sight KOS response: innocents/detectives engage a KOS target
+    -- the moment they see one, without waiting for the 1-second CommonSense timer.
+    if TTTBots.Morality.AttackKOSListed then
+        TTTBots.Morality.AttackKOSListed(self.bot)
+    end
+
+    -- Per-tick KOSedByAll response: all bots react immediately when they see a
+    -- KOSedByAll target (Doomguy, infected zombies, etc.) instead of waiting
+    -- for the 1-second CommonSense timer.
+    if TTTBots.Morality.AttackKOSedByAll then
+        TTTBots.Morality.AttackKOSedByAll(self.bot)
+    end
+
+    -- Per-tick restless aggression: restless bots with a ranged weapon attack
+    -- any visible non-ally immediately.
+    if TTTBots.Morality.RestlessRangedAggression then
+        TTTBots.Morality.RestlessRangedAggression(self.bot)
+    end
 end
 
 -- ===========================================================================

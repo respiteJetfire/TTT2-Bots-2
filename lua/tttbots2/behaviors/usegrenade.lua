@@ -20,6 +20,7 @@ local AIM_DOT_THRESHOLD = 0.85    -- ~30 degrees
 local ENEMY_SCAN_RADIUS = 800     -- units to scan for enemies
 local CLUSTER_RADIUS = 150        -- units between enemies to count as a cluster
 local LEDGE_DROP_THRESHOLD = 200  -- units of vertical drop to consider an edge dangerous
+local THROW_HOLD_DURATION = 0.2   -- seconds to hold IN_ATTACK before releasing to throw
 
 --- Determine the logical grenade type from a weapon classname.
 ---@param classname string
@@ -183,6 +184,18 @@ function UseGrenade.Validate(bot)
 	local lastToss = bot.lastGrenadeToss
 	if lastToss and (CurTime() - lastToss) < GRENADE_COOLDOWN then return false end
 
+	-- Anti-thrash: don't throw grenades unless the bot is already actively
+	-- fighting (AttackTarget running) or retreating.  Without this check,
+	-- FollowPlan's ATTACKANY sets bot.attackTarget which immediately makes
+	-- UseGrenade valid, causing a constant FollowPlan→UseGrenade→Retreat loop.
+	local lastBehavior = bot.lastBehavior
+	local inCombat = lastBehavior and (
+		lastBehavior.Name == "AttackTarget"
+		or lastBehavior.Name == "SeekCover"
+		or lastBehavior.Name == "Retreat"
+	)
+	if not inCombat then return false end
+
 	-- Validate that a sensible throw reason exists.
 	local reason = UseGrenade.GetBestThrowReason(bot)
 	if not reason then return false end
@@ -198,6 +211,8 @@ function UseGrenade.OnStart(bot)
 	-- Cache the throw reason so OnRunning doesn't recompute on every tick.
 	bot.grenadeThrowReason = UseGrenade.GetBestThrowReason(bot)
 
+	-- Prevent AutoManageInventory from switching away from the grenade mid-throw.
+	inv:PauseAutoSwitch()
 	inv:EquipGrenade()
 
 	return STATUS.RUNNING
@@ -236,20 +251,31 @@ function UseGrenade.OnRunning(bot)
 	local dot = aimDir:Dot(eyeDir)
 
 	if dot > AIM_DOT_THRESHOLD then
-		-- Commit the throw.
-		loco:StartAttack()
-		bot.lastGrenadeToss = CurTime()
+		-- Phase 1: hold IN_ATTACK to pull the pin.
+		if not bot.grenadeHoldStart then
+			bot.grenadeHoldStart = CurTime()
+			loco:StartAttack()
+		elseif (CurTime() - bot.grenadeHoldStart) >= THROW_HOLD_DURATION then
+			-- Phase 2: release IN_ATTACK to throw.
+			loco:StopAttack()
+			bot.lastGrenadeToss = CurTime()
+			bot.grenadeHoldStart = nil
 
-		-- Fire chatter event (no-op if the event doesn't exist yet).
-		local chatter = bot:BotChatter()
-		if chatter and chatter.On then
-			chatter:On("ThrowGrenade", {}, false)
+			-- Fire chatter event (no-op if the event doesn't exist yet).
+			local chatter = bot:BotChatter()
+			if chatter and chatter.On then
+				chatter:On("ThrowGrenade", {}, false)
+			end
+
+			return STATUS.SUCCESS
 		end
-
-		return STATUS.SUCCESS
+	else
+		-- Not aimed yet — stop any premature attack and keep turning.
+		bot.grenadeHoldStart = nil
+		loco:StopAttack()
 	end
 
-	-- Still turning to face — keep running.
+	-- Still turning to face (or holding pin) — keep running.
 	return STATUS.RUNNING
 end
 
@@ -264,6 +290,9 @@ end
 --- Called when the behavior ends (success or failure).
 function UseGrenade.OnEnd(bot)
 	bot.grenadeThrowReason = nil
+	bot.grenadeHoldStart = nil
+	local inv = bot:BotInventory()
+	if inv then inv:ResumeAutoSwitch() end
 	local loco = bot:BotLocomotor()
 	if loco then loco:StopAttack() end
 end
