@@ -185,6 +185,46 @@ bot_sh_cvar('debug_brain', '0',
 
 bot_sh_cvar('debug_forceweapon', '', 'Forces bots to use a specific weapon. Gives it to them if they do not have it.')
 
+-- Debug Log cvars (server-console text output for full round picture)
+bot_sh_cvar("debug_log_round", "0",
+    "Logs round lifecycle to server console: prepare, start (with full roster/roles), and end (with results). Use [BOTDBG:ROUND] prefix to filter.")
+bot_sh_cvar("debug_log_kills", "0",
+    "Logs every kill during a round to server console: who killed whom, with what weapon, and the alive count. Filter: [BOTDBG:KILL]")
+bot_sh_cvar("debug_log_damage", "0",
+    "Logs every PlayerHurt event to server console: attacker, victim, damage, remaining HP. Filter: [BOTDBG:DMG] (can be spammy!)")
+bot_sh_cvar("debug_log_kos", "0",
+    "Logs all KOS calls to server console: caller, target, and round time. Filter: [BOTDBG:KOS]")
+bot_sh_cvar("debug_log_bodies", "0",
+    "Logs body discovery events to server console: who found whose body, and the confirmed dead count. Filter: [BOTDBG:BODY]")
+bot_sh_cvar("debug_log_behaviors", "0",
+    "Periodically logs each alive bot's current behavior tree node and attack target (every 3s). Filter: [BOTDBG:BEHAV]")
+bot_sh_cvar("debug_log_plans", "0",
+    "Logs traitor plan assignments and periodic plan state to server console. Filter: [BOTDBG:PLAN]")
+bot_sh_cvar("debug_log_innocentcoord", "0",
+    "Logs innocent coordinator strategy and buddy pairs to server console (every 5s). Filter: [BOTDBG:IC]")
+bot_sh_cvar("debug_log_evidence", "0",
+    "Periodically dumps each bot's top 3 suspects with evidence weights (every 5s). Filter: [BOTDBG:EVID]")
+bot_sh_cvar("debug_log_awareness", "0",
+    "Periodically logs round-awareness phase, aggression, group urgency, and suspicion pressure per bot (every 8s). Filter: [BOTDBG:PHASE]")
+bot_sh_cvar("debug_log_personality", "0",
+    "Periodically logs personality archetype, difficulty, rage/boredom/pressure, and traits per bot (every 10s). Filter: [BOTDBG:PERS]")
+bot_sh_cvar("debug_log_inventory", "0",
+    "Periodically logs held/primary/secondary weapons per bot (every 8s). Filter: [BOTDBG:INV]")
+bot_sh_cvar("debug_log_memory", "0",
+    "Periodically logs memory state: visible players, known positions, known alive counts, hearing multiplier (every 8s). Filter: [BOTDBG:MEM]")
+bot_sh_cvar("debug_log_morality", "0",
+    "Periodically logs active attack targets with priority and reason codes (every 4s). Filter: [BOTDBG:MORAL]")
+bot_sh_cvar("debug_log_chatter", "0",
+    "Logs all bot chat messages (text chat) to server console. Filter: [BOTDBG:CHAT]")
+bot_sh_cvar("debug_log_c4", "0",
+    "Periodically logs armed and spotted C4 counts (every 5s). Filter: [BOTDBG:C4]")
+bot_sh_cvar("debug_log_locomotion", "0",
+    "Periodically logs pathfinding state: has path, strafe direction, status, goal position (every 6s). Filter: [BOTDBG:LOCO]")
+bot_sh_cvar("debug_log_timeline", "0",
+    "Periodically prints a full round snapshot: all alive players with roles, KOS targets, counts (every 15s). Filter: [BOTDBG:TIME]")
+bot_sh_cvar("debug_log_events", "0",
+    "Firehose: logs every TTTBots event bus event with payload details. Filter: [BOTDBG:EVENT] (can be very spammy!)")
+
 -- Personality cvars
 bot_sh_cvar("boredom", "1",
     "Enables boredom. Bots will leave the server if they get too bored. If RDM is enabled, then some bots will be more likely RDM when (very) bored")

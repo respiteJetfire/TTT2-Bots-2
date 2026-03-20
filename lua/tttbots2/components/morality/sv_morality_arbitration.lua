@@ -113,6 +113,8 @@ end
 ---@return boolean accepted  True if the request was applied.
 function Arb.RequestAttackTarget(bot, target, reason, priority)
     if not IsValid(bot) then return false end
+    -- Dead bots cannot attack — reject immediately to avoid pointless processing.
+    if not TTTBots.Lib.IsPlayerAlive(bot) then return false end
     priority = priority or Arb.PRIORITY.OPPORTUNISTIC
     reason   = reason   or "LEGACY"
 

@@ -80,12 +80,16 @@ function TTTBots.Roles.GetRole(name)
     return selected, isDefault
 end
 
----Returns the RoleData of the player, else nil if it doesn't exist.
+---Returns the RoleData of the player.
+---Always returns a valid RoleData (falls back to innocent) so callers can
+---safely chain method calls without nil-checking every time.
 ---@param ply Player
 ---@return RoleData
 ---@return boolean - Whether or not the role is the default role.
 function TTTBots.Roles.GetRoleFor(ply)
-    if not IsValid(ply) or not ply.GetRoleStringRaw then return nil end
+    if not IsValid(ply) or not ply.GetRoleStringRaw then
+        return TTTBots.Roles.GetRole("innocent") -- safe fallback, never nil
+    end
     local roleString = ply:GetRoleStringRaw()
     return TTTBots.Roles.GetRole(roleString)
 end
@@ -142,6 +146,7 @@ function TTTBots.Roles.IsEnemies(ply1, ply2)
     if not (IsValid(ply1) and IsValid(ply2)) then return false end
     local role1 = TTTBots.Roles.GetRoleFor(ply1)
     local role2 = TTTBots.Roles.GetRoleFor(ply2)
+    if not role1 or not role2 then return false end
 
     -- Workaround for roles like Bodyguard where player team is adjusted on-the-fly
     if (
@@ -161,6 +166,7 @@ end
 ---@return boolean
 function TTTBots.Roles.IsKOSAll(ply)
     local role = TTTBots.Roles.GetRoleFor(ply)
+    if not role then return false end
     return role:GetKOSAll()
 end
 
@@ -169,6 +175,7 @@ end
 ---@return boolean
 function TTTBots.Roles.IsKOSedByAll(ply)
     local role = TTTBots.Roles.GetRoleFor(ply)
+    if not role then return false end
     return role:GetKOSedByAll()
 end
 

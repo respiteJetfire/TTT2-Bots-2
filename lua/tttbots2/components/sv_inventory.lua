@@ -661,12 +661,16 @@ function BotInventory:Think()
     end
     self.tick = self.tick + 1
 
+    -- Manage our own inventory, but only if we have not been paused.
+    -- This must be checked before ReloadIfNecessary as well, because
+    -- reloading calls StopAttack on the locomotor which interrupts
+    -- grenade throws and other utility-weapon interactions.
+    if self.pauseAutoSwitch then return end
+
     if not IsValid(self.bot.attackTarget) then
         self:ReloadIfNecessary()
     end
 
-    -- Manage our own inventory, but only if we have not been paused
-    if self.pauseAutoSwitch then return end
     self:AutoManageInventory()
 end
 

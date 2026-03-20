@@ -34,18 +34,35 @@ end
 
 local f = string.format
 local supportedLangs = { "en" }
+
+-- All chat category files that replaced the monolithic sh_chats.lua
+local chatFiles = {
+    "sh_chats_connection.lua",
+    "sh_chats_social.lua",
+    "sh_chats_plans.lua",
+    "sh_chats_interaction.lua",
+    "sh_chats_roles_defector.lua",
+    "sh_chats_combat.lua",
+    "sh_chats_roles_infected.lua",
+    "sh_chats_roles_necro.lua",
+    "sh_chats_roles_sk.lua",
+    "sh_chats_roles_spy.lua",
+    "sh_chats_roles_cupid.lua",
+    "sh_chats_roles_amnesiac.lua",
+    "sh_chats_roles_pharaoh.lua",
+    "sh_chats_roles_clown.lua",
+    "sh_chats_misc.lua",
+    "sh_casual_chats.lua",
+    "sh_strings.lua",
+}
+
 for _, lang in pairs(supportedLangs) do
     local directory = f("tttbots2/locale/%s/", lang)
-    local chatPath = f("%ssh_chats.lua", directory)
-    local casualChatPath = f("%ssh_casual_chats.lua", directory)
-    local stringsPath = f("%ssh_strings.lua", directory)
-
-    AddCSLuaFile(chatPath)
-    AddCSLuaFile(casualChatPath)
-    AddCSLuaFile(stringsPath)
-    include(chatPath)
-    include(casualChatPath)
-    include(stringsPath)
+    for _, fileName in ipairs(chatFiles) do
+        local filePath = f("%s%s", directory, fileName)
+        AddCSLuaFile(filePath)
+        include(filePath)
+    end
 end
 
 --- Add a line into the localized strings table, according to its language. Depending on the type of event, the line may contain parameters.

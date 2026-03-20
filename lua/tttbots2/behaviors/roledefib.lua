@@ -174,6 +174,17 @@ function Roledefib.GetSpinePos(rag)
     return default
 end
 
+--- Get the best aim position on a ragdoll that an eye-trace will actually hit.
+--- Uses the ragdoll's OBBCenter (the middle of its collision hull) so the
+--- MASK_SHOT_HULL trace in weapon Think() resolves to the ragdoll entity
+--- instead of sailing over it.
+---@param rag Entity
+---@return Vector
+function Roledefib.GetCorpseAimPos(rag)
+    if not IsValid(rag) then return rag:GetPos() end
+    return rag:LocalToWorld(rag:OBBCenter())
+end
+
 ---@class Bot
 ---@field roledefibTarget Player? The PLAYER of the roledefibRag we found
 ---@field roledefibRag Entity? The ragdoll we found to roledefib
@@ -199,7 +210,8 @@ function Roledefib.OnRunning(bot)
     local ragGroundPos = Vector(ragPos.x, ragPos.y, rag:GetPos().z)
 
     loco:SetGoal(ragGroundPos)
-    loco:LookAt(ragPos)
+    -- Aim at the ragdoll's collision center so eye-trace hits the entity
+    loco:LookAt(Roledefib.GetCorpseAimPos(rag))
     if not TTTBots.Match.MarkedForDefib[target] then
         TTTBots.Match.MarkedForDefib[target] = bot
     else
@@ -219,16 +231,65 @@ function Roledefib.OnRunning(bot)
         loco.persistCrouch = true
         loco:Crouch(true)
         loco:PauseRepel()
-        -- Look at ground level of corpse, not elevated spine
-        local lookTarget = ragGroundPos + Vector(0, 0, 5)
+        -- Aim at the ragdoll's collision center so the eye-trace check passes
+        local lookTarget = Roledefib.GetCorpseAimPos(rag)
         loco:LookAt(lookTarget, 2)
         loco:StartAttack()
         if bot.roledefibStartTime == nil then
             bot.roledefibStartTime = CurTime()
             startFunc(bot)
+            -- Try to use the weapon's BeginRevival if available
+            if IsValid(roledefib) and roledefib.BeginRevival and roledefib.GetState then
+                local wepState = roledefib:GetState()
+                if wepState == 0 then -- DEFI_IDLE
+                    roledefib:BeginRevival(rag, 0)
+                end
+            end
         end
         if bot.roledefibStartTime + 1 < CurTime() then
-            Roledefib.FullRoledefib(bot, target)
+            -- Check if the weapon's pipeline handled the revive
+            if IsValid(roledefib) and roledefib.GetState then
+                local wepState = roledefib:GetState()
+                if wepState == 1 then
+                    -- DEFI_BUSY: weapon pipeline still active, let it finish
+                    if roledefib.FinishRevival then
+                        roledefib:FinishRevival()
+                    end
+                    return STATUS.SUCCESS
+                end
+            end
+            -- Weapon pipeline was cancelled (eye-trace miss) or doesn't
+            -- support BeginRevival — fallback: directly fire the revive and
+            -- reduce the defib's ammo charge by 1.
+            if IsValid(target) and not target:IsTerror() and IsValid(rag) and lib.IsValidBody(rag) then
+                target:Revive(
+                    0,
+                    function(p)
+                        if SIDEKICK and bot:GetSubRole() == ROLE_SIDEKICK then
+                            bot = bot:GetSidekickMate() or nil
+                        end
+                        p:SetRole(bot:GetSubRole(), bot:GetTeam())
+                        p:SetDefaultCredits()
+                        SendFullStateUpdate()
+                    end,
+                    nil,
+                    true,
+                    REVIVAL_BLOCK_NONE,
+                    function() successFunc(bot) end
+                )
+                -- Consume one ammo charge from the defib
+                if IsValid(roledefib) then
+                    if roledefib.SetClip1 then
+                        roledefib:SetClip1(roledefib:Clip1() - 1)
+                    elseif roledefib.TakePrimaryAmmo then
+                        roledefib:TakePrimaryAmmo(1)
+                    end
+                    -- weapon_ttt_defib_traitor removes itself on success
+                    if roledefib:Clip1() < 1 or (roledefib.CanPrimaryAttack and not roledefib:CanPrimaryAttack()) then
+                        roledefib:Remove()
+                    end
+                end
+            end
             return STATUS.SUCCESS
         end
     else

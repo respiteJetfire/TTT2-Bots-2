@@ -142,7 +142,23 @@ hook.Add("PlayerHurt", "TTTBots_PlayerHurt", function(victim, attacker, healthRe
     if not IsValid(target) or not IsValid(bot) then return end
     if not target:IsPlayer() then return end
 
-    if healthRemaining <= 75 and IsValid(target) and target:IsPlayer() and math.random(1, 100) > 60 then
+    -- Don't ask the attacker to cease fire if we already consider them hostile
+    -- (we should be fighting back, not asking politely). Only ask to cease fire
+    -- when we haven't accumulated enough suspicion to retaliate — i.e. it might
+    -- be accidental friendly fire rather than a deliberate attack.
+    local morality = bot.components and bot.components.morality
+    local attackerSus = morality and morality:GetSuspicion(target) or 0
+    local susThreshold = (morality and morality.Thresholds and morality.Thresholds.Sus) or 3
+
+    -- Skip cease-fire request if:
+    --  • We already have an attack target (we're fighting back)
+    --  • The attacker's suspicion is at or above the suspicious threshold
+    --  • Significant damage has been dealt (this is clearly intentional)
+    if bot.attackTarget ~= nil then return end
+    if attackerSus >= susThreshold then return end
+    if damageTaken >= 20 then return end
+
+    if healthRemaining <= 75 and math.random(1, 100) > 60 then
         local chatter = bot:BotChatter()
         print("Asking " .. target:Nick() .. " to cease fire.")
         if chatter and chatter.On then chatter:On("AskCeaseFire", { player = target:Nick() }, false, 0) end

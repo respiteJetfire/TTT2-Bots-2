@@ -126,6 +126,13 @@ end
 
 --- Validate the behavior
 function Attack.Validate(bot)
+    -- Dead bots cannot attack. Clear any stale target and reject immediately.
+    if not TTTBots.Lib.IsPlayerAlive(bot) then
+        if bot.attackTarget then
+            bot:SetAttackTarget(nil, "BEHAVIOR_END")
+        end
+        return false
+    end
     -- Respawn grace: suppress attacking so the bot can equip weapons first.
     -- Exception: self-defense targets (priority 5) override the grace period.
     if (bot.respawnGraceUntil or 0) > CurTime() then
@@ -958,7 +965,12 @@ function Attack.ValidateTarget(bot)
     local targetIsNPCAndAlive = targetIsNPC and target:Health() > 0 or false
     local targetIsPlayerOrNPCAndAlive = (targetIsPlayerAndAlive or targetIsNPCAndAlive) and targetIsAlive or false
     local baseRole = target:IsPlayer() and target:GetBaseRole() or nil
-    local isAlly = (TTTBots.Roles.IsAllies(bot, target) and (baseRole ~= ROLE_INNOCENT)) or baseRole == ROLE_MEDIC
+    -- An ally check that exempts ROLE_INNOCENT targets from being shielded by
+    -- IsAllies (so innocents CAN retaliate against fellow innocents in
+    -- self-defense). Medics are only treated as allies when they actually ARE
+    -- allied — the old `or baseRole == ROLE_MEDIC` unconditionally shielded
+    -- every medic-base-role target, even enemy-team medics.
+    local isAlly = TTTBots.Roles.IsAllies(bot, target) and (baseRole ~= ROLE_INNOCENT)
 
     -- print(bot:Nick() .. " validating attack target behavior:")
     -- print("| hasTarget: " .. tostring(hasTarget))
@@ -997,31 +1009,36 @@ function Attack.ValidateTarget(bot)
 
     if not (checkPassed or NPCPass) then
         local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
-        PrintAttackValidationFailure(bot, {
-            target = target,
-            hasTarget = hasTarget,
-            targetIsValid = targetIsValid,
-            botIsAlive = botIsAlive,
-            targetIsAlive = targetIsAlive,
-            targetIsPlayer = targetIsPlayer,
-            targetIsNPC = targetIsNPC,
-            targetIsPlayerAndAlive = targetIsPlayerAndAlive,
-            targetIsNPCAndAlive = targetIsNPCAndAlive,
-            targetIsPlayerOrNPCAndAlive = targetIsPlayerOrNPCAndAlive,
-            lastSeenTime = lastSeenTime,
-            notSeenRecently = notSeenRecently,
-            isAlly = isAlly,
-            checkPassed = checkPassed,
-            NPCPass = NPCPass,
-            attackBehaviorMode = state.attackBehaviorMode,
-        })
+        -- Throttle debug output: only print once every 5 seconds per bot to avoid log spam.
+        local now = CurTime()
+        local lastPrint = bot._lastAttackValidationPrint or 0
+        if now - lastPrint >= 5 then
+            bot._lastAttackValidationPrint = now
+            PrintAttackValidationFailure(bot, {
+                target = target,
+                hasTarget = hasTarget,
+                targetIsValid = targetIsValid,
+                botIsAlive = botIsAlive,
+                targetIsAlive = targetIsAlive,
+                targetIsPlayer = targetIsPlayer,
+                targetIsNPC = targetIsNPC,
+                targetIsPlayerAndAlive = targetIsPlayerAndAlive,
+                targetIsNPCAndAlive = targetIsNPCAndAlive,
+                targetIsPlayerOrNPCAndAlive = targetIsPlayerOrNPCAndAlive,
+                lastSeenTime = lastSeenTime,
+                notSeenRecently = notSeenRecently,
+                isAlly = isAlly,
+                checkPassed = checkPassed,
+                NPCPass = NPCPass,
+                attackBehaviorMode = state.attackBehaviorMode,
+            })
+        end
         bot:SetAttackTarget(nil, "BEHAVIOR_END")
         if state.attackBehaviorMode == ATTACKMODE.Engaging then
             bot:BotLocomotor():StopAttack()
         end
         if bot.attackTarget then
             bot.attackTarget = nil
-            -- print(bot:Nick() .. " cleared attack target.")
         end
     end
 
@@ -1137,6 +1154,7 @@ timer.Create("TTTBots_AttackFocus", 1 / TTTBots.Tickrate, 0, function()
     for _, bot in ipairs(TTTBots.Bots) do
         if not IsValid(bot) then continue end
         if not bot.components then continue end
+        if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
         Attack.UpdateFocus(bot)
     end
 end)

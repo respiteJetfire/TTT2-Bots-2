@@ -52,6 +52,76 @@ local function continueMassacre(bot)
     end
 end
 
+--- Opportunistic traitor aggression: traitor-team bots that start fights should
+--- autonomously seek out isolated enemies even when they have no plan or their
+--- personality causes them to ignore coordinator orders.
+--- Phase-aware: during EARLY phase only attacks completely isolated targets;
+--- during MID allows 1 witness; LATE/OVERTIME attacks any visible non-ally.
+--- Gated by a per-tick random roll so bots don't all lunge at once.
+---@param bot Bot
+local function traitorOpportunisticAggression(bot)
+    -- Only for roles that are supposed to start fights (traitor-like)
+    local roleData = TTTBots.Roles.GetRoleFor(bot)
+    if not roleData:GetStartsFights() then return end
+    -- Don't override an existing target
+    if bot.attackTarget ~= nil then return end
+    -- Must not already be following a plan job — this is for plan-less bots
+    local planState = TTTBots.Behaviors.GetState and TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    if planState and planState.Job then return end
+
+    -- Respect the plans minimum delay as an attack delay for early aggression
+    if not TTTBots.Match.PlansCanStart() then return end
+
+    -- Random roll gating: base 15% chance per tick (1s interval), scaling up
+    -- with the bot's aggression trait multiplier and round phase pressure.
+    local personality = bot.components and bot.components.personality
+    local aggrMult = personality and personality:GetTraitMult("aggression") or 1.0
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+    local phase = (ra and PHASE) and ra:GetPhase() or nil
+
+    -- Phase pressure multiplier: more aggressive as round progresses
+    local phaseMult = 1.0
+    if phase then
+        if phase == PHASE.EARLY then phaseMult = 0.5
+        elseif phase == PHASE.MID then phaseMult = 1.0
+        elseif phase == PHASE.LATE then phaseMult = 2.0
+        elseif phase == PHASE.OVERTIME then phaseMult = 4.0
+        end
+    end
+
+    local chance = 0.15 * aggrMult * phaseMult
+    if math.random() > chance then return end
+
+    -- Find visible non-allies
+    local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot)
+        or TTTBots.Roles.GetNonAllies(bot)
+    local visible = lib.GetAllWitnessesBasic(bot:EyePos(), nonAllies)
+    local closest = lib.GetClosest(visible, bot:GetPos())
+    if not (closest and closest ~= NULL and lib.IsPlayerAlive(closest)) then return end
+
+    -- Phase-aware witness gating (same logic as attackEnemies)
+    local isKOSedByAll = roleData.GetKOSedByAll and roleData:GetKOSedByAll()
+    if not isKOSedByAll and phase then
+        if phase == PHASE.EARLY or phase == PHASE.MID then
+            local witnessesNearTarget = lib.GetAllWitnessesBasic(
+                closest:GetPos(), nonAllies, bot
+            )
+            local maxWitnesses = (phase == PHASE.EARLY) and 0 or 1
+            if table.Count(witnessesNearTarget) > maxWitnesses then
+                return -- Too many witnesses, maintain cover
+            end
+        end
+    end
+
+    -- Seed position into memory so AttackTarget.Seek can path immediately
+    local mem = bot.components and bot.components.memory
+    if mem and mem.UpdateKnownPositionFor then
+        mem:UpdateKnownPositionFor(closest, closest:GetPos())
+    end
+    Arb.RequestAttackTarget(bot, closest, "OPPORTUNISTIC_ATTACK", PRI.OPPORTUNISTIC)
+end
+
 --- Attack any player that is in the GetEnemies for our role.
 --- Phase-aware: during EARLY/MID phases, deceptive roles only attack isolated enemies.
 ---@param bot Bot
@@ -612,6 +682,7 @@ local function runHostilityPolicy(bot)
         attackZombies(bot)
         attackUnknowns(bot)
         continueMassacre(bot)
+        traitorOpportunisticAggression(bot)
         ankhBasedHostility(bot)
         preventAttackAll(bot)
         personalSpace(bot)
@@ -645,6 +716,7 @@ timer.Create("TTTBots.Components.Morality.CommonSense", 1, 0, function()
     if not TTTBots.Match.IsRoundActive() then return end
     for i, bot in pairs(TTTBots.Bots) do
         if not bot or bot == NULL or not IsValid(bot) then continue end
+        if not bot.components then continue end
         if not bot.components.chatter or not bot:BotLocomotor() then continue end
         if not lib.IsPlayerAlive(bot) then continue end
         runHostilityPolicy(bot)

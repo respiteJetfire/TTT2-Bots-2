@@ -20,7 +20,7 @@ local AIM_DOT_THRESHOLD = 0.85    -- ~30 degrees
 local ENEMY_SCAN_RADIUS = 800     -- units to scan for enemies
 local CLUSTER_RADIUS = 150        -- units between enemies to count as a cluster
 local LEDGE_DROP_THRESHOLD = 200  -- units of vertical drop to consider an edge dangerous
-local THROW_HOLD_DURATION = 0.2   -- seconds to hold IN_ATTACK before releasing to throw
+local THROW_HOLD_DURATION = 0.6   -- seconds to hold IN_ATTACK before releasing to throw
 
 --- Determine the logical grenade type from a weapon classname.
 ---@param classname string
@@ -188,13 +188,18 @@ function UseGrenade.Validate(bot)
 	-- fighting (AttackTarget running) or retreating.  Without this check,
 	-- FollowPlan's ATTACKANY sets bot.attackTarget which immediately makes
 	-- UseGrenade valid, causing a constant FollowPlan→UseGrenade→Retreat loop.
+	-- IMPORTANT: If UseGrenade is already the active behavior (mid-throw),
+	-- skip this check so the throw can complete across multiple ticks.
 	local lastBehavior = bot.lastBehavior
-	local inCombat = lastBehavior and (
-		lastBehavior.Name == "AttackTarget"
-		or lastBehavior.Name == "SeekCover"
-		or lastBehavior.Name == "Retreat"
-	)
-	if not inCombat then return false end
+	local isSelf = lastBehavior and lastBehavior.Name == "UseGrenade"
+	if not isSelf then
+		local inCombat = lastBehavior and (
+			lastBehavior.Name == "AttackTarget"
+			or lastBehavior.Name == "SeekCover"
+			or lastBehavior.Name == "Retreat"
+		)
+		if not inCombat then return false end
+	end
 
 	-- Validate that a sensible throw reason exists.
 	local reason = UseGrenade.GetBestThrowReason(bot)
@@ -208,12 +213,20 @@ function UseGrenade.OnStart(bot)
 	local inv = bot:BotInventory()
 	if not inv then return STATUS.RUNNING end
 
+	local loco = bot:BotLocomotor()
+
 	-- Cache the throw reason so OnRunning doesn't recompute on every tick.
 	bot.grenadeThrowReason = UseGrenade.GetBestThrowReason(bot)
 
 	-- Prevent AutoManageInventory from switching away from the grenade mid-throw.
 	inv:PauseAutoSwitch()
 	inv:EquipGrenade()
+
+	-- Pause the attack-compatibility mechanic that periodically drops IN_ATTACK
+	-- for modded gun support — it interrupts the grenade pin-pull hold.
+	if loco then
+		loco:PauseAttackCompat()
+	end
 
 	return STATUS.RUNNING
 end
@@ -294,5 +307,8 @@ function UseGrenade.OnEnd(bot)
 	local inv = bot:BotInventory()
 	if inv then inv:ResumeAutoSwitch() end
 	local loco = bot:BotLocomotor()
-	if loco then loco:StopAttack() end
+	if loco then
+		loco:StopAttack()
+		loco:ResumeAttackCompat()
+	end
 end

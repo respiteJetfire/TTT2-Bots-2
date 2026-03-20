@@ -69,6 +69,7 @@ function TTTBots.Plans.Cleanup()
     TTTBots.Plans.BotStatuses = {}
     TTTBots.Plans.CurrentPlanState = "Waiting"
     TTTBots.Plans.SelectedPlan = nil
+    TTTBots.Plans.PlanStartTime = 0
     TTTBots.Plans.SharedTargetCache = {} --- Reset per-job shared targets each round
 end
 
@@ -154,5 +155,16 @@ function TTTBots.Plans.Tick()
     if not TTTBots.Plans.SelectedPlan then
         TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset())
         TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
+        TTTBots.Plans.PlanStartTime = CurTime()
+        return
+    end
+
+    -- Transition out of START once the round has had a short warmup window.
+    -- This prevents the plan FSM from appearing permanently stuck in "Starting".
+    if TTTBots.Plans.CurrentPlanState == TTTBots.Plans.PLANSTATES.START then
+        local startedAt = TTTBots.Plans.PlanStartTime or CurTime()
+        if (CurTime() - startedAt) >= 1 then
+            TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.RUNNING
+        end
     end
 end

@@ -2017,6 +2017,9 @@ local plyMeta = FindMetaTable("Player")
 
 function plyMeta:SetAttackTarget(target, reason, priority)
     if self.attackTarget == target then return end
+    -- Block assigning new targets to dead bots — they cannot fight.
+    -- Clearing (target==nil) is always allowed so cleanup paths still work.
+    if target ~= nil and not TTTBots.Lib.IsPlayerAlive(self) then return end
     if (IsValid(target) and TTTBots.Roles.IsAllies(self, target)) then return end
     if (hook.Run("TTTBotsCanAttack", self, target) == false) then return end
 

@@ -217,6 +217,74 @@
 - **ttt_bot_debug_forceweapon** (default: `""`)
   - Forces bots to use a specific weapon.
 
+## Debug Log CVARS (Server Console Output)
+
+These cvars enable text-based logging to the **server console** so you can get a full picture of the round without needing a client connected. All lines are prefixed with `[BOTDBG:<TAG>]` for easy grep/filtering. Use `ttt_bot_debug_log_all_on` / `ttt_bot_debug_log_all_off` to toggle everything at once, or `ttt_bot_debug_log_status` to check what's enabled.
+
+- **ttt_bot_debug_log_round** (default: `0`)
+  - Logs round lifecycle: prepare, start (with full roster/roles), and end (with results). Tag: `[BOTDBG:ROUND]`
+
+- **ttt_bot_debug_log_kills** (default: `0`)
+  - Logs every kill: who killed whom, weapon used, alive count after. Tag: `[BOTDBG:KILL]`
+
+- **ttt_bot_debug_log_damage** (default: `0`)
+  - Logs every damage event: attacker, victim, damage dealt, remaining HP. Tag: `[BOTDBG:DMG]` ⚠️ Can be spammy.
+
+- **ttt_bot_debug_log_kos** (default: `0`)
+  - Logs all KOS calls: caller, target, round timestamp. Tag: `[BOTDBG:KOS]`
+
+- **ttt_bot_debug_log_bodies** (default: `0`)
+  - Logs body discovery events: who found whose body, confirmed dead count. Tag: `[BOTDBG:BODY]`
+
+- **ttt_bot_debug_log_behaviors** (default: `0`)
+  - Periodically (every 3s) logs each alive bot's current behavior tree node and attack target. Tag: `[BOTDBG:BEHAV]`
+
+- **ttt_bot_debug_log_plans** (default: `0`)
+  - Logs traitor plan assignments and periodic plan state dumps. Tag: `[BOTDBG:PLAN]`
+
+- **ttt_bot_debug_log_innocentcoord** (default: `0`)
+  - Logs innocent coordinator strategy, buddy pairs (every 5s). Tag: `[BOTDBG:IC]`
+
+- **ttt_bot_debug_log_evidence** (default: `0`)
+  - Periodically (every 5s) dumps each bot's top 3 suspects with evidence weights. Tag: `[BOTDBG:EVID]`
+
+- **ttt_bot_debug_log_awareness** (default: `0`)
+  - Periodically (every 8s) logs round-awareness phase, aggression multiplier, group urgency, suspicion pressure. Tag: `[BOTDBG:PHASE]`
+
+- **ttt_bot_debug_log_personality** (default: `0`)
+  - Periodically (every 10s) logs personality archetype, difficulty, rage/boredom/pressure, and traits. Tag: `[BOTDBG:PERS]`
+
+- **ttt_bot_debug_log_inventory** (default: `0`)
+  - Periodically (every 8s) logs held/primary/secondary weapons per bot. Tag: `[BOTDBG:INV]`
+
+- **ttt_bot_debug_log_memory** (default: `0`)
+  - Periodically (every 8s) logs memory state: visible players, known positions, hearing multiplier. Tag: `[BOTDBG:MEM]`
+
+- **ttt_bot_debug_log_morality** (default: `0`)
+  - Periodically (every 4s) logs active attack targets with priority and reason codes. Tag: `[BOTDBG:MORAL]`
+
+- **ttt_bot_debug_log_chatter** (default: `0`)
+  - Logs all bot text chat messages. Tag: `[BOTDBG:CHAT]`
+
+- **ttt_bot_debug_log_c4** (default: `0`)
+  - Periodically (every 5s) logs armed/spotted C4 counts. Tag: `[BOTDBG:C4]`
+
+- **ttt_bot_debug_log_locomotion** (default: `0`)
+  - Periodically (every 6s) logs pathfinding state: has path, strafe, status, goal position. Tag: `[BOTDBG:LOCO]`
+
+- **ttt_bot_debug_log_timeline** (default: `0`)
+  - Periodically (every 15s) prints a full round snapshot: all alive players with roles, KOS targets, counts. Tag: `[BOTDBG:TIME]`
+
+- **ttt_bot_debug_log_events** (default: `0`)
+  - Firehose: logs every TTTBots event bus event with full payload. Tag: `[BOTDBG:EVENT]` ⚠️ Very spammy.
+
+### Debug Log Console Commands
+
+- **ttt_bot_debug_log_all_on** — Enables all 19 debug log cvars at once.
+- **ttt_bot_debug_log_all_off** — Disables all 19 debug log cvars at once.
+- **ttt_bot_debug_log_status** — Prints the ON/OFF state of each debug log cvar.
+- **ttt_bot_debug_roundinfo** — Prints a one-shot snapshot of the current round (all players, roles, HP, behaviors).
+
 ## Personality CVARS
 
 - **ttt_bot_boredom** (default: `1`)

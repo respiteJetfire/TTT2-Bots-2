@@ -29,6 +29,12 @@ function VouchForPlayer.Validate(bot)
         if not (IsValid(ply) and lib.IsPlayerAlive(ply)) then continue end
         -- Never vouch for someone who is our current attack target (e.g. they are shooting us)
         if bot.attackTarget == ply then continue end
+        -- Never vouch for someone who is actively hurting us (high HurtMe suspicion)
+        local morality = bot:BotMorality()
+        if morality then
+            local sus = morality:GetSuspicion(ply)
+            if sus >= (morality.Thresholds.Sus or 3) then continue end
+        end
         if not entry.continuous then continue end
         local duration = CurTime() - entry.since
         local minTime = lib.GetConVarInt("evidence_companion_min_time") or evidence.CompanionMinTime

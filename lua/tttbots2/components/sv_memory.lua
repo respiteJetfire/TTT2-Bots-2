@@ -450,6 +450,13 @@ function Memory:UpdatePlayerLifeStates()
     if not RoundActive then
         self.PlayerLifeStates = {}
         self:SetupPlayerLifeStates()
+        return
+    end
+
+    -- Round is active but life-state memory may still be empty at round start.
+    -- Seed once so KnownAlive isn't stuck at 0 until someone dies.
+    if next(self.PlayerLifeStates) == nil then
+        self:SetupPlayerLifeStates()
     end
 
     for plyname, value in pairs(ConfirmedDead) do

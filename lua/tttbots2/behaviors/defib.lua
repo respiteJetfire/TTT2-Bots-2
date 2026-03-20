@@ -191,6 +191,17 @@ function Defib.GetSpinePos(rag)
     return default
 end
 
+--- Get the best aim position on a ragdoll that an eye-trace will actually hit.
+--- Uses the ragdoll's OBBCenter (the middle of its collision hull) so the
+--- MASK_SHOT_HULL trace in weapon Think() resolves to the ragdoll entity
+--- instead of sailing over it.
+---@param rag Entity
+---@return Vector
+function Defib.GetCorpseAimPos(rag)
+    if not IsValid(rag) then return rag:GetPos() end
+    return rag:LocalToWorld(rag:OBBCenter())
+end
+
 ---@class Bot
 ---@field defibTarget Player? The PLAYER of the defibRag we found
 ---@field defibRag Entity? The ragdoll we found to defib
@@ -232,7 +243,9 @@ function Defib.OnRunning(bot)
     local ragGroundPos = Vector(ragPos.x, ragPos.y, rag:GetPos().z)
 
     loco:SetGoal(ragGroundPos)
-    loco:LookAt(ragPos)
+    -- Aim at the ragdoll's collision center so eye-trace hits the entity
+    local aimTarget = Defib.GetCorpseAimPos(rag)
+    loco:LookAt(aimTarget)
 
     -- Use XY distance so the spine's vertical offset doesn't shrink the
     -- effective threshold and prevent the bot from reaching the corpse.
@@ -253,18 +266,61 @@ function Defib.OnRunning(bot)
         loco.persistCrouch = true
         loco:Crouch(true)
         loco:PauseRepel()
-        -- Look slightly below spine so the bot actually faces the corpse, not above it
-        local lookTarget = ragGroundPos + Vector(0, 0, 5)
+        -- Aim at the ragdoll's collision center so the eye-trace check passes
+        local lookTarget = Defib.GetCorpseAimPos(rag)
         loco:LookAt(lookTarget, 2)
         loco:StartAttack()
         if bot.defibStartTime == nil then
             bot.defibStartTime = CurTime()
             startFunc(bot)
-            -- print("Starting defib")
+            -- Try to use the weapon's BeginRevival if available (TTT2 base defib)
+            if IsValid(defib) and defib.BeginRevival and defib.GetState then
+                local defiState = defib:GetState()
+                if defiState == 0 then -- DEFI_IDLE
+                    defib:BeginRevival(rag, 0)
+                end
+            end
         end
-        if bot.defibStartTime + (botRole == ROLE_DOCTOR and 3 or botRole == ROLE_MEDIC and 5 or 5) < CurTime() then
-            Defib.FullDefib(bot, target)
-            -- print("Finished defib")
+        local holdTime = (botRole == ROLE_DOCTOR and 3 or botRole == ROLE_MEDIC and 5 or 5)
+        if bot.defibStartTime + holdTime < CurTime() then
+            -- Check if the weapon's pipeline already handled it
+            if IsValid(defib) and defib.GetState and defib:GetState() == 1 then
+                -- DEFI_BUSY: weapon pipeline is active, let FinishRevival handle it
+                if defib.FinishRevival then
+                    defib:FinishRevival(target, bot)
+                end
+                return STATUS.SUCCESS
+            end
+            -- Weapon pipeline was cancelled (eye-trace miss) or weapon doesn't
+            -- support BeginRevival — fallback: directly fire the revive and
+            -- reduce the defib's ammo charge by 1.
+            if IsValid(target) and not target:IsTerror() and IsValid(rag) and lib.IsValidBody(rag) then
+                target:Revive(
+                    0,
+                    function(p)
+                        if IsValid(defib) and defib.OnRevive then
+                            defib:OnRevive(p, bot)
+                        end
+                        successFunc(bot)
+                    end,
+                    function(p)
+                        if p:IsTerror() then return false end
+                        return true
+                    end,
+                    true,
+                    REVIVAL_BLOCK_NONE,
+                    function() failFunc(bot, target) end
+                )
+                -- Consume one ammo charge from the defib
+                if IsValid(defib) then
+                    if defib.TakePrimaryAmmo then
+                        defib:TakePrimaryAmmo(1)
+                    end
+                    if defib.CanPrimaryAttack and not defib:CanPrimaryAttack() then
+                        defib:Remove()
+                    end
+                end
+            end
             return STATUS.SUCCESS
         end
     else

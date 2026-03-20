@@ -85,6 +85,17 @@ local function getSpinePos(rag)
     return default
 end
 
+--- Get the best aim position on a ragdoll that an eye-trace will actually hit.
+--- Uses the ragdoll's OBBCenter (the middle of its collision hull) so the
+--- MASK_SHOT_HULL trace in weapon Think() resolves to the ragdoll entity
+--- instead of sailing over it.
+---@param rag Entity
+---@return Vector
+local function getCorpseAimPos(rag)
+    if not IsValid(rag) then return rag:GetPos() end
+    return rag:LocalToWorld(rag:OBBCenter())
+end
+
 --- Find the best corpse to revive.
 --- Prefers corpses that this bot personally killed (tttbots_killedBy),
 --- then falls back to the closest other revivable corpse.
@@ -230,7 +241,8 @@ function MesDefi.OnRunning(bot)
 
     -- Navigate toward the corpse
     loco:SetGoal(ragGroundPos)
-    loco:LookAt(ragPos)
+    -- Aim at the ragdoll's collision center so eye-trace hits the entity
+    loco:LookAt(getCorpseAimPos(rag))
 
     -- XY-only distance so vertical offset doesn't fool the threshold
     local botXY = Vector(bot:GetPos().x, bot:GetPos().y, ragGroundPos.z)
@@ -276,17 +288,77 @@ function MesDefi.OnRunning(bot)
         loco.persistCrouch = true
         loco:Crouch(true)
         loco:PauseRepel()
-        local lookTarget = ragGroundPos + Vector(0, 0, 5)
-        loco:LookAt(lookTarget, 2)
+        -- Aim at the ragdoll's collision center so the eye-trace check passes
+        loco:LookAt(getCorpseAimPos(rag), 2)
         loco:StartAttack()
 
         if bot.mesDefiStartTime == nil then
             bot.mesDefiStartTime = CurTime()
+            -- Try to use the weapon's BeginRevival if available
+            if IsValid(wep) and wep.BeginRevival and wep.GetState then
+                local wepState = wep:GetState()
+                if wepState == 0 then -- DEFI_IDLE
+                    wep:BeginRevival(rag, 0)
+                end
+            end
         end
 
         -- Wait for the full revive hold duration
         if bot.mesDefiStartTime + REVIVE_HOLD_TIME < CurTime() then
             loco:StopAttack()
+            -- Check if the weapon's pipeline handled the revive
+            if IsValid(wep) and wep.GetState then
+                local wepState = wep:GetState()
+                if wepState == 1 then
+                    -- DEFI_BUSY: weapon pipeline still active, let it finish
+                    if wep.FinishRevival then
+                        wep:FinishRevival()
+                    end
+                    return STATUS.SUCCESS
+                end
+            end
+            -- Weapon pipeline was cancelled (eye-trace miss) or doesn't
+            -- support BeginRevival — fallback: directly fire the revive and
+            -- reduce the defib's ammo charge by 1.
+            if IsValid(target) and not target:IsTerror() and IsValid(rag) and lib.IsValidBody(rag) then
+                local owner = bot
+                local mes_team = owner:GetTeam()
+                target:Revive(
+                    0,
+                    function(p)
+                        if ROLE_THRALL then
+                            if GetConVar("ttt2_thr_team_inherit") and GetConVar("ttt2_thr_team_inherit"):GetBool() then
+                                p:SetRole(ROLE_THRALL, mes_team)
+                            else
+                                p:SetRole(ROLE_THRALL, TEAM_TRAITOR)
+                            end
+                        end
+                        p:ResetConfirmPlayer()
+                        if events and events.Trigger and EVENT_MES_DEFIB then
+                            events.Trigger(EVENT_MES_DEFIB, owner, p)
+                        end
+                        SendFullStateUpdate()
+                    end,
+                    function(p)
+                        if p:IsTerror() then return false end
+                        return true
+                    end,
+                    true,
+                    REVIVAL_BLOCK_NONE
+                )
+                target:SendRevivalReason("revived_by_mesmerist", { name = bot:Nick() })
+                -- Consume one ammo charge from the defib
+                if IsValid(wep) then
+                    wep:SetClip1(wep:Clip1() - 1)
+                    if wep:Clip1() < 1 then
+                        if wep.SafeRemove then
+                            wep:SafeRemove()
+                        else
+                            wep:Remove()
+                        end
+                    end
+                end
+            end
             return STATUS.SUCCESS
         end
 

@@ -41,9 +41,26 @@ function FollowPlan.IsPlanFollowerRole(bot)
 end
 
 --- Ignore plans if we aren't evil or have a conflicting personality trait.
+--- Bots with ignoreOrders personality traits have a reduced (but not zero) chance
+--- of following plans. The chance scales with round phase pressure so that even
+--- loner/oblivious bots will eventually start attacking as the round progresses.
 function FollowPlan.ShouldIgnorePlans(bot)
     if not FollowPlan.IsPlanFollowerRole(bot) then return true end
-    if not FollowPlan.Debug and bot.components.personality:GetIgnoresOrders() then return true end -- ignore plans if we have a conflicting personality trait
+    if not FollowPlan.Debug and bot.components.personality:GetIgnoresOrders() then
+        -- Instead of always ignoring, give a phase-scaled chance to comply.
+        -- EARLY: 10% comply, MID: 25%, LATE: 50%, OVERTIME: 85%
+        local complianceChance = 0.10
+        local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+        local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+        if ra and PHASE then
+            local phase = ra:GetPhase()
+            if phase == PHASE.MID then complianceChance = 0.25
+            elseif phase == PHASE.LATE then complianceChance = 0.50
+            elseif phase == PHASE.OVERTIME then complianceChance = 0.85
+            end
+        end
+        if math.random() > complianceChance then return true end
+    end
 
     return false
 end

@@ -213,7 +213,9 @@ local STATUS = TTTBots.STATUS
 ---@return Tree
 function TTTBots.Behaviors.GetTreeFor(bot)
     if not IsValid(bot) then return nil end
-    return TTTBots.Roles.GetRoleFor(bot):GetBTree()
+    local role = TTTBots.Roles.GetRoleFor(bot)
+    if not role then return nil end
+    return role:GetBTree()
 end
 
 --- Iterates over the node (or Tree if you're pedantic)
@@ -310,10 +312,11 @@ end
 
 function TTTBots.Behaviors.RunTreeOnBots()
     for _, bot in ipairs(TTTBots.Bots) do
-        TTTBots.Behaviors.RunTree(
-            bot,
-            TTTBots.Behaviors.GetTreeFor(bot)
-        )
+        if not IsValid(bot) then continue end
+        if not bot.components then continue end
+        local tree = TTTBots.Behaviors.GetTreeFor(bot)
+        if not tree then continue end
+        TTTBots.Behaviors.RunTree(bot, tree)
     end
 end
 

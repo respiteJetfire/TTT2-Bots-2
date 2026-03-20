@@ -106,6 +106,7 @@ function Match.CallKOS(caller, target)
     Match.KOSList[target][caller] = caller
 
     for i, bot in pairs(TTTBots.Bots) do
+        if not IsValid(bot) or not bot.components then continue end
         local morality = bot:BotMorality()
         if not morality then continue end
         morality:OnKOSCalled(caller, target)

@@ -1,0 +1,270 @@
+--[[
+    Clown / Killer Clown role chat categories
+
+    This file contains chat lines for clown role events, transformation mechanics,
+    and all killer clown interactions. Categories included:
+        ClownRoundStart, ClownSurviving, ClownNearTransform, ClownTransformed,
+        ClownTransformWitnessed, TraitorSeesClownTransform, KillerClownHunting,
+        KillerClownKill, KillerClownLastTarget, KillerClownTakingDamage
+]]
+
+local P = {
+    CRITICAL = 1,  --- KOS, user interaction, etc.
+    IMPORTANT = 2, --- Important, but not necessarily critical
+    NORMAL = 3,    --- Mostly flavor text or misc. chitchat
+}
+
+local function LoadClownChats()
+    local A = TTTBots.Archetypes
+    local currentEvent = ""
+    local Line = function(line, archetype)
+        return TTTBots.Locale.AddLine(currentEvent, line, "en", archetype)
+    end
+    local RegisterCategory = function(event, priority, description)
+        currentEvent = event
+        return TTTBots.Locale.RegisterCategory(event, "en", priority, description)
+    end
+
+    ---------------------------------------------------------------------------
+    -- CLOWN / KILLER CLOWN CHATTER
+    ---------------------------------------------------------------------------
+
+    -- When the Clown bot receives its role at round start
+    RegisterCategory("ClownRoundStart", P.NORMAL, "When a Clown bot receives their role at round start.")
+    Line("Another round, another audience.", A.Default)
+    Line("Time to put on a show.", A.Default)
+    Line("Let's see how this plays out.", A.Default)
+    Line("oh cool im the clown", A.Casual)
+    Line("clown time lets goooo", A.Casual)
+    Line("guess im the funny guy this round lol", A.Casual)
+    Line("I'LL MAKE THEM ALL LAUGH... EVENTUALLY.", A.Hothead)
+    Line("DON'T TEST ME THIS ROUND.", A.Hothead)
+    Line("Oh fun, I get to be the Clown! This should be interesting!", A.Nice)
+    Line("I hope everyone has a good round!", A.Nice)
+    Line("Role assigned. Observing.", A.Stoic)
+    Line("Clown role accepted. Monitoring situation.", A.Stoic)
+    Line("Clown start. Tracking team counts, will adapt as needed.", A.Tryhard)
+    Line("Playing neutral for now. Watching the board.", A.Tryhard)
+    Line("I wonder who's going to die first...", A.Sus)
+    Line("I'll just be over here... watching.", A.Sus)
+    Line("wait what does the clown do again?", A.Dumb)
+    Line("am i the good guy or the bad guy?", A.Dumb)
+    Line("Hey everyone, Clown here! Let's have a good round!", A.Teamer)
+    Line("I'm the Clown. Cooperating... for now.", A.Teamer)
+    Line("Great, I'm the clown. Just my luck.", A.Bad)
+    Line("Of course I get the weird role.", A.Bad)
+
+    -- Periodic survival comments while Clown is alive (~45s interval)
+    RegisterCategory("ClownSurviving", P.NORMAL, "Periodic idle chatter while the Clown is still alive and untransformed.")
+    Line("Just hanging around.", A.Default)
+    Line("Still here, still watching.", A.Default)
+    Line("Nothing to see here.", A.Default)
+    Line("just vibin", A.Casual)
+    Line("chillin as the clown", A.Casual)
+    Line("anyone else bored or just me", A.Casual)
+    Line("NOBODY BETTER MESS WITH ME.", A.Hothead)
+    Line("I SWEAR IF SOMEONE SHOOTS ME...", A.Hothead)
+    Line("Having a lovely time just walking around!", A.Nice)
+    Line("Hope everyone's doing okay!", A.Nice)
+    Line("Still alive. Noted.", A.Stoic)
+    Line("Continuing observation.", A.Stoic)
+    Line("Maintaining position. No immediate threats.", A.Tryhard)
+    Line("Team counts stable. Holding pattern.", A.Tryhard)
+    Line("Is it just me or is everyone acting suspicious?", A.Sus)
+    Line("I feel like someone's following me...", A.Sus)
+    Line("la la la im a clown", A.Dumb)
+    Line("do clowns get weapons?", A.Dumb)
+    Line("Sticking with the group for now.", A.Teamer)
+    Line("Let's all stay together, yeah?", A.Teamer)
+    Line("This is boring. When does something happen?", A.Bad)
+    Line("I hate waiting around like this.", A.Bad)
+
+    -- When only 2 teams remain and the Clown is 1 death away from transforming
+    RegisterCategory("ClownNearTransform", P.IMPORTANT, "When the Clown is close to transforming (only 2 teams remain).")
+    Line("Things are getting interesting...", A.Default)
+    Line("Almost time.", A.Default)
+    Line("I can feel it coming.", A.Default)
+    Line("oh its getting close", A.Casual)
+    Line("something's about to happen i can feel it", A.Casual)
+    Line("I CAN BARELY CONTAIN MYSELF!", A.Hothead)
+    Line("IT'S ALMOST TIME!", A.Hothead)
+    Line("Oh gosh, I think something's about to change!", A.Nice)
+    Line("I'm feeling... different.", A.Nice)
+    Line("Transition imminent.", A.Stoic)
+    Line("Approaching critical threshold.", A.Stoic)
+    Line("Team count critical. Preparing for phase transition.", A.Tryhard)
+    Line("One more elimination and the game changes.", A.Tryhard)
+    Line("Does anyone else feel that? Something's off.", A.Sus)
+    Line("The air feels different somehow...", A.Sus)
+    Line("why do i feel weird all of a sudden?", A.Dumb)
+    Line("whats happening to me??", A.Dumb)
+    Line("Guys... I think something's about to happen.", A.Teamer)
+    Line("Stay alert everyone, things are shifting.", A.Teamer)
+    Line("Finally, something's about to happen.", A.Bad)
+    Line("About time things got interesting.", A.Bad)
+
+    -- When the bot transforms from Clown into Killer Clown
+    RegisterCategory("ClownTransformed", P.CRITICAL, "When the Clown transforms into the Killer Clown.")
+    Line("The show is over. Now the real fun begins.", A.Default)
+    Line("Surprise! Did you miss me?", A.Default)
+    Line("No more games. Time to hunt.", A.Default)
+    Line("HAHAHA ITS KILLING TIME", A.Casual)
+    Line("lmaooo the clown is loose", A.Casual)
+    Line("surprise!! :)", A.Casual)
+    Line("NOW YOU'RE ALL GOING TO PAY!", A.Hothead)
+    Line("I'VE BEEN WAITING FOR THIS! NOBODY SURVIVES!", A.Hothead)
+    Line("EVERY LAST ONE OF YOU!", A.Hothead)
+    Line("Sorry everyone, but I have to do this now!", A.Nice)
+    Line("Nothing personal, I promise!", A.Nice)
+    Line("Transformation complete. Engaging.", A.Stoic)
+    Line("New directive: eliminate all targets.", A.Stoic)
+    Line("Activated. Prioritizing highest-value targets first.", A.Tryhard)
+    Line("Phase 2 initiated. Switching to elimination protocol.", A.Tryhard)
+    Line("You should have killed me when you had the chance.", A.Sus)
+    Line("Bet you didn't see THIS coming.", A.Sus)
+    Line("wait i can kill people now? COOL", A.Dumb)
+    Line("how did i get all these weapons??", A.Dumb)
+    Line("Sorry team, new team now. MY team. Population: me.", A.Teamer)
+    Line("It's every clown for themselves!", A.Teamer)
+    Line("Finally. Let's get this over with.", A.Bad)
+    Line("Time to ruin everyone's day.", A.Bad)
+
+    -- When other bots witness the Clown transforming
+    RegisterCategory("ClownTransformWitnessed", P.IMPORTANT, "When an innocent/detective bot witnesses the Clown transform.")
+    Line("The Clown just transformed! Watch out!", A.Default)
+    Line("Clown's gone hostile! Everyone be careful!", A.Default)
+    Line("The Clown changed, they're dangerous now!", A.Default)
+    Line("oh no the clown transformed", A.Casual)
+    Line("bruh the clown just went killer mode", A.Casual)
+    Line("KILL THE CLOWN! KILL IT NOW!", A.Hothead)
+    Line("I KNEW THAT CLOWN WAS BAD NEWS!", A.Hothead)
+    Line("Oh no, the Clown transformed! Everyone stay safe!", A.Nice)
+    Line("Be careful everyone, the Clown is hostile now!", A.Nice)
+    Line("Clown transformation confirmed. Threat level elevated.", A.Stoic)
+    Line("Hostile Clown. Adjusting priorities.", A.Stoic)
+    Line("Clown activated. Reclassifying as kill-on-sight.", A.Tryhard)
+    Line("New hostile: Killer Clown. All units engage.", A.Tryhard)
+    Line("I had a feeling about that Clown...", A.Sus)
+    Line("Called it. I knew the Clown was trouble.", A.Sus)
+    Line("the clown is scary now!!", A.Dumb)
+    Line("why did the clown change colors??", A.Dumb)
+    Line("Team, we need to focus on the Clown! They're hostile!", A.Teamer)
+    Line("Everyone group up, the Clown is a threat now!", A.Teamer)
+    Line("Great, now we have a Killer Clown to deal with.", A.Bad)
+    Line("Just what we needed. A murderous clown.", A.Bad)
+
+    -- When a traitor bot sees the Clown transform
+    RegisterCategory("TraitorSeesClownTransform", P.IMPORTANT, "When a traitor bot witnesses the Clown transform (team chat).")
+    Line("The Clown just went killer. We have competition.", A.Default)
+    Line("Heads up, the Clown transformed. Watch your backs.", A.Default)
+    Line("oh great the clown is a problem now", A.Casual)
+    Line("killer clown alert lol", A.Casual)
+    Line("GREAT, NOW WE HAVE TO DEAL WITH THE CLOWN TOO!", A.Hothead)
+    Line("THIS CLOWN IS GOING TO RUIN EVERYTHING!", A.Hothead)
+    Line("Oh, the Clown transformed. We should be careful!", A.Nice)
+    Line("New threat for us too. Noted.", A.Stoic)
+    Line("Killer Clown active. Avoid engagement unless necessary.", A.Tryhard)
+    Line("Third party hostile. Adjust strategy to avoid Clown.", A.Tryhard)
+    Line("I don't trust that Clown one bit.", A.Sus)
+    Line("wait is the clown on our team or not?", A.Dumb)
+    Line("Team, the Clown is hostile to everyone, including us!", A.Teamer)
+    Line("The Clown is everyone's problem now.", A.Bad)
+
+    -- Taunts while the Killer Clown is hunting targets
+    RegisterCategory("KillerClownHunting", P.NORMAL, "Taunts while the Killer Clown is actively hunting targets.")
+    Line("Here I come, ready or not.", A.Default)
+    Line("You can't hide forever.", A.Default)
+    Line("The hunt is on.", A.Default)
+    Line("coming for you lol", A.Casual)
+    Line("where you hiding?", A.Casual)
+    Line("peek-a-boo!", A.Casual)
+    Line("COME OUT AND FACE ME, COWARDS!", A.Hothead)
+    Line("NOBODY ESCAPES THE CLOWN!", A.Hothead)
+    Line("RUN ALL YOU WANT, I'LL FIND YOU!", A.Hothead)
+    Line("Sorry, but I have to find you!", A.Nice)
+    Line("Don't worry, it'll be quick!", A.Nice)
+    Line("Hunting. Target acquisition in progress.", A.Stoic)
+    Line("Sweeping area.", A.Stoic)
+    Line("Clearing sectors systematically. No survivors.", A.Tryhard)
+    Line("Target likely in adjacent area. Closing in.", A.Tryhard)
+    Line("I know you're here somewhere...", A.Sus)
+    Line("I can practically smell the fear.", A.Sus)
+    Line("marco?? polo?? anyone??", A.Dumb)
+    Line("where did everyone go :(", A.Dumb)
+    Line("Let's make this quick, shall we?", A.Teamer)
+    Line("This is getting tedious. Just die already.", A.Bad)
+    Line("Can we hurry this up?", A.Bad)
+
+    -- Post-kill taunt when the Killer Clown eliminates someone
+    RegisterCategory("KillerClownKill", P.IMPORTANT, "When the Killer Clown kills a target.")
+    Line("One down.", A.Default)
+    Line("Another one bites the dust.", A.Default)
+    Line("Next.", A.Default)
+    Line("gottem lmao", A.Casual)
+    Line("ez", A.Casual)
+    Line("gg no re", A.Casual)
+    Line("HAHAHA! WHO'S NEXT?!", A.Hothead)
+    Line("THAT'S WHAT YOU GET!", A.Hothead)
+    Line("Sorry about that!", A.Nice)
+    Line("Target eliminated.", A.Stoic)
+    Line("One fewer obstacle.", A.Stoic)
+    Line("Kill confirmed. Moving to next target.", A.Tryhard)
+    Line("Threat neutralized. Continuing sweep.", A.Tryhard)
+    Line("They shouldn't have trusted me.", A.Sus)
+    Line("did i do that?? oops", A.Dumb)
+    Line("One down, team! Keep pushing!", A.Teamer)
+    Line("Whatever. Next.", A.Bad)
+
+    -- When only 1 enemy remains
+    RegisterCategory("KillerClownLastTarget", P.CRITICAL, "When the Killer Clown has only one target remaining.")
+    Line("Just you and me now.", A.Default)
+    Line("Last one standing. Not for long.", A.Default)
+    Line("Nowhere left to run.", A.Default)
+    Line("1v1 me bro", A.Casual)
+    Line("ur the last one lol", A.Casual)
+    Line("YOU'RE THE LAST ONE! COME FIGHT ME!", A.Hothead)
+    Line("END OF THE LINE!", A.Hothead)
+    Line("It's just us now. I'll try to make it painless!", A.Nice)
+    Line("Final target. Closing.", A.Stoic)
+    Line("Last hostile. Committing full resources.", A.Tryhard)
+    Line("Final target locked. No escape vectors available.", A.Tryhard)
+    Line("I saved the best for last.", A.Sus)
+    Line("wait theres only one left? i can count!", A.Dumb)
+    Line("Last one! Let's finish this!", A.Teamer)
+    Line("Finally, the last one. Let's end this.", A.Bad)
+
+    -- Reaction to taking damage as Killer Clown
+    RegisterCategory("KillerClownTakingDamage", P.NORMAL, "When the Killer Clown takes damage.")
+    Line("Is that all you've got?", A.Default)
+    Line("That tickled.", A.Default)
+    Line("You'll have to do better than that.", A.Default)
+    Line("ow", A.Casual)
+    Line("hey stop that", A.Casual)
+    Line("rude", A.Casual)
+    Line("YOU DARE SHOOT ME?!", A.Hothead)
+    Line("I'LL MAKE YOU PAY FOR THAT!", A.Hothead)
+    Line("OH YOU ARE SO DEAD!", A.Hothead)
+    Line("Ow! That wasn't very nice!", A.Nice)
+    Line("Ouch! Please stop!", A.Nice)
+    Line("Damage sustained. Irrelevant.", A.Stoic)
+    Line("Hit registered. Adjusting approach.", A.Stoic)
+    Line("Taking fire. Recalculating engagement angle.", A.Tryhard)
+    Line("Damage taken. Need to close distance.", A.Tryhard)
+    Line("Nice shot. Won't happen again.", A.Sus)
+    Line("ow what was that?? where??", A.Dumb)
+    Line("Ouch! Focus fire on whoever shot me!", A.Teamer)
+    Line("Ugh. Can you not?", A.Bad)
+    Line("Really? We're doing this?", A.Bad)
+end
+
+local DEPENDENCIES = {}
+local function loadModule_Deferred()
+    for i, v in pairs(DEPENDENCIES) do
+        if not TTTBots[v] then
+            timer.Simple(1, loadModule_Deferred)
+            return
+        end
+    end
+    LoadClownChats()
+end
+timer.Simple(1, loadModule_Deferred)

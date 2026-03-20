@@ -21,6 +21,7 @@ FollowInnocentPlan.Debug         = false
 
 local STATUS = TTTBots.STATUS
 local ACTIONS = IC and IC.ACTIONS or {}
+local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Helpers
@@ -38,7 +39,44 @@ end
 local function shouldSkip(bot)
     if not IC.IsParticipant(bot) then return true end
     local personality = bot.components and bot.components.personality
-    if personality and personality:GetIgnoresOrders() then return true end
+    if personality and personality:GetIgnoresOrders() then
+        -- Don't hard-disable innocent coordination for "ignore orders" personalities.
+        -- Use phase-scaled compliance so they eventually commit instead of fallback-cycling.
+        local complianceChance = 0.15
+        local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+        if ra and PHASE then
+            local phase = ra:GetPhase()
+            if phase == PHASE.MID then complianceChance = 0.35
+            elseif phase == PHASE.LATE then complianceChance = 0.60
+            elseif phase == PHASE.OVERTIME then complianceChance = 0.85 end
+        end
+        if math.random() > complianceChance then return true end
+    end
+    return false
+end
+
+--- Snap a desired goal to a nearby reachable nav point and set locomotor goal.
+--- Returns true if a usable goal was set.
+---@param bot Bot
+---@param desired Vector
+---@return boolean
+local function setReachableGoal(bot, desired)
+    if not isvector(desired) then return false end
+    local loco = bot:BotLocomotor()
+    if not loco then return false end
+
+    local nav = navmesh.GetNearestNavArea(desired)
+    if nav then
+        loco:SetGoal(nav:GetClosestPointOnArea(desired) or nav:GetCenter())
+        return true
+    end
+
+    local fallback = navmesh.GetNearestNavArea(bot:GetPos())
+    if fallback then
+        loco:SetGoal(fallback:GetCenter())
+        return true
+    end
+
     return false
 end
 
@@ -97,7 +135,7 @@ local function runBuddyUp(bot, job)
 
     local loco = bot:BotLocomotor()
     if loco then
-        loco:SetGoal(buddy:GetPos())
+        setReachableGoal(bot, buddy:GetPos())
         loco:LookAt(buddy:GetPos())
     end
     return STATUS.RUNNING
@@ -134,8 +172,7 @@ local function runPatrolZone(bot, job)
     end
 
     local goal = job._wanderPos or origin
-    local loco = bot:BotLocomotor()
-    if loco then loco:SetGoal(goal) end
+    setReachableGoal(bot, goal)
     return STATUS.RUNNING
 end
 
@@ -155,7 +192,7 @@ local function runQueueTest(bot, job)
     if qPos == 1 then
         -- Our turn — walk up and try to use the tester
         local loco = bot:BotLocomotor()
-        if loco then loco:SetGoal(testerPos) end
+        setReachableGoal(bot, testerPos)
         if distToTester < 80 then
             -- Attempt to interact with the tester entity
             -- Support both ttt_traitorchecker (DiskFragger's checker) and ttt_role_checker
@@ -223,8 +260,7 @@ local function runQueueTest(bot, job)
             0
         )
         local waitPos = testerPos + waitOffset
-        local loco = bot:BotLocomotor()
-        if loco then loco:SetGoal(waitPos) end
+        setReachableGoal(bot, waitPos)
     end
 
     return STATUS.RUNNING
@@ -236,7 +272,7 @@ local function runHoldPerimeter(bot, job)
     if not holdPos then return STATUS.FAILURE end
     local loco = bot:BotLocomotor()
     if loco then
-        loco:SetGoal(holdPos)
+        setReachableGoal(bot, holdPos)
         -- Look toward the corpse centre
         if IC.PerimeterTarget then
             loco:LookAt(IC.PerimeterTarget)
@@ -254,7 +290,7 @@ local function runHoldLastStand(bot, job)
     local loco = bot:BotLocomotor()
 
     if dist > 120 then
-        if loco then loco:SetGoal(stronghold) end
+        setReachableGoal(bot, stronghold)
         return STATUS.RUNNING
     end
 
@@ -313,7 +349,7 @@ local function runDeployChecker(bot, job)
 
     if dist > 80 then
         if loco then
-            loco:SetGoal(deployPos)
+            setReachableGoal(bot, deployPos)
             loco:LookAt(deployPos)
         end
         return STATUS.RUNNING

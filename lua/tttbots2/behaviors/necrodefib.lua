@@ -91,6 +91,17 @@ function NecroDefib.GetSpinePos(rag)
     return default
 end
 
+--- Get the best aim position on a ragdoll that an eye-trace will actually hit.
+--- Uses the ragdoll's OBBCenter (the middle of its collision hull) so the
+--- MASK_SHOT_HULL trace in weapon Think() resolves to the ragdoll entity
+--- instead of sailing over it.
+---@param rag Entity
+---@return Vector
+function NecroDefib.GetCorpseAimPos(rag)
+    if not IsValid(rag) then return rag:GetPos() end
+    return rag:LocalToWorld(rag:OBBCenter())
+end
+
 --- Count non-allied witnesses near a position.
 ---@param bot Bot
 ---@param pos Vector
@@ -275,12 +286,57 @@ function NecroDefib.OnRunning(bot)
             if IsValid(target) and target:IsTerror() then
                 return STATUS.SUCCESS
             end
+            -- Weapon went back to idle but target isn't alive — the eye-trace
+            -- check in Think() likely cancelled the revival.  Fallback: directly
+            -- invoke the revive pipeline and consume one ammo charge.
+            if not bot.necroDefibAttemptedDirectRevive then
+                bot.necroDefibAttemptedDirectRevive = true
+                if IsValid(target) and IsValid(rag) and lib.IsValidBody(rag) and not target:IsTerror() then
+                    local reviveHealth = defi.cvars and defi.cvars.revivalHealth and defi.cvars.revivalHealth:GetInt() or 75
+                    local doResetConfirm = defi.cvars and defi.cvars.resetConfirmation and defi.cvars.resetConfirmation:GetBool() or false
+                    target:Revive(
+                        0,
+                        function(p)
+                            if doResetConfirm then
+                                p:ResetConfirmPlayer()
+                                p:TTT2NETSetBool("body_found", true)
+                            end
+                            p:SetMaxHealth(reviveHealth)
+                            p:SetHealth(reviveHealth)
+                            -- Fire the weapon's OnRevive (e.g. AddZombie for necro)
+                            if IsValid(defi) and defi.OnRevive then
+                                defi:OnRevive(p, bot)
+                            end
+                        end,
+                        function(p)
+                            if p:IsTerror() then return false end
+                            return true
+                        end,
+                        true,
+                        REVIVAL_BLOCK_NONE
+                    )
+                    target:SendRevivalReason(defi.revivalReason or "revived_by_necromancer", { name = bot:Nick() })
+                    -- Consume one ammo charge from the defib
+                    if defi.TakePrimaryAmmo then
+                        defi:TakePrimaryAmmo(1)
+                    end
+                    if defi.CanPrimaryAttack and not defi:CanPrimaryAttack() then
+                        defi:Remove()
+                    end
+                    bot.necroDefibStartTime = CurTime()
+                    return STATUS.RUNNING
+                end
+            end
             -- Revive failed — bail out so Validate can pick a new corpse.
             return STATUS.FAILURE
         end
 
         -- Still DEFI_BUSY (1) or DEFI_CHARGE (2) — keep crouching and waiting.
         -- Hold +attack so weapon:Think() doesn't cancel the in-progress revival.
+        -- Keep aiming at the ragdoll collision center
+        if IsValid(rag) then
+            loco:LookAt(NecroDefib.GetCorpseAimPos(rag), 2)
+        end
         loco:StartAttack()
 
         -- Safety timeout: if we've been waiting more than twice the revive time, give up.
@@ -298,9 +354,10 @@ function NecroDefib.OnRunning(bot)
     -- Navigate to the corpse (ground-level for pathing)
     loco:SetGoal(ragGroundPos)
 
-    -- Aim at the ragdoll so the bot looks natural while approaching.
-    local lookTarget = ragGroundPos + Vector(0, 0, 16)
-    loco:LookAt(lookTarget, 2)
+    -- Aim at the ragdoll's collision center so the eye-trace in weapon Think()
+    -- actually hits the ragdoll entity instead of sailing over it.
+    local aimTarget = NecroDefib.GetCorpseAimPos(rag)
+    loco:LookAt(aimTarget, 2)
 
     -- XY-only distance so spine's vertical offset doesn't inflate the threshold.
     local dist = ragGroundPos:Distance(Vector(bot:GetPos().x, bot:GetPos().y, ragGroundPos.z))
@@ -362,10 +419,12 @@ function NecroDefib.OnRunning(bot)
                     -- No space to spawn — bail; we'll retry next tick with a fresh corpse search.
                     return STATUS.FAILURE
                 end
-                -- Start the revive — weapon transitions to DEFI_BUSY and begins the timer.
+                -- Aim at the ragdoll collision center so the eye-trace check passes
+                loco:LookAt(NecroDefib.GetCorpseAimPos(rag), 2)
                 loco:StartAttack()  -- hold +attack so weapon:Think() keeps the revival alive
                 defi:BeginRevival(rag, 0)
                 bot.necroDefibStartTime = CurTime()
+                bot.necroDefibAttemptedDirectRevive = false
             end
         end
     else
@@ -403,6 +462,7 @@ function NecroDefib.OnEnd(bot)
     bot.necroDefibStartTime = nil
     bot.necroDefibBehaviorStart = nil
     bot.necroDefiWitnessWaitStart = nil
+    bot.necroDefibAttemptedDirectRevive = nil
 
     local inventory, loco = bot:BotInventory(), bot:BotLocomotor()
     if not (inventory and loco) then return end
