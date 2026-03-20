@@ -894,6 +894,7 @@ local _cachedRegions = {
     hasCached = false,  -- Has the table been cached yet?
     regions = {},       -- Table of regions containing navs
     alreadyCached = {}, -- Table of navs that have been claimed by a region
+    areaToRegion = {},  -- Lookup of nav/ladder objects to region indices
 }
 
 --- Recursively add adjacent nav areas to a region table. Avoids affecting already cached navs.
@@ -993,6 +994,7 @@ function TTTBots.Lib.GetNavRegions(forceRecache)
     -- Re-initialize the _cachedRegions to clear old data if forceRecache is true.
     _cachedRegions.regions = {}
     _cachedRegions.alreadyCached = {}
+    _cachedRegions.areaToRegion = {}
     _cachedRegions.hasCached = false
 
     print("[TTT Bots 2] Caching nav regions...")
@@ -1005,6 +1007,15 @@ function TTTBots.Lib.GetNavRegions(forceRecache)
             TTTBots.Lib.AddAdjacentsToRegion(nav, region, allNavsCached)
             if next(region) then -- Ensure the region is not empty
                 table.insert(_cachedRegions.regions, region)
+                local regionIndex = #_cachedRegions.regions
+
+                for regionNav in pairs(region) do
+                    _cachedRegions.areaToRegion[regionNav] = regionIndex
+
+                    for _, ladder in pairs(regionNav:GetLadders()) do
+                        _cachedRegions.areaToRegion[ladder] = regionIndex
+                    end
+                end
             end
         end
     end
@@ -1012,6 +1023,43 @@ function TTTBots.Lib.GetNavRegions(forceRecache)
     _cachedRegions.hasCached = true
     print("[TTT Bots 2] Cached nav regions; there are " .. #_cachedRegions.regions .. " regions.")
     return _cachedRegions.regions
+end
+
+---@param nav CNavArea|CNavLadder|nil
+---@return number|nil
+---@realm server
+function TTTBots.Lib.GetNavRegionIndex(nav)
+    if not nav then return nil end
+
+    TTTBots.Lib.GetNavRegions()
+
+    local directRegion = _cachedRegions.areaToRegion[nav]
+    if directRegion then return directRegion end
+
+    if nav.IsLadder and nav:IsLadder() then
+        for _, area in pairs(nav:GetAdjacentAreas()) do
+            local region = _cachedRegions.areaToRegion[area]
+            if region then
+                _cachedRegions.areaToRegion[nav] = region
+                return region
+            end
+        end
+    end
+
+    return nil
+end
+
+---@param startNav CNavArea|CNavLadder|nil
+---@param finishNav CNavArea|CNavLadder|nil
+---@return boolean
+---@realm server
+function TTTBots.Lib.AreNavAreasConnected(startNav, finishNav)
+    local startRegion = TTTBots.Lib.GetNavRegionIndex(startNav)
+    local finishRegion = TTTBots.Lib.GetNavRegionIndex(finishNav)
+
+    if not startRegion or not finishRegion then return false end
+
+    return startRegion == finishRegion
 end
 
 --- Return the closest region table to position "pos"
@@ -1484,19 +1532,49 @@ end
 ---@return any CNavLadder Closest ladder
 ---@return number Distance Distance to closest ladder
 ---@realm server
+local cachedNavLadders = {}
+local cachedNavLaddersExpires = 0
+
+local function GetAllNavLadders()
+    if cachedNavLaddersExpires > CurTime() then
+        return cachedNavLadders
+    end
+
+    local ladders = {}
+    local seen = {}
+    local navAreas = navmesh.GetAllNavAreas and navmesh.GetAllNavAreas() or {}
+
+    for _, navArea in pairs(navAreas) do
+        for _, ladder in pairs(navArea:GetLadders()) do
+            if IsValid(ladder) and not seen[ladder] then
+                seen[ladder] = true
+                ladders[#ladders + 1] = ladder
+            end
+        end
+    end
+
+    cachedNavLadders = ladders
+    cachedNavLaddersExpires = CurTime() + 5
+
+    return cachedNavLadders
+end
+
 function TTTBots.Lib.GetClosestLadder(pos)
     local closestLadder = nil
     local closestDist = 99999
-    for i = 1, 100 do
-        local ladder = navmesh.GetNavLadderByID(i)
-        if ladder then
-            local dist = ladder:GetCenter():Distance(pos)
+
+    for _, ladder in pairs(GetAllNavLadders()) do
+        if IsValid(ladder) then
+            local closestPoint = ladder.GetClosestPointOnArea and ladder:GetClosestPointOnArea(pos) or ladder:GetCenter()
+            local dist = closestPoint:Distance(pos)
+
             if dist < closestDist then
                 closestLadder = ladder
                 closestDist = dist
             end
         end
     end
+
     return closestLadder, closestDist
 end
 

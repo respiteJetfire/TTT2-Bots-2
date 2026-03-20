@@ -45,31 +45,165 @@ function TTTBots.Buyables.AddBuyableToRole(buyable, roleString)
     table.sort(buyables_role[roleString], function(a, b) return a.Priority > b.Priority end)
 end
 
+local function GetAvailableCredits(bot)
+    if not IsValid(bot) then return 0 end
+    if bot.GetCredits then
+        return math.max(bot:GetCredits(), 0)
+    end
+
+    return 2
+end
+
+local function CanAffordOption(bot, option)
+    return (option.Price or 0) <= GetAvailableCredits(bot)
+end
+
+local function CanConsiderOption(bot, option, eventName)
+    if option.DeferredEvent ~= eventName then return false end
+    if option.TTT2 and not TTTBots.Lib.IsTTT2() then return false end
+    if option.Class and not TTTBots.Lib.WepClassExists(option.Class) then return false end
+    if not CanAffordOption(bot, option) then return false end
+    if option.CanBuy and not option.CanBuy(bot) then return false end
+    if option.RandomChance and math.random(1, option.RandomChance) ~= 1 then return false end
+
+    return true
+end
+
+local function GetSelectionWeight(bot, option)
+    local baseScore = option.SituationalScore and option.SituationalScore(bot) or option.Priority or 0
+    if baseScore <= 0 then return 0 end
+
+    local weight = baseScore
+    local className = option.Class or ""
+    local isDeagle = string.find(className, "deagle", 1, true) ~= nil
+
+    if option.PrimaryWeapon then
+        weight = weight + 2
+    end
+
+    if option.TTT2 then
+        weight = weight + 1
+    end
+
+    if option.PrimaryWeapon and not isDeagle then
+        weight = weight * 1.35
+    end
+
+    if isDeagle then
+        weight = weight * 0.45
+    end
+
+    if className == "weapon_ttt_defector_jihad" then
+        weight = weight * 0.35
+    end
+
+    return math.max(weight, 0.1)
+end
+
+local function CompletePurchase(bot, option)
+    if option.OnBuy then option.OnBuy(bot) end
+    local chatter = bot:BotChatter()
+    if chatter then
+        local botTeam = bot:GetTeam()
+        local isInnocent = (botTeam == TEAM_INNOCENT)
+        if not isInnocent then
+            -- Non-innocent bots (traitors, detectives, etc.) always announce
+            -- purchases to their team so teammates know what was bought.
+            chatter:On("Buy" .. option.Name, {}, true)
+        elseif option.ShouldAnnounce then
+            -- Innocent bots only announce if the buyable explicitly opts in.
+            chatter:On("Buy" .. option.Name, {}, option.AnnounceTeam or false)
+        end
+    end
+end
+
+local function AttemptPurchase(bot, option)
+    if not IsValid(bot) then return false end
+
+    if option.BuyFunc then
+        option.BuyFunc(bot)
+        return true
+    end
+
+    if option.Class and TTTBots.Lib.IsTTT2() and shop and shop.BuyEquipment then
+        return shop.BuyEquipment(bot, option.Class)
+    end
+
+    if option.Class then
+        bot:Give(option.Class)
+        return true
+    end
+
+    return false
+end
+
+local function SelectOptionIndex(bot, options, eventName)
+    local forcedIndex = nil
+    local forcedWeight = nil
+    local weightedOptions = {}
+    local totalWeight = 0
+
+    for idx, option in ipairs(options) do
+        if CanConsiderOption(bot, option, eventName) then
+            local weight = GetSelectionWeight(bot, option)
+            if weight > 0 then
+                if weight >= 50 and (not forcedWeight or weight > forcedWeight) then
+                    forcedIndex = idx
+                    forcedWeight = weight
+                end
+
+                totalWeight = totalWeight + weight
+                weightedOptions[#weightedOptions + 1] = {
+                    index = idx,
+                    weight = weight,
+                }
+            end
+        end
+    end
+
+    if forcedIndex then
+        return forcedIndex
+    end
+
+    if totalWeight <= 0 then return nil end
+
+    local roll = math.Rand(0, totalWeight)
+    local runningWeight = 0
+
+    for _, entry in ipairs(weightedOptions) do
+        runningWeight = runningWeight + entry.weight
+        if roll <= runningWeight then
+            return entry.index
+        end
+    end
+
+    return weightedOptions[#weightedOptions] and weightedOptions[#weightedOptions].index or nil
+end
+
 ---Purchases any registered buyables for the given bot's rolestring. Returns a table of Buyables that were successfully purchased.
 ---@param bot Bot
 ---@return table<Buyable>
 function TTTBots.Buyables.PurchaseBuyablesFor(bot)
     local roleString = bot:GetRoleStringRaw()
     local options = TTTBots.Buyables.GetBuyablesFor(roleString)
-    local creditAllowance = 2
     local purchased = {}
 
-    for i, option in pairs(options) do
-        if option.TTT2 and not TTTBots.Lib.IsTTT2() then continue end                      -- for mod compat.
-        if option.Class and not TTTBots.Lib.WepClassExists(option.Class) then continue end -- for mod compat.
-        if option.Price > creditAllowance then continue end
-        if option.CanBuy and not option.CanBuy(bot) then continue end
-        if option.RandomChance and math.random(1, option.RandomChance) ~= 1 then continue end
+    local remainingOptions = {}
+    for _, option in ipairs(options) do
+        if not option.DeferredEvent then
+            remainingOptions[#remainingOptions + 1] = option
+        end
+    end
 
-        creditAllowance = creditAllowance - option.Price
-        table.insert(purchased, option)
-        local buyfunc = option.BuyFunc or (function(ply) ply:Give(option.Class) end)
-        buyfunc(bot)
-        if option.OnBuy then option.OnBuy(bot) end
-        if option.ShouldAnnounce then
-            local chatter = bot:BotChatter()
-            if not chatter then continue end
-            chatter:On("Buy" .. option.Name, {}, option.AnnounceTeam or false)
+    while #remainingOptions > 0 do
+        local selectedIndex = SelectOptionIndex(bot, remainingOptions, nil)
+        if not selectedIndex then break end
+
+        local option = table.remove(remainingOptions, selectedIndex)
+        local didPurchase = AttemptPurchase(bot, option)
+        if didPurchase then
+            purchased[#purchased + 1] = option
+            CompletePurchase(bot, option)
         end
     end
 
@@ -89,18 +223,12 @@ function TTTBots.Buyables.TryDeferredBuy(bot, eventName)
     if not roleString then return nil end
 
     local options = TTTBots.Buyables.GetBuyablesFor(roleString)
-    local creditAllowance = 2
 
     local bestOption = nil
     local bestScore = 0
 
     for _, option in pairs(options) do
-        if option.DeferredEvent ~= eventName then continue end
-        if option.TTT2 and not TTTBots.Lib.IsTTT2() then continue end
-        if option.Class and not TTTBots.Lib.WepClassExists(option.Class) then continue end
-        if option.Price > creditAllowance then continue end
-        if option.CanBuy and not option.CanBuy(bot) then continue end
-        if option.RandomChance and math.random(1, option.RandomChance) ~= 1 then continue end
+        if not CanConsiderOption(bot, option, eventName) then continue end
 
         local score = option.SituationalScore and option.SituationalScore(bot) or option.Priority
         if score > bestScore then
@@ -111,15 +239,9 @@ function TTTBots.Buyables.TryDeferredBuy(bot, eventName)
 
     if not bestOption then return nil end
 
-    local buyfunc = bestOption.BuyFunc or (function(ply) ply:Give(bestOption.Class) end)
-    buyfunc(bot)
-    if bestOption.OnBuy then bestOption.OnBuy(bot) end
-    if bestOption.ShouldAnnounce then
-        local chatter = bot:BotChatter()
-        if chatter then
-            chatter:On("Buy" .. bestOption.Name, {}, bestOption.AnnounceTeam or false)
-        end
-    end
+    if not AttemptPurchase(bot, bestOption) then return nil end
+
+    CompletePurchase(bot, bestOption)
 
     return bestOption
 end

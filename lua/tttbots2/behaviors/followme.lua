@@ -93,6 +93,12 @@ end
 
 --- Validate the behavior
 function FollowMe.Validate(bot)
+    -- Abort following if the bot has an active attack target (e.g. self-defense)
+    if bot.attackTarget ~= nil then
+        bot.followMeTarget = nil
+        bot.followEndTime = nil
+        return false
+    end
     if bot.followMeTarget and not IsValid(bot.followMeTarget) then
         -- print("FollowMe.Validate: bot.followMeTarget is invalid for " .. bot:Nick())
         bot.followMeTarget = nil
@@ -133,6 +139,11 @@ end
 function FollowMe.OnRunning(bot)
     local target = bot.followMeTarget
 
+    -- Abort following if the bot has an active attack target (self-defense)
+    if bot.attackTarget ~= nil then
+        return STATUS.FAILURE
+    end
+
     if not IsValid(target) or not lib.IsPlayerAlive(target) then
         return STATUS.FAILURE
     end
@@ -154,6 +165,8 @@ function FollowMe.OnRunning(bot)
     local finalTarget = (distToPoint < 250 and bot:GetPos()) or bot.botFollowPoint
 
     loco:SetGoal(finalTarget)
+
+    return STATUS.RUNNING
 end
 
 --- Called when the behavior returns a success state

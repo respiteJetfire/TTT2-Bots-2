@@ -78,6 +78,11 @@ end
 --- Called when the behavior's last state is running
 function RequestUseRoleChecker.OnRunning(bot)
 
+    -- Abort if the bot has an active attack target (self-defense)
+    if bot.attackTarget ~= nil then
+        return STATUS.FAILURE
+    end
+
     if bot:GetBaseRole() == ROLE_DETECTIVE then
         return STATUS.FAILURE
     end

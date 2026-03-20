@@ -11,6 +11,9 @@ local BotLocomotor = TTTBots.Components.Locomotor
 -- Define constants
 local COMPLETION_DIST_HORIZONTAL = 20
 local COMPLETION_DIST_VERTICAL = 35
+local OBSTACLE_TRACE_DIST = 36
+local OBSTACLE_SIDE_TRACE_DIST = 28
+local OBSTACLE_CLOSE_DIST = 18
 
 
 function BotLocomotor:New(bot)
@@ -173,6 +176,24 @@ function BotLocomotor:GetPathLength()
     return table.Count(self.pathRequest.pathInfo.path)
 end
 
+---@param pathInfo PathInfo
+---@return PathInfo|nil
+local function ClonePathInfo(pathInfo)
+    if type(pathInfo) ~= "table" then return nil end
+
+    local cloned = table.Copy(pathInfo)
+    local processedPath = {}
+
+    for i, node in ipairs(pathInfo.processedPath or {}) do
+        processedPath[i] = table.Copy(node)
+        processedPath[i].completed = false
+    end
+
+    cloned.processedPath = processedPath
+
+    return cloned
+end
+
 ---@return boolean
 function BotLocomotor:IsWaitingForPath()
     return self.pathRequestWaiting
@@ -322,7 +343,36 @@ function BotLocomotor:SetRandomStrafe()
     self:Strafe(table.Random(options))
 end
 
-function BotLocomotor:SetGoal(pos) self.goalPos = pos end
+function BotLocomotor:SetGoal(pos)
+    self.rawGoalPos = nil
+    self.goalNavArea = nil
+
+    if pos == nil then
+        self.goalPos = nil
+        return
+    end
+
+    local rawPos = pos
+    if IsEntity(pos) and IsValid(pos) and pos.GetPos then
+        rawPos = pos:GetPos()
+    end
+
+    self.rawGoalPos = rawPos
+
+    local navArea = lib.GetNearestNavArea(rawPos)
+    self.goalNavArea = navArea
+
+    if navArea then
+        if navArea.IsLadder and navArea:IsLadder() then
+            self.goalPos = navArea:GetCenter()
+        else
+            self.goalPos = navArea:GetClosestPointOnArea(rawPos) or navArea:GetCenter()
+        end
+        return
+    end
+
+    self.goalPos = rawPos
+end
 
 function BotLocomotor:SetUse(bool) self.emulateInUse = bool end
 
@@ -380,6 +430,14 @@ end
 
 function BotLocomotor:GetGoal()
     return self.goalPos
+end
+
+function BotLocomotor:GetRawGoal()
+    return self.rawGoalPos or self.goalPos
+end
+
+function BotLocomotor:GetGoalNavArea()
+    return self.goalNavArea
 end
 
 function BotLocomotor:StopMoving()
@@ -453,6 +511,97 @@ end
 
 function BotLocomotor:ShouldJump()
     return self:CheckFeetAreObstructed() or (math.random(1, 100) == 1 and self:IsStuck())
+end
+
+---@return Vector|nil
+---@package
+function BotLocomotor:GetCurrentMoveGoal()
+    return self:GetPriorityGoal() or self.nextPos or self:GetGoal()
+end
+
+---@param direction Vector
+---@param distance number
+---@return TraceResult
+---@package
+function BotLocomotor:TraceMovementHull(direction, distance)
+    local startPos = self.bot:GetPos() + Vector(0, 0, 18)
+    local mins = self.bot:OBBMins() + Vector(0, 0, 4)
+    local maxs = self.bot:OBBMaxs() - Vector(0, 0, 18)
+
+    return util.TraceHull({
+        start = startPos,
+        endpos = startPos + direction * distance,
+        mins = mins,
+        maxs = maxs,
+        filter = self.bot,
+        mask = MASK_PLAYERSOLID,
+    })
+end
+
+---@return boolean
+---@package
+function BotLocomotor:AvoidObstacles()
+    if self.dontAvoid then return false end
+    if self:IsOnLadder() then return false end
+
+    local moveGoal = self:GetCurrentMoveGoal()
+    if not moveGoal then return false end
+
+    local desiredDir = moveGoal - self.bot:GetPos()
+    desiredDir.z = 0
+    if desiredDir:LengthSqr() <= 1 then return false end
+    desiredDir = desiredDir:GetNormalized()
+
+    local frontTrace = self:TraceMovementHull(desiredDir, OBSTACLE_TRACE_DIST)
+    if frontTrace.StartSolid or frontTrace.AllSolid then return false end
+    if not frontTrace.Hit then return false end
+
+    local traceStart = self.bot:GetPos() + Vector(0, 0, 18)
+    local hitDist = frontTrace.HitPos:Distance(traceStart)
+    if hitDist < 6 then return false end
+
+    local obstacle = frontTrace.Entity
+    local isWorldBlock = frontTrace.HitWorld and frontTrace.HitNormal and math.abs(frontTrace.HitNormal.z) < 0.45
+
+    if not IsValid(obstacle) and not isWorldBlock then
+        return false
+    end
+
+    if IsValid(obstacle) and (obstacle:IsPlayer() or lib.IsDoor(obstacle)) then
+        return false
+    end
+
+    if IsValid(obstacle) and table.HasValue(TTTBots.Components.ObstacleTracker.Breakables, obstacle) then
+        return false
+    end
+
+    local rightDir = desiredDir:Angle():Right()
+    rightDir.z = 0
+    rightDir = rightDir:GetNormalized()
+
+    local leftTrace = self:TraceMovementHull(-rightDir, OBSTACLE_SIDE_TRACE_DIST)
+    local rightTrace = self:TraceMovementHull(rightDir, OBSTACLE_SIDE_TRACE_DIST)
+
+    local canStrafeLeft = not leftTrace.Hit and not leftTrace.StartSolid and self.isCliffedDirection ~= "left"
+    local canStrafeRight = not rightTrace.Hit and not rightTrace.StartSolid and self.isCliffedDirection ~= "right"
+
+    if self.bot:OnGround() and frontTrace.HitNormal and frontTrace.HitNormal.z > 0.45 and hitDist <= OBSTACLE_CLOSE_DIST then
+        self:Jump(true)
+    end
+
+    if canStrafeLeft and (not canStrafeRight or leftTrace.Fraction >= rightTrace.Fraction) then
+        self:Strafe("left")
+        self:SetForceForward(true)
+        return true
+    end
+
+    if canStrafeRight then
+        self:Strafe("right")
+        self:SetForceForward(true)
+        return true
+    end
+
+    return false
 end
 
 function BotLocomotor:ShouldCrouchBetween(a, b)
@@ -909,6 +1058,17 @@ function BotLocomotor:UpdateMovement()
 
     if goal and not followingPath and not self:IsCloseEnough(goal) then
         self:MoveDirectlyIfClose(goal)
+
+        -- If we still aren't pathing (different nav area, no path computed yet),
+        -- and we can actually see the goal, walk toward it directly as a
+        -- fallback so the bot doesn't freeze while waiting for a path.
+        if not self.isTryingPath and self.pathRequestWaiting then
+            local canSee = self:TestVisionWorldMask(self.bot:EyePos(), goal + Vector(0, 0, 32))
+            if canSee then
+                self:SetPriorityGoal(goal)
+                self.isTryingPath = true
+            end
+        end
     end
 
     self:AvoidPlayers()
@@ -924,7 +1084,7 @@ function BotLocomotor:UpdateMovement()
         self:TryUnstick()
     end
 
-    -- self:AvoidObstacles()
+    self:AvoidObstacles()
 
     -----------------------
     -- Door code
@@ -1036,9 +1196,16 @@ function BotLocomotor:UpdatePathRequest()
     end
 
     local pathRequest = self:GetPathRequest() -- can be nil
-    local goalNav = navmesh.GetNearestNavArea(goalPos)
+    local goalNav = self:GetGoalNavArea() or lib.GetNearestNavArea(goalPos)
     local pathLength = self:GetPathLength()
     local hasPath = self:HasPath()
+
+    if not goalNav then
+        self.cantReachGoal = true
+        self.pathRequestWaiting = false
+        self.pathRequest = nil
+        return STAT.IMPOSSIBLE
+    end
 
     local pathInfo = pathRequest and pathRequest.pathInfo
     local path = pathInfo and pathInfo.path
@@ -1062,6 +1229,13 @@ function BotLocomotor:UpdatePathRequest()
         return STAT.IMPOSSIBLE
     elseif pathInfo == true then
         self.pathRequestWaiting = true
+        -- While the new path is being computed, keep following the old path
+        -- if it still has uncompleted segments nearby.  This prevents the bot
+        -- from standing perfectly still every time the goal drifts to a
+        -- different nav area and a re-path is queued.
+        if hasPath and pathLength > 0 and self:AnySegmentsNearby(path, 500) then
+            return STAT.PATHINGCURRENTLY
+        end
         return STAT.PENDING
     elseif type(pathInfo) == "table" and type(pathInfo.path) ~= "table" then
         -- Cached path exists but has no valid path table; treat as impossible.
@@ -1070,10 +1244,11 @@ function BotLocomotor:UpdatePathRequest()
         self.pathRequest = nil
         return STAT.IMPOSSIBLE
     else -- path is a table
+        local clonedPathInfo = ClonePathInfo(pathInfo)
         self.pathRequest = {
-            pathInfo = pathInfo,
+            pathInfo = clonedPathInfo,
             pathid = pathid,
-            processedPath = pathInfo.processedPath,
+            processedPath = clonedPathInfo and clonedPathInfo.processedPath,
             pathIndex = 1, -- the index of the next path node to go to
             owner = self.bot,
         }
@@ -1121,7 +1296,7 @@ end
 
 --TODO: Move to botlib
 function BotLocomotor:CanStandAt(pos)
-    if util.IsInWorld(pos) then return false end
+    if not util.IsInWorld(pos) then return false end
 
     local origin = pos + Vector(0, 0, 16)
     local mins = self.bot:OBBMins()
@@ -1132,7 +1307,7 @@ function BotLocomotor:CanStandAt(pos)
         mins = mins,
         maxs = maxs,
         filter = self.bot,
-        ignoreworld = true,
+        mask = MASK_PLAYERSOLID,
     })
 
     return not tr.Hit
@@ -1209,7 +1384,13 @@ function BotLocomotor:FollowPath()
     self.nextPos = nextPos
     self.nextPosI = nextPosI
 
-    if not self.nextPos then return false end
+    if not self.nextPos then
+        if self.goalPos and not self:IsCloseEnough(self.goalPos) then
+            self.pathRequest = nil
+        end
+
+        return false
+    end
 
     if self:ShouldJump() then
         self:Jump(true)
@@ -1451,12 +1632,20 @@ local LADDER_THRESH_BOTTOM = 64
 --- In other words, it checks if we're supposed to be going up/down AND we are close to the top/bottom respectively before dismounting
 ---@return boolean
 function BotLocomotor:ShouldDismountLadder()
-    if (math.random(1, 5) == 1) then return true end -- Just in case.
     local ladder, distTo = self:GetClosestLadder()
-    if not (ladder and distTo < 1000) then return self:IsOnLadder() end
+    if not (ladder and distTo < 1000) then return self:IsNearEndOfLadder() end
     local climbDir = self:GetClimbDir()
 
-    -- if climbDir == "none" then return self:IsNearEndOfLadder() end -- We don't know what's going on so just default to this action instead.
+    if climbDir == "none" then
+        local velZ = self.bot:GetVelocity().z
+        if velZ > 25 then
+            climbDir = "up"
+        elseif velZ < -25 then
+            climbDir = "down"
+        else
+            return self:IsNearEndOfLadder()
+        end
+    end
 
     if climbDir == "up" then
         local distTop = self.bot:GetPos():Distance(ladder:GetTop())
@@ -1476,6 +1665,7 @@ function BotLocomotor:IsNearEndOfLadder()
     local bot = self.bot
     if not self:IsOnLadder() then return false end
     local ladder = self:GetClosestLadder()
+    if not ladder then return false end
     local distTop = bot:GetPos():Distance(ladder:GetTop())
     local distBottom = bot:GetPos():Distance(ladder:GetBottom())
 

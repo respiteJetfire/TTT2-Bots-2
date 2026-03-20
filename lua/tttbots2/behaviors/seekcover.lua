@@ -183,7 +183,32 @@ function SeekCover.OnRunning(bot)
     end
 
     -- Escalate to full retreat if health is critically low.
-    if bot:Health() < 25 then
+    -- However, if we're in a coordinated/plan attack, only retreat at < 20% HP
+    -- so the bot commits to the fight instead of looping retreat→attack.
+    local coordAttack = false
+    do
+        local reason = bot.attackTargetReason
+        if reason == "COORD_ATTACK_STRIKE" or reason == "FOLLOW_PLAN_ATTACK" then
+            coordAttack = true
+        end
+        if not coordAttack then
+            -- Check FollowPlan state for an active attack job.
+            local fpJobState = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+            local job = fpJobState and fpJobState.Job
+            if job then
+                local ACTIONS = TTTBots.Plans and TTTBots.Plans.ACTIONS
+                if ACTIONS then
+                    local act = job.Action
+                    if act == ACTIONS.COORD_ATTACK or act == ACTIONS.ATTACK or act == ACTIONS.ATTACKANY then
+                        coordAttack = true
+                    end
+                end
+            end
+        end
+    end
+
+    local retreatHealthThreshold = coordAttack and 20 or 25
+    if bot:Health() < retreatHealthThreshold then
         bot.isRetreating = true
         return STATUS.SUCCESS
     end

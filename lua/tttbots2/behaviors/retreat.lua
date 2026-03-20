@@ -26,6 +26,39 @@ local RETREAT_STEP = 900
 -- How many seconds to maintain retreat state after losing sight of attacker.
 local RETREAT_SUSTAIN = 6
 
+--- HP threshold below which coordinated/plan attacks allow retreat.
+local COORD_ATTACK_RETREAT_HEALTH = 20
+
+--- Returns true if the bot is currently executing a coordinated or plan-based
+--- attack (COORD_ATTACK, ATTACKANY, or ATTACK job from FollowPlan).
+--- These attacks should suppress retreat logic so bots commit to the fight
+--- instead of getting stuck in a retreat→re-engage loop.
+---@param bot Bot
+---@return boolean
+local function IsInCoordinatedAttack(bot)
+    -- Check the attack reason set by FollowPlan when it calls SetAttackTarget.
+    local reason = bot.attackTargetReason
+    if reason == "COORD_ATTACK_STRIKE" or reason == "FOLLOW_PLAN_ATTACK" then
+        return true
+    end
+
+    -- Also check if FollowPlan currently has an active attack-type job,
+    -- even if AttackTarget hasn't started yet (staging phase of COORD_ATTACK).
+    local fpState = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    local job = fpState and fpState.Job
+    if job then
+        local ACTIONS = TTTBots.Plans and TTTBots.Plans.ACTIONS
+        if ACTIONS then
+            local act = job.Action
+            if act == ACTIONS.COORD_ATTACK or act == ACTIONS.ATTACK or act == ACTIONS.ATTACKANY then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 --- Get the retreat health threshold for this bot's personality.
 ---@param bot Bot
 ---@return number threshold
@@ -88,6 +121,11 @@ function Retreat.Validate(bot)
 
     -- Hothead/aggressive personalities never retreat.
     if bot.HasTrait and (bot:HasTrait("hothead") or bot:HasTrait("aggressive")) then return false end
+
+    -- Coordinated / plan-based attacks bypass retreat so the bot commits to
+    -- the fight instead of getting stuck in a retreat→re-engage loop.
+    -- Exception: if HP drops below 20%, self-preservation wins.
+    if IsInCoordinatedAttack(bot) and bot:Health() >= COORD_ATTACK_RETREAT_HEALTH then return false end
 
     -- Respect post-retreat cooldown to prevent rapid retreat→attack→retreat loops.
     -- Exception: if health is critically low (< 20), always allow retreat.

@@ -17,6 +17,23 @@ Attack.Interruptible = true
 
 local STATUS = TTTBots.STATUS
 
+local AGGRESSIVE_WEAPON_CLASSES = {
+    ["ttt_smart_pistol"] = true,
+    ["m9k_minigun"] = true,
+}
+
+local AGGRESSIVE_APPROACH_DISTS = {
+    ["ttt_smart_pistol"] = 575,
+    ["m9k_minigun"] = 450,
+}
+
+local AGGRESSIVE_BACKPEDAL_DISTS = {
+    ["ttt_smart_pistol"] = 60,
+    ["m9k_minigun"] = 40,
+}
+
+local DEFAULT_APPROACH_DIST = 200
+
 ---@enum ATTACKMODE
 local ATTACKMODE = {
     Seeking = 2,  -- We have a target and we saw them recently or can see them but not shoot them
@@ -75,6 +92,28 @@ local function CheckAmmoSufficiency(bot)
             -- Got a fresh weapon — re-check ammo with the new loadout
             if inv:HasEnoughAmmoToKill(target, witnessCount) then return true end
         end
+    end
+
+    -- Coordinated / plan attacks: suppress ammo-flee unless HP is critical.
+    -- This prevents the retreat→re-engage loop during coordinated strikes.
+    local reason = bot.attackTargetReason
+    local inCoordAttack = (reason == "COORD_ATTACK_STRIKE" or reason == "FOLLOW_PLAN_ATTACK")
+    if not inCoordAttack then
+        local fpState = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+        local job = fpState and fpState.Job
+        if job then
+            local ACTIONS = TTTBots.Plans and TTTBots.Plans.ACTIONS
+            if ACTIONS then
+                local act = job.Action
+                if act == ACTIONS.COORD_ATTACK or act == ACTIONS.ATTACK or act == ACTIONS.ATTACKANY then
+                    inCoordAttack = true
+                end
+            end
+        end
+    end
+    if inCoordAttack and bot:Health() >= 20 then
+        -- Committed to the coordinated attack — keep fighting even with low ammo.
+        return true
     end
 
     -- Not enough ammo: flee from target until we rearm.
@@ -310,7 +349,23 @@ end
 function Attack.ShouldLookAtBody(bot, weapon)
     local personality = bot:BotPersonality() ---@type CPersonality
     local isBodyShotter = not (personality.isHeadshotter or false)
+    if weapon and weapon.class == "ttt_smart_pistol" then
+        return true
+    end
     return isBodyShotter or (weapon.is_shotgun or weapon.is_melee)
+end
+
+---@param weapon WeaponInfo?
+---@return boolean
+function Attack.IsAggressiveWeapon(weapon)
+    return weapon and AGGRESSIVE_WEAPON_CLASSES[weapon.class] or false
+end
+
+---@param weapon WeaponInfo?
+---@return number
+function Attack.GetIdealApproachDistance(weapon)
+    if not weapon then return DEFAULT_APPROACH_DIST end
+    return AGGRESSIVE_APPROACH_DISTS[weapon.class] or DEFAULT_APPROACH_DIST
 end
 
 --- Tells loco to strafe
@@ -321,6 +376,7 @@ function Attack.StrafeIfNecessary(bot, weapon, loco)
     if state.canStrafe == false then return false end
     if not (bot.attackTarget and bot.attackTarget.GetPos) then return false end
     if weapon.is_melee then return false end
+    if weapon.class == "m9k_minigun" then return false end
 
     -- Do not strafe if we are on a cliff. We will fall off.
     local isCliffed = loco:IsCliffed()
@@ -340,10 +396,8 @@ function Attack.StrafeIfNecessary(bot, weapon, loco)
     return true -- We are strafing
 end
 
-local IDEAL_APPROACH_DIST = 200
-
 function Attack.ShouldApproachWith(bot, weapon)
-    return weapon.is_shotgun or weapon.is_melee
+    return weapon.is_shotgun or weapon.is_melee or Attack.IsAggressiveWeapon(weapon)
 end
 
 --- Tests if the target is next to an explosive barrel, if so, returns the barrel.
@@ -367,11 +421,12 @@ function Attack.ApproachIfNecessary(bot, weapon, loco)
     if not Attack.ShouldApproachWith(bot, weapon) then return false end
 
     local distToTarget = bot:GetPos():Distance(bot.attackTarget:GetPos())
+    local idealDist = Attack.GetIdealApproachDistance(weapon)
     local shouldApproach = (
-        distToTarget > IDEAL_APPROACH_DIST
+        distToTarget > idealDist
     )
     local forceStop = (
-        distToTarget < IDEAL_APPROACH_DIST
+        distToTarget < idealDist
     )
     if forceStop then
         loco:SetForceForward(false)
@@ -404,6 +459,27 @@ function Attack.CheckCoverConditions(bot, target)
     -- Respect post-cover cooldown to prevent instant re-triggering after SeekCover ends.
     if (bot.seekCoverCooldownUntil or 0) > CurTime() then return end
 
+    -- Coordinated / plan attacks: suppress cover-seeking unless HP is critical (< 20%).
+    -- This prevents bots from breaking off coordinated strikes to seek cover.
+    if bot:Health() >= 20 then
+        local reason = bot.attackTargetReason
+        local inCoordAttack = (reason == "COORD_ATTACK_STRIKE" or reason == "FOLLOW_PLAN_ATTACK")
+        if not inCoordAttack then
+            local fpState = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+            local job = fpState and fpState.Job
+            if job then
+                local ACTIONS = TTTBots.Plans and TTTBots.Plans.ACTIONS
+                if ACTIONS then
+                    local act = job.Action
+                    if act == ACTIONS.COORD_ATTACK or act == ACTIONS.ATTACK or act == ACTIONS.ATTACKANY then
+                        inCoordAttack = true
+                    end
+                end
+            end
+        end
+        if inCoordAttack then return end
+    end
+
     local hp = bot:Health()
     local lowHealth = hp < 60
 
@@ -423,6 +499,12 @@ function Attack.CheckCoverConditions(bot, target)
     local coverThreshold = 60
     if bot.HasTrait and (bot:HasTrait("cautious") or bot:HasTrait("tryhard")) then
         coverThreshold = 75
+    end
+
+    local myInfo = bot:BotInventory() and bot:BotInventory():GetHeldWeaponInfo() or nil
+    if Attack.IsAggressiveWeapon(myInfo) then
+        coverThreshold = coverThreshold - 20
+        lowHealth = hp < 40
     end
 
     if (hp < coverThreshold and lowHealth) or outgunned then
@@ -476,7 +558,8 @@ function Attack.Engage(bot, targetPos)
     end
 
     -- Backpedal away if there is a bad guy near us.
-    if not usingMelee and distToTarget < 100 then
+    local backpedalDist = AGGRESSIVE_BACKPEDAL_DISTS[weapon.class] or 100
+    if not usingMelee and distToTarget < backpedalDist then
         loco:SetForceBackward(true)
     else
         loco:SetForceBackward(false)
@@ -543,6 +626,11 @@ local INACCURACY_SMOKE = 5 --- The inaccuracy modifier when the bot or its targe
 ---@param origin Vector The original aim point.
 ---@param target Player The target that is being shot at.
 function Attack.CalculateInaccuracy(bot, origin, target)
+    local heldWeapon = bot:BotInventory() and bot:BotInventory():GetHeldWeaponInfo() or nil
+    if heldWeapon and heldWeapon.class == "ttt_smart_pistol" then
+        return VectorRand() * 0.35
+    end
+
     local personality = bot:BotPersonality()
     local difficulty = lib.GetConVarInt("difficulty") -- int [0,5]
     if not (difficulty or personality) then return Vector(0, 0, 0) end
@@ -578,6 +666,10 @@ function Attack.CalculateInaccuracy(bot, origin, target)
         * isInSmoke                                -- If we are in smoke, we are more inaccurate
         * isTraitorFactor                          -- Reduce aim difficulty if the cheat cvar is enabled
         * targetMoveFactor                         -- Reduce aim difficulty if the target is immobile
+
+    if heldWeapon and heldWeapon.class == "m9k_minigun" then
+        inaccuracy_mod = inaccuracy_mod * 0.55
+    end
 
     inaccuracy_mod = math.max(inaccuracy_mod, 0.1)
 
@@ -749,7 +841,15 @@ function Attack.LookingCloseToTarget(bot, target)
     local degDiff = math.abs(locomotor:GetEyeAngleDiffTo(targetPos))
 
     local THRESHOLD = 10
-    local isLookingClose = degDiff < THRESHOLD
+    local heldWeapon = bot:BotInventory() and bot:BotInventory():GetHeldWeaponInfo() or nil
+    local threshold = THRESHOLD
+    if heldWeapon and heldWeapon.class == "ttt_smart_pistol" then
+        threshold = 18
+    elseif heldWeapon and heldWeapon.class == "m9k_minigun" then
+        threshold = 14
+    end
+
+    local isLookingClose = degDiff < threshold
 
     return isLookingClose
 end
@@ -775,6 +875,66 @@ function Attack.RunningAttackLogic(bot)
     }
     switchcase[mode](bot, targetPos) -- Call the function
     return mode
+end
+
+local function FormatAttackValidationEntity(ent)
+    if ent == nil then return "nil" end
+    if ent == NULL then return "NULL" end
+    if not IsValid(ent) then return "invalid:" .. tostring(ent) end
+
+    if ent:IsPlayer() then
+        local role = ent.GetRoleStringRaw and ent:GetRoleStringRaw() or "unknown"
+        local steamID = ent.SteamID64 and ent:SteamID64() or (ent.SteamID and ent:SteamID() or "unknown")
+        return string.format(
+            "player nick=%s steamid=%s role=%s hp=%s alive=%s pos=%s",
+            tostring(ent:Nick()),
+            tostring(steamID),
+            tostring(role),
+            tostring(ent:Health()),
+            tostring(TTTBots.Lib.IsPlayerAlive(ent)),
+            tostring(ent:GetPos())
+        )
+    end
+
+    if ent:IsNPC() then
+        return string.format(
+            "npc class=%s hp=%s pos=%s",
+            tostring(ent:GetClass()),
+            tostring(ent:Health()),
+            tostring(ent:GetPos())
+        )
+    end
+
+    return tostring(ent)
+end
+
+local function PrintAttackValidationFailure(bot, info)
+    print(string.format("[TTTBots][AttackTarget] %s failed to validate attack target behavior.", tostring(bot:Nick())))
+    print(string.format("  bot: %s", FormatAttackValidationEntity(bot)))
+    print(string.format("  target: %s", FormatAttackValidationEntity(info.target)))
+    print(string.format(
+        "  checks: hasTarget=%s targetIsValid=%s botIsAlive=%s targetIsAlive=%s targetIsPlayer=%s targetIsNPC=%s targetIsPlayerAndAlive=%s targetIsNPCAndAlive=%s targetIsPlayerOrNPCAndAlive=%s notSeenRecently=%s isAlly=%s checkPassed=%s npcPass=%s",
+        tostring(info.hasTarget),
+        tostring(info.targetIsValid),
+        tostring(info.botIsAlive),
+        tostring(info.targetIsAlive),
+        tostring(info.targetIsPlayer),
+        tostring(info.targetIsNPC),
+        tostring(info.targetIsPlayerAndAlive),
+        tostring(info.targetIsNPCAndAlive),
+        tostring(info.targetIsPlayerOrNPCAndAlive),
+        tostring(info.notSeenRecently),
+        tostring(info.isAlly),
+        tostring(info.checkPassed),
+        tostring(info.NPCPass)
+    ))
+    print(string.format(
+        "  timing: curTime=%s lastSeenTime=%s attackTargetPriority=%s attackBehaviorMode=%s",
+        tostring(CurTime()),
+        tostring(info.lastSeenTime),
+        tostring(bot.attackTargetPriority),
+        tostring(info.attackBehaviorMode)
+    ))
 end
 
 --- Validates if the target is extant and alive. True if valid.
@@ -836,9 +996,26 @@ function Attack.ValidateTarget(bot)
     )
 
     if not (checkPassed or NPCPass) then
-        print(bot:Nick() .. " failed to validate attack target behavior.")
-        bot:SetAttackTarget(nil, "BEHAVIOR_END")
         local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
+        PrintAttackValidationFailure(bot, {
+            target = target,
+            hasTarget = hasTarget,
+            targetIsValid = targetIsValid,
+            botIsAlive = botIsAlive,
+            targetIsAlive = targetIsAlive,
+            targetIsPlayer = targetIsPlayer,
+            targetIsNPC = targetIsNPC,
+            targetIsPlayerAndAlive = targetIsPlayerAndAlive,
+            targetIsNPCAndAlive = targetIsNPCAndAlive,
+            targetIsPlayerOrNPCAndAlive = targetIsPlayerOrNPCAndAlive,
+            lastSeenTime = lastSeenTime,
+            notSeenRecently = notSeenRecently,
+            isAlly = isAlly,
+            checkPassed = checkPassed,
+            NPCPass = NPCPass,
+            attackBehaviorMode = state.attackBehaviorMode,
+        })
+        bot:SetAttackTarget(nil, "BEHAVIOR_END")
         if state.attackBehaviorMode == ATTACKMODE.Engaging then
             bot:BotLocomotor():StopAttack()
         end
@@ -876,10 +1053,32 @@ function Attack.OnRunning(bot)
     -- If the bot has no ranged weapon with ammo and is forced to melee,
     -- abort the fight so it can retreat and find a weapon instead.
     -- "Hothead" bots will keep swinging regardless.
+    -- Coordinated / plan attacks: keep fighting even with melee unless HP < 20%.
     local inv = bot:BotInventory()
     if inv and inv:HasNoWeaponAvailable(true) then
         local isHothead = bot.HasTrait and bot:HasTrait("hothead")
+        local suppressRetreat = false
         if not isHothead then
+            local reason = bot.attackTargetReason
+            local inCoordAttack = (reason == "COORD_ATTACK_STRIKE" or reason == "FOLLOW_PLAN_ATTACK")
+            if not inCoordAttack then
+                local fpState = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+                local job = fpState and fpState.Job
+                if job then
+                    local ACTIONS = TTTBots.Plans and TTTBots.Plans.ACTIONS
+                    if ACTIONS then
+                        local act = job.Action
+                        if act == ACTIONS.COORD_ATTACK or act == ACTIONS.ATTACK or act == ACTIONS.ATTACKANY then
+                            inCoordAttack = true
+                        end
+                    end
+                end
+            end
+            if inCoordAttack and bot:Health() >= 20 then
+                suppressRetreat = true
+            end
+        end
+        if not isHothead and not suppressRetreat then
             -- Flag the bot as retreating so the Retreat behavior picks up.
             bot.isRetreating = true
             -- Remember who we were fighting so we can avoid them while unarmed.

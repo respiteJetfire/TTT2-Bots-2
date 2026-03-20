@@ -38,6 +38,7 @@ TTTBots.Behaviors.PriorityNodes = {
     --- Throw grenades situationally
     Grenades = {
         _bh.UseGrenade,
+        _bh.UseRevealGrenade,
     },
 
     --- Accuse players based on evidence (between SelfDefense and Chatter)
@@ -135,10 +136,10 @@ local _prior = TTTBots.Behaviors.PriorityNodes
 ---@type table<string, Tree>
 TTTBots.Behaviors.DefaultTrees = {
     innocent = {
-        _prior.Requests,
-        _prior.Chatter,
         _prior.FightBack,
         _prior.SelfDefense,
+        _prior.Requests,
+        _prior.Chatter,
         _prior.Grenades,
         _prior.Accuse,
         _bh.FollowInnocentPlan,
@@ -176,11 +177,11 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Patrol
     },
     detective = {
-        _prior.Chatter,
         _prior.FightBack,
         _prior.SelfDefense,
+        _prior.Chatter,
         _prior.Grenades,
-        _prior.Requests,   -- Moved up: detective should use/place role checker early
+        _prior.Requests,
         _prior.Accuse,
         _bh.FollowInnocentPlan,
         _prior.Support,
@@ -285,9 +286,21 @@ function TTTBots.Behaviors.RunTree(bot, tree)
 
     -- If we have a behavior that is currently running and cannot be suddenly stopped, then we must
     -- try to run it again and see what happens.
+    -- EXCEPTION: Self-defense (priority 5) always breaks through non-interruptible behaviors.
+    -- A bot being shot at must be allowed to fight back regardless of what social/request
+    -- behavior it was in (ComeHere, FollowMe, UseRoleChecker, etc.)
     if lastBehavior and not lastBehavior.Interruptible then
-        local result = lastBehavior.OnRunning(bot)
-        if result == STATUS.RUNNING then return end
+        local selfDefensePri = TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SELF_DEFENSE or 5
+        local hasSelfDefenseTarget = (bot.attackTarget ~= nil and (bot.attackTargetPriority or 0) >= selfDefensePri)
+        if hasSelfDefenseTarget and lastBehavior ~= TTTBots.Behaviors.AttackTarget then
+            -- Force-end the current non-interruptible behavior so AttackTarget can run
+            lastBehavior.OnFailure(bot)
+            lastBehavior.OnEnd(bot)
+            bot.lastBehavior = nil
+        else
+            local result = lastBehavior.OnRunning(bot)
+            if result == STATUS.RUNNING then return end
+        end
     end
 
     -- Now we've either finished the last behavior or it was interruptible.

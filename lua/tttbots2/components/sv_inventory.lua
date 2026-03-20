@@ -488,6 +488,41 @@ function BotInventory:ScoreWeaponForContext(wepInfo, bot, distToTarget)
         end
     end
 
+    -- ── Custom equipment preferences ───────────────────────────────────────
+    if wepInfo.class == "ttt_smart_pistol" then
+        score = score + 12
+        if distToTarget then
+            if distToTarget <= 900 then
+                score = score + 14
+            elseif distToTarget <= 1200 then
+                score = score + 7
+            else
+                score = score - 6
+            end
+        else
+            score = score + 3
+        end
+    elseif wepInfo.class == "m9k_minigun" then
+        score = score + 10
+        if distToTarget then
+            if distToTarget <= 800 then
+                score = score + 18
+            elseif distToTarget <= 1200 then
+                score = score + 8
+            else
+                score = score - 10
+            end
+        end
+
+        if bot.HasTrait and (
+            bot:HasTrait("heavy")
+            or bot:HasTrait("aggressive")
+            or bot:HasTrait("hothead")
+        ) then
+            score = score + 8
+        end
+    end
+
     -- ── Low ammo penalty ──────────────────────────────────────────────────
     if wepInfo.clip and wepInfo.max_ammo and wepInfo.max_ammo > 0 then
         if wepInfo.clip <= math.ceil(wepInfo.max_ammo * 0.2) and wepInfo.ammo <= 0 then
@@ -1035,7 +1070,7 @@ end
 function BotInventory:EquipSpecial()
     local firstSpecial = self:GetSpecialPrimary()
     if not (firstSpecial and IsValid(firstSpecial)) then return false end
-    self.bot:SelectWeapon(firstSpecial)
+    self.bot:SelectWeapon(firstSpecial:GetClass())
     return true
 end
 

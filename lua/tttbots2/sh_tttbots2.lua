@@ -105,6 +105,9 @@ util.AddNetworkString("TTTBots_RequestConCommand")
 util.AddNetworkString("TTTBots_RequestCvarUpdate")
 util.AddNetworkString("SayTTSEL")
 util.AddNetworkString("SayTTSBad")
+-- Cupid role compatibility: bot-side lover linking sends these messages directly.
+util.AddNetworkString("inLove")
+util.AddNetworkString("betrayedTraitor")
 
 local hasNavmesh = function() return navmesh.GetNavAreaCount() > 0 end
 local alreadyAddedResources = false

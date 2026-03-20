@@ -46,6 +46,10 @@ end
 ---@param bot Bot
 ---@return BStatus
 function BehaviorWait.OnRunning(bot)
+    -- Abort waiting if the bot has an active attack target (self-defense)
+    if bot.attackTarget ~= nil then
+        return STATUS.FAILURE
+    end
     if CurTime() >= bot.waitEndTime then
         print(bot:Nick() .. " has finished waiting.")
         return STATUS.SUCCESS

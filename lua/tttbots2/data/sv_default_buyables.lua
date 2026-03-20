@@ -64,6 +64,28 @@ local function testPlyIsArchetype(ply, archetype, N)
     return (personality:GetClosestArchetype() == archetype) or math.random(1, N) == 1
 end
 
+local function countAliveNonAllies(ply)
+    local count = 0
+    for _, other in ipairs(player.GetAll()) do
+        if not IsValid(other) or not other:Alive() then continue end
+        if other == ply then continue end
+        if TTTBots.Roles.IsAllies(ply, other) then continue end
+        count = count + 1
+    end
+    return count
+end
+
+local function countKnownCorpsesNear(ply, radius)
+    local corpses = TTTBots.Match and TTTBots.Match.Corpses or {}
+    local count = 0
+    for _, corpse in ipairs(corpses) do
+        if not IsValid(corpse) then continue end
+        if ply:GetPos():Distance(corpse:GetPos()) > radius then continue end
+        count = count + 1
+    end
+    return count
+end
+
 ---@type Buyable
 Registry.C4 = {
     Name = "C4",
@@ -135,12 +157,25 @@ Registry.DefectorJihad = {
     Name = "Defector Jihad (Conversion Item)",
     Class = "weapon_ttt_defector_jihad",
     Price = 1,
-    Priority = 5,
-    RandomChance = 1, -- 1 since chance is calculated in CanBuy
+    Priority = 3,
+    RandomChance = 2,
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
         return testPlyHasTrait(ply, "defector", 4)
+    end,
+    SituationalScore = function(ply)
+        local innocentCount = 0
+        for _, target in pairs(player.GetAll()) do
+            if IsValid(target) and target:Alive() and target:GetRole() == ROLE_INNOCENT and target:GetTeam() == TEAM_INNOCENT then
+                innocentCount = innocentCount + 1
+            end
+        end
+
+        if innocentCount < 3 then return 0 end
+        if innocentCount >= 6 then return 5 end
+
+        return 3
     end,
     Roles = GetRolesByTeam(TEAM_TRAITOR),
     PrimaryWeapon = false,
@@ -571,15 +606,84 @@ Registry.SmartPistol = {
     Name = "Smart Pistol",
     Class = "ttt_smart_pistol",
     Price = 1,
-    Priority = 2,
+    Priority = 4,
     RandomChance = 1,
     ShouldAnnounce = true,
     CanBuy = function(ply)
+        if ply:HasWeapon("ttt_smart_pistol") then return false end
         return testPlyHasTrait(ply, "gimmick", 3)
+            or testPlyHasTrait(ply, "aggressive", 4)
+            or testPlyIsArchetype(ply, "CQB", 5)
+    end,
+    SituationalScore = function(ply)
+        local enemies = countAliveNonAllies(ply)
+        local base = 6
+        if enemies >= 4 then base = base + 2 end
+        if enemies >= 7 then base = base + 2 end
+        if IsValid(ply.attackTarget) then base = base + 3 end
+        return base
     end,
     AnnounceTeam = false,
-    Roles = KillerRoles,
+    Roles = GetRolesByTeam(TEAM_TRAITOR),
     PrimaryWeapon = true,
+}
+
+---@type Buyable
+--- This is a custom buyable with the weapon name 'm9k_minigun' into the shop of the traitor.
+Registry.Minigun = {
+    Name = "Minigun",
+    Class = "m9k_minigun",
+    Price = 1,
+    Priority = 4,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("m9k_minigun") then return false end
+        return testPlyHasTrait(ply, "heavy", 2)
+            or testPlyHasTrait(ply, "aggressive", 4)
+            or testPlyHasTrait(ply, "hothead", 4)
+    end,
+    SituationalScore = function(ply)
+        local enemies = countAliveNonAllies(ply)
+        local base = 5
+        if enemies >= 3 then base = base + 2 end
+        if enemies >= 6 then base = base + 3 end
+        if IsValid(ply.attackTarget) then base = base + 2 end
+        if ply:Health() > 70 then base = base + 1 end
+        return base
+    end,
+    Roles = GetRolesByTeam(TEAM_TRAITOR),
+    PrimaryWeapon = true,
+}
+
+---@type Buyable
+--- This is a custom buyable with the weapon name 'weapon_ttt_reveal_nade' into the shop of the traitor.
+Registry.RevealGrenade = {
+    Name = "Reveal Grenade",
+    Class = "weapon_ttt_reveal_nade",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt_reveal_nade") then return false end
+        return testPlyHasTrait(ply, "grenades", 4)
+            or testPlyHasTrait(ply, "gimmick", 4)
+            or testPlyHasTrait(ply, "strategic", 5)
+    end,
+    SituationalScore = function(ply)
+        local enemies = countAliveNonAllies(ply)
+        local nearbyCorpses = countKnownCorpsesNear(ply, 1600)
+        local base = 2 + math.min(enemies, 5)
+        if nearbyCorpses > 0 then
+            base = base + math.min(nearbyCorpses * 2, 6)
+        end
+        return base
+    end,
+    Roles = GetRolesByTeam(TEAM_TRAITOR),
+    PrimaryWeapon = false,
 }
 
 ---@type Buyable
@@ -1300,12 +1404,16 @@ Registry.Turret = {
     Name = "Turret",
     Class = "weapon_ttt_turret",
     Price = 1,
-    Priority = 2,
+    Priority = 4,
     RandomChance = 1,
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
         return testPlyHasTrait(ply, "planter", 5)
+    end,
+    SituationalScore = function(ply)
+        local aliveCount = #getAlivePlayers()
+        return aliveCount > 6 and 6 or 4
     end,
     Roles = KillerRoles,
     PrimaryWeapon = false,
@@ -1317,12 +1425,16 @@ Registry.Timestop = {
     Name = "Timestop",
     Class = "weapon_ttt_timestop",
     Price = 1,
-    Priority = 2,
+    Priority = 4,
     RandomChance = 1,
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
         return testPlyHasTrait(ply, "gimmick", 4)
+    end,
+    SituationalScore = function(ply)
+        local aliveCount = #getAlivePlayers()
+        return aliveCount > 4 and 5 or 3
     end,
     Roles = KillerRoles,
     PrimaryWeapon = false,
@@ -1334,12 +1446,16 @@ Registry.Peacekeeper = {
     Name = "Peacekeeper",
     Class = "weapon_ttt_peacekeeper",
     Price = 1,
-    Priority = 2,
+    Priority = 4,
     RandomChance = 1,
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
         return testPlyHasTrait(ply, "heavy", 4)
+    end,
+    SituationalScore = function(ply)
+        local aliveCount = #getAlivePlayers()
+        return aliveCount > 5 and 6 or 4
     end,
     Roles = KillerRoles,
     PrimaryWeapon = false,
@@ -1368,12 +1484,16 @@ Registry.InfiniShoot = {
     Name = "Infinite Ammo",
     Class = "item_ttt_infinishoot",
     Price = 1,
-    Priority = 2,
+    Priority = 3,
     RandomChance = 1,
     ShouldAnnounce = false,
     AnnounceTeam = false,
     CanBuy = function(ply)
         return testPlyHasTrait(ply, "heavy", 4)
+    end,
+    SituationalScore = function(ply)
+        local aliveCount = #getAlivePlayers()
+        return aliveCount > 5 and 5 or 3
     end,
     TTT2 = true,
     Roles = KillerRoles,

@@ -22,6 +22,7 @@ TTTBots.Plans = {
         ATTACKANY = "AttackAny", --- Attack any player you can see that are on the enemy team.
         DEFEND = "Defend",       --- Defend a position from intruders, used after an attack order if we know others are around.
         ROAM = "Roam",           --- Roam around the map, primarily to be used for hunting players at low player counts.
+        COORD_ATTACK = "CoordAttack", --- Coordinated attack: all assigned traitors converge near the target then attack simultaneously when enough are in position.
         IGNORE = "Ignore",       --- Ignore orders. This is seldom used and is mainly for bots who ignore orders. (personality quirk)
     },
     --- A list of all things/people that can be targeted by a bot. Mosly calculated at runtime
@@ -38,6 +39,8 @@ TTTBots.Plans = {
         FARTHEST_HIDINGSPOT = "FarthestHidingSpot",      --- The farthest hiding spot
         NEAREST_SNIPERSPOT = "NearestSniperSpot",        --- The nearest sniper spot
         FARTHEST_SNIPERSPOT = "FarthestSniperSpot",      --- The farthest sniper spot
+        SHARED_ENEMY = "SharedEnemy",                      --- A single enemy chosen once per plan cycle; every traitor assigned this target gets the SAME player.
+        SHARED_ISOLATED_ENEMY = "SharedIsolatedEnemy",    --- The most isolated enemy, cached per plan cycle so all traitors converge on the same victim.
         NOT_APPLICABLE = "N/A",                          --- Not applicable, used for actions that don't require a target.
     },
     BotStatuses = {},
@@ -66,6 +69,7 @@ function TTTBots.Plans.Cleanup()
     TTTBots.Plans.BotStatuses = {}
     TTTBots.Plans.CurrentPlanState = "Waiting"
     TTTBots.Plans.SelectedPlan = nil
+    TTTBots.Plans.SharedTargetCache = {} --- Reset per-job shared targets each round
 end
 
 TTTBots.Plans.Cleanup() -- Call when this script is first executed

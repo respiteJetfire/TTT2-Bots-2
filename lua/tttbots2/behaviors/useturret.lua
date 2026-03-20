@@ -58,6 +58,40 @@ function UseTurret.FindDeploySpot(bot)
     return myPos
 end
 
+--- Find a valid nearby world position for the turret placement trace.
+--- The turret weapon only deploys when the owner's eye trace hits the world
+--- within 100 units, so we must aim at an actual ground hit close to the bot.
+---@param bot Bot
+---@param deploySpot Vector?
+---@return Vector?
+function UseTurret.FindDeployAimPos(bot, deploySpot)
+    local myPos = bot:GetPos()
+    local forward = bot:GetForward()
+    local spot = deploySpot or myPos
+    local candidates = {
+        spot + forward * 24,
+        spot + forward * 12,
+        spot,
+        myPos + forward * 24,
+        myPos,
+    }
+
+    for _, candidate in ipairs(candidates) do
+        local tr = util.TraceLine({
+            start = candidate + Vector(0, 0, 32),
+            endpos = candidate - Vector(0, 0, 96),
+            filter = bot,
+            mask = MASK_SOLID_BRUSHONLY,
+        })
+
+        if tr.HitWorld and tr.HitPos:Distance(myPos) <= 96 then
+            return tr.HitPos + tr.HitNormal * 2
+        end
+    end
+
+    return nil
+end
+
 --- Validate: bot must have the turret weapon, round must be active, and
 --- there should be a reasonable situation to deploy (not in immediate combat).
 function UseTurret.Validate(bot)
@@ -110,13 +144,31 @@ function UseTurret.OnRunning(bot)
     local turret = UseTurret.GetTurret(bot)
     if not turret then return STATUS.FAILURE end
 
-    bot:SetActiveWeapon(turret)
+    bot:SelectWeapon("weapon_ttt_turret")
     loco:SetGoal()
     loco:SetHalt(true)
 
-    -- Aim at the ground a short distance ahead for placement
-    local placePos = bot:EyePos() + bot:GetForward() * 60 - Vector(0, 0, 50)
-    loco:LookAt(placePos, 2)
+    local aimPos = UseTurret.FindDeployAimPos(bot, deploySpot)
+    if not aimPos then return STATUS.FAILURE end
+
+    -- Give weapon selection a tick to settle before firing.
+    if bot:GetActiveWeapon() ~= turret then
+        loco:LookAt(aimPos, 0.2)
+        loco:StopAttack()
+        return STATUS.RUNNING
+    end
+
+    -- Aim at an actual nearby ground hit so the turret weapon's placement
+    -- validation sees a valid world trace within range.
+    loco:LookAt(aimPos, 0.2)
+
+    local eyeTrace = bot:GetEyeTrace()
+    local hasValidPlacement = eyeTrace and eyeTrace.HitWorld and eyeTrace.HitPos:Distance(bot:GetPos()) <= 100
+    if not hasValidPlacement then
+        loco:StopAttack()
+        return STATUS.RUNNING
+    end
+
     loco:StartAttack()
 
     return STATUS.RUNNING

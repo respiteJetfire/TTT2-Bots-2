@@ -131,6 +131,8 @@ end
 
 function AccusePlayer.Validate(bot)
     if not lib.IsPlayerAlive(bot) then return false end
+    -- Pre/post round phases are for casual chatter only — no accusations
+    if not TTTBots.Match.IsRoundActive() then return false end
     if not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion() then return false end
     -- Don't accuse while in combat
     if bot.attackTarget and IsValid(bot.attackTarget) then return false end
@@ -138,6 +140,8 @@ function AccusePlayer.Validate(bot)
     local threshold = getAccuseThreshold(bot)
     local suspect   = pickBestSuspect(bot, threshold)
     if not suspect then return false end
+    -- Never accuse another bot — bots know who the bots are
+    if suspect:IsBot() then return false end
 
     local evidence = bot:BotEvidence()
     if not evidence then return false end

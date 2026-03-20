@@ -386,7 +386,11 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
 
         TTTBots.Providers.SendText(prompt, bot, sendOpts, function(envelope)
             if not envelope.ok then
-                print("LLM request failed: " .. tostring(envelope.message))
+                local message = tostring(envelope.message or "")
+                if string.find(message, "LLM is disabled", 1, true) then
+                    return
+                end
+                print("LLM request failed: " .. message)
                 return
             end
             local response = TTTBots.Providers.StripQuotes(envelope.text)

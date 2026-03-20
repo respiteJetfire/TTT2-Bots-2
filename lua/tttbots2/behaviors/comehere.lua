@@ -86,6 +86,11 @@ end
 
 --- Validate the behavior
 function ComeHere.Validate(bot)
+    -- Abort following if the bot has an active attack target (e.g. self-defense)
+    if bot.attackTarget ~= nil then
+        bot.followMeTarget = nil
+        return false
+    end
     if bot.followMeTarget and not IsValid(bot.followMeTarget) then
         -- print("ComeHere.Validate: bot.followMeTarget is invalid for " .. bot:Nick())
         bot.followMeTarget = nil
@@ -129,6 +134,11 @@ end
 --- Called when the behavior's last state is running
 function ComeHere.OnRunning(bot)
     local target = bot.followMeTarget
+
+    -- Abort following if the bot has an active attack target (self-defense)
+    if bot.attackTarget ~= nil then
+        return STATUS.FAILURE
+    end
 
     if not IsValid(target) or not lib.IsPlayerAlive(target) then
         return STATUS.FAILURE

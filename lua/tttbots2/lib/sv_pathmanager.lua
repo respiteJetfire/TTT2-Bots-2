@@ -379,15 +379,84 @@ local function distance_between(area1, area2)
     return cost
 end
 
+local function heapLess(a, b)
+    if a.fScore == b.fScore then
+        return a.cost < b.cost
+    end
+
+    return a.fScore < b.fScore
+end
+
+local function heapSwap(heap, a, b)
+    heap[a], heap[b] = heap[b], heap[a]
+    heap[a].heapIndex = a
+    heap[b].heapIndex = b
+end
+
+local function heapSiftUp(heap, index)
+    while index > 1 do
+        local parent = math.floor(index / 2)
+        if not heapLess(heap[index], heap[parent]) then break end
+        heapSwap(heap, index, parent)
+        index = parent
+    end
+end
+
+local function heapSiftDown(heap, index)
+    local size = #heap
+
+    while true do
+        local left = index * 2
+        local right = left + 1
+        local smallest = index
+
+        if left <= size and heapLess(heap[left], heap[smallest]) then
+            smallest = left
+        end
+
+        if right <= size and heapLess(heap[right], heap[smallest]) then
+            smallest = right
+        end
+
+        if smallest == index then break end
+
+        heapSwap(heap, index, smallest)
+        index = smallest
+    end
+end
+
+local function heapPush(heap, node)
+    local index = #heap + 1
+    heap[index] = node
+    node.heapIndex = index
+    heapSiftUp(heap, index)
+end
+
+local function heapPop(heap)
+    local size = #heap
+    if size == 0 then return nil end
+
+    local root = heap[1]
+    local tail = heap[size]
+    heap[size] = nil
+
+    if size > 1 then
+        heap[1] = tail
+        tail.heapIndex = 1
+        heapSiftDown(heap, 1)
+    end
+
+    root.heapIndex = nil
+    return root
+end
+
 --- Coroutine function that calculates paths
 --- Never call directly, do PathManager.RequestPath, and the path will be generated.
 ---@return boolean|table result false if no path found nor possible, else output a table of navareas
 function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
     -- local P_Astar2 = TTTBots.Lib.Profiler("Astar2", true)
-    local closedSet = {}
-    local openSet = { { area = start, cost = 0, fScore = heuristic_cost_estimate(start, goal) } }
-    local neighborsCounted = 0
-    local totalNeighbors = navmesh.GetNavAreaCount()
+    local openSet = {}
+    local nodeByArea = {}
     -- Coroutine
     local cpf = TTTBots.Lib.GetConVarInt("pathfinding_cpf") *
         (TTTBots.Lib.GetConVarBool("pathfinding_cpf_scaling") and (math.max(#TTTBots.Bots, 5) * 0.2) or 1)
@@ -395,6 +464,17 @@ function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
     local cn = 0
 
     if start == goal then return false end
+
+    local startNode = {
+        area = start,
+        cost = 0,
+        fScore = heuristic_cost_estimate(start, goal),
+        parent = nil,
+        closed = false,
+    }
+
+    nodeByArea[start] = startNode
+    heapPush(openSet, startNode)
 
     while (#openSet > 0) do
         cn = cn + 1
@@ -408,9 +488,8 @@ function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
             cn = 0 -- reset budget counter for the next slice
         end
         ---------------------------------- end coroutine stuff
-        local current = openSet[1]
-        table.remove(openSet, 1)
-        table.insert(closedSet, current.area)
+        local current = heapPop(openSet)
+        current.closed = true
 
         if (current.area == goal) then
             local path = { current.area }
@@ -428,35 +507,33 @@ function TTTBots.PathManager.Astar2(start, goal, _playerFilter)
         table.Add(adjacents, portals)
 
         for _, neighbor in pairs(adjacents) do
-            if (not table.HasValue(closedSet, neighbor)) then
-                neighborsCounted = neighborsCounted + 1
+            local neighborNode = nodeByArea[neighbor]
+            if not (neighborNode and neighborNode.closed) then
                 local tentative_gScore = current.cost + distance_between(current.area, neighbor) +
                     get_penalties_between(current.area, neighbor)
                 local tentative_fScore = tentative_gScore + heuristic_cost_estimate(neighbor, goal)
 
-                local neighborInOpenSet = false
-                local neighborIndex = 0
+                if not neighborNode then
+                    neighborNode = {
+                        area = neighbor,
+                        cost = tentative_gScore,
+                        fScore = tentative_fScore,
+                        parent = current,
+                        closed = false,
+                    }
+                    nodeByArea[neighbor] = neighborNode
+                    heapPush(openSet, neighborNode)
+                elseif tentative_gScore < neighborNode.cost then
+                    neighborNode.cost = tentative_gScore
+                    neighborNode.fScore = tentative_fScore
+                    neighborNode.parent = current
 
-                for i, n in ipairs(openSet) do
-                    if (n.area == neighbor) then
-                        neighborInOpenSet = true
-                        neighborIndex = i
-                        break
+                    if neighborNode.heapIndex then
+                        heapSiftUp(openSet, neighborNode.heapIndex)
                     end
-                end
-
-                if (not neighborInOpenSet) then
-                    table.insert(openSet,
-                        { area = neighbor, cost = tentative_gScore, fScore = tentative_fScore, parent = current })
-                elseif (tentative_fScore < openSet[neighborIndex].fScore) then
-                    openSet[neighborIndex].cost = tentative_gScore
-                    openSet[neighborIndex].fScore = tentative_fScore
-                    openSet[neighborIndex].parent = current
                 end
             end
         end
-
-        table.sort(openSet, function(a, b) return a.fScore < b.fScore end)
     end
 
     return false
@@ -558,12 +635,22 @@ function TTTBots.PathManager.RequestPath(owner, startPos, finishPos, isAreas, pr
         TTTBots.Lib.GetNearestNavArea(finishPos) --navmesh.GetNearestNavArea(finishPos)
     
     if not startArea then
-        ErrorNoHaltWithStack("Start area is nil. Either you didn't provide one or there isn't a nav nearby.")
+        if TTTBots.Lib.GetConVarBool("debug_pathfinding") then
+            ErrorNoHaltWithStack("Start area is nil. Either you didn't provide one or there isn't a nav nearby.")
+        end
         return nil, false, "start_area_nil"
     end
     if not finishArea then
-        ErrorNoHaltWithStack("Finish area is nil. Either you didn't provide one or there isn't a nav nearby.")
+        if TTTBots.Lib.GetConVarBool("debug_pathfinding") then
+            ErrorNoHaltWithStack("Finish area is nil. Either you didn't provide one or there isn't a nav nearby.")
+        end
         return nil, false, "finish_area_nil"
+    end
+
+    if not TTTBots.Lib.AreNavAreasConnected(startArea, finishArea) then
+        local unreachableID = startArea:GetID() .. "to" .. finishArea:GetID()
+        TTTBots.PathManager.impossiblePaths[unreachableID] = true
+        return unreachableID, false, "different_regions"
     end
 
     local pathID = startArea:GetID() .. "to" .. finishArea:GetID()
@@ -773,13 +860,14 @@ local closestCache = {} -- indexed by "navarea id : navarea id"
 ---@param pos Vector
 ---@return Vector
 local function getClosestCache(areaA, areaB, pos)
-    local index = areaA:GetID() .. ":" .. areaB:GetID() .. ((pos and VectorToString(pos)) or "")
+    local index = areaA:GetID() .. ":" .. areaB:GetID() .. ":" .. ((pos and VectorToString(pos)) or "center")
     if closestCache[index] then return closestCache[index] end
 
     local paddingMe = paddingCache[areaA] or TTTBots.PathManager.GetPaddedNavCorners(areaA)
     if not paddingCache[areaA] then paddingCache[areaA] = paddingMe end
 
-    local closest = ClosestPointOnRectangle(paddingMe, areaB:GetCenter())
+    local targetPos = pos or areaB:GetCenter()
+    local closest = ClosestPointOnRectangle(paddingMe, targetPos)
     closestCache[index] = closest
     return closest
 end

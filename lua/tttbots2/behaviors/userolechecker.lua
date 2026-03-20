@@ -56,7 +56,7 @@ end
 --- Validate the behavior
 function UseRoleChecker.Validate(bot)
     if not TTTBots.Match.IsRoundActive() then return false end
-    if bot.attackTarget ~= nil then return false end             --- We are preoccupied with an attacker.
+    if bot.attackTarget ~= nil then return false end             --- We are preoccupied with an attacker (self-defense, KOS, etc.)
 
     local role = bot:GetSubRole()
 
@@ -147,6 +147,11 @@ end
 
 --- Called when the behavior's last state is running
 function UseRoleChecker.OnRunning(bot)
+
+    -- Abort using role checker if the bot has an active attack target (self-defense)
+    if bot.attackTarget ~= nil then
+        return STATUS.FAILURE
+    end
 
     if UseRoleChecker.HasRoleChecker(bot) then
         -- Safety: give up after PlaceTimeout seconds so we don't loop forever.

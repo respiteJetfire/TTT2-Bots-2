@@ -10,6 +10,34 @@ local ACTIONS = Plans.ACTIONS
 local PLANSTATES = Plans.PLANSTATES
 local TARGETS = Plans.PLANTARGETS
 
+local function JobNeedsResolvedTarget(job)
+    if not job then return false end
+
+    local action = job.Action
+    return action == ACTIONS.ATTACKANY
+        or action == ACTIONS.ATTACK
+        or action == ACTIONS.COORD_ATTACK
+        or action == ACTIONS.DEFEND
+        or action == ACTIONS.FOLLOW
+        or action == ACTIONS.GATHER
+        or action == ACTIONS.PLANT
+        or action == ACTIONS.ROAM
+end
+
+local function JobHasUsableTarget(job)
+    if not job then return false end
+    if not JobNeedsResolvedTarget(job) then return true end
+
+    local target = job.TargetObj
+    local action = job.Action
+
+    if action == ACTIONS.ATTACKANY or action == ACTIONS.ATTACK or action == ACTIONS.FOLLOW or action == ACTIONS.COORD_ATTACK then
+        return IsValid(target)
+    end
+
+    return isvector(target)
+end
+
 local IsRoundActive = TTTBots.Match.IsRoundActive --- @type function
 
 -- hook.Add("TTTBeginRound", "TTTBots.PlanCoordinator.OnRoundStart", PlanCoordinator.OnRoundStart)
@@ -53,25 +81,30 @@ function PlanCoordinator.GetNextJob(isAssignment, caller)
     local selectedPlan = Plans.SelectedPlan
     if not selectedPlan then return nil end
     local jobs = selectedPlan.Jobs
-    local assignedJob = { -- default job
-        Action = ACTIONS.ATTACKANY,
-        Target = TARGETS.NEAREST_ENEMY,
-    }
+
     for i, job in pairs(jobs) do
         local test = PlanCoordinator.TestJob(job, isAssignment, caller)
         if test then
-            assignedJob = table.Copy(job) -- create a deep copy of the job
-            break
+            local assignedJob = table.Copy(job) -- create a deep copy of the job
+
+            if isAssignment then
+                assignedJob = PlanCoordinator.CalculateTargetForJob(assignedJob, caller)
+                if not JobHasUsableTarget(assignedJob) then
+                    if job.NumAssigned then job.NumAssigned = math.max(job.NumAssigned - 1, 0) end
+                    if job.AssignedBots then job.AssignedBots[caller] = nil end
+                    continue
+                end
+
+                local timeNow = CurTime()
+                assignedJob.TimeAssigned = timeNow
+                assignedJob.ExpiryTime = timeNow + math.random((assignedJob.MinDuration or 15), (assignedJob.MaxDuration or 60))
+            end
+
+            return assignedJob
         end
     end
 
-    if isAssignment then
-        assignedJob = PlanCoordinator.CalculateTargetForJob(assignedJob, caller)
-        local timeNow = CurTime()
-        assignedJob.TimeAssigned = timeNow
-        assignedJob.ExpiryTime = timeNow + math.random((assignedJob.MinDuration or 15), (assignedJob.MaxDuration or 60))
-    end
-    return assignedJob
+    return nil
 end
 
 --- A Target Hashtable function to calculate a target for a job.
@@ -227,6 +260,71 @@ function PlanCoordinator.CalcRandPolice(caller)
     return randPolice
 end
 
+--- Shared-target helpers: pick one enemy and cache it so every traitor
+--- assigned this target type within the same plan cycle attacks the SAME player.
+--- The cache is keyed by target-type string and invalidated when the plan resets.
+
+--- Pick a random enemy and cache it for the duration of the plan.
+function PlanCoordinator.CalcSharedEnemy(caller)
+    local cache = TTTBots.Plans.SharedTargetCache
+    if not cache then
+        cache = {}
+        TTTBots.Plans.SharedTargetCache = cache
+    end
+
+    -- If we already picked a shared enemy this cycle, validate it is still alive.
+    if cache.SharedEnemy and IsValid(cache.SharedEnemy) and TTTBots.Lib.IsPlayerAlive(cache.SharedEnemy) then
+        return cache.SharedEnemy
+    end
+
+    -- Pick a new shared enemy.
+    local target = PlanCoordinator.CalcRandEnemy(caller)
+    cache.SharedEnemy = target
+    return target
+end
+
+--- Pick the most isolated enemy and cache it for the duration of the plan.
+--- This is the coordinated-ambush variant: all traitors converge on the loneliest victim.
+function PlanCoordinator.CalcSharedIsolatedEnemy(caller)
+    local cache = TTTBots.Plans.SharedTargetCache
+    if not cache then
+        cache = {}
+        TTTBots.Plans.SharedTargetCache = cache
+    end
+
+    -- Return cached target if still valid.
+    if cache.SharedIsolatedEnemy and IsValid(cache.SharedIsolatedEnemy)
+       and TTTBots.Lib.IsPlayerAlive(cache.SharedIsolatedEnemy) then
+        return cache.SharedIsolatedEnemy
+    end
+
+    -- Use the isolation-scoring system to find the best victim.
+    local bestTarget, bestScore = nil, -math.huge
+    local nonAllies = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+        if ply == caller then return false end
+        if not TTTBots.Lib.IsPlayerAlive(ply) then return false end
+        if TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(caller, ply) then return false end
+        if TTTBots.Roles.IsAllies(caller, ply) then return false end
+        return true
+    end)
+
+    for _, ply in ipairs(nonAllies) do
+        local score = TTTBots.Lib.RateIsolation and TTTBots.Lib.RateIsolation(caller, ply) or 0
+        if score > bestScore then
+            bestScore = score
+            bestTarget = ply
+        end
+    end
+
+    -- Fallback to any random enemy if isolation rating isn't available.
+    if not bestTarget then
+        bestTarget = PlanCoordinator.CalcRandEnemy(caller)
+    end
+
+    cache.SharedIsolatedEnemy = bestTarget
+    return bestTarget
+end
+
 local P = PlanCoordinator
 local targetHashTable = {
     [TARGETS.ANY_BOMBSPOT] = P.CalcBombSpot,
@@ -242,6 +340,8 @@ local targetHashTable = {
     [TARGETS.RAND_POLICE] = P.CalcRandPolice,
     [TARGETS.RAND_POPULAR_AREA] = P.CalcPopularArea,
     [TARGETS.RAND_UNPOPULAR_AREA] = P.CalcUnpopularArea,
+    [TARGETS.SHARED_ENEMY] = P.CalcSharedEnemy,
+    [TARGETS.SHARED_ISOLATED_ENEMY] = P.CalcSharedIsolatedEnemy,
 }
 
 --- Calculates the target for a job, based upon the job's Target string.
