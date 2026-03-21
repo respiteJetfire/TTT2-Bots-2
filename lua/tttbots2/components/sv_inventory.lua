@@ -239,6 +239,8 @@ function BotInventory:GetWeaponInfo(wep)
     info.time_to_kill = (math.ceil((100 / info.dps) * 100) / 100) or 1
 
     info.is_automatic = (wep.Primary and wep.Primary.Automatic) or false
+    -- The delay (in seconds) between shots for this weapon
+    info.fire_delay = (wep.Primary and wep.Primary.Delay) or 0.2
     -- we can infer if this is a sniper based off of the damage and if it's automatic
     info.is_sniper = (info.damage and info.damage > 40 and not info.is_automatic) or false
 

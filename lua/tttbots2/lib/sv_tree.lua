@@ -185,13 +185,14 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Requests,
         _prior.Accuse,
         _bh.InvestigateCorpse,    -- High priority: detectives MUST ID bodies for intel
+        _prior.DNAScanner,        -- Promoted: DNA scanning is core detective work, right after body ID
         _prior.Convert,           -- Sheriffs should deputize early; high priority
         _prior.Restore,           -- Detectives must acquire weapons early (before plans)
         _bh.FollowInnocentPlan,
         _prior.Support,
         _prior.TacticalEquipment,
-        _prior.DNAScanner,
         _bh.Defuse,
+        _bh.ActiveInvestigate,    -- Detective proactively searches quiet areas when no leads
         _bh.Interact,
         _prior.Minge,
         _prior.Investigate,

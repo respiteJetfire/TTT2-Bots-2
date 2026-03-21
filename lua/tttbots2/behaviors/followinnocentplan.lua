@@ -157,8 +157,8 @@ local function runPatrolZone(bot, job)
     end
 
     if needsNewPos then
-        -- Pick a random nav area within 600 units of the zone centre
-        local searchRadius = 600
+        -- Pick a random nav area within 900 units of the zone centre for broad coverage
+        local searchRadius = 900
         local nav = navmesh.GetNearestNavArea(origin + Vector(
             math.random(-searchRadius, searchRadius),
             math.random(-searchRadius, searchRadius),
@@ -310,6 +310,143 @@ local function runHoldLastStand(bot, job)
     return STATUS.RUNNING
 end
 
+--- INVESTIGATE_AREA: detective actively searches an unpopular/quiet area.
+--- Navigates to the target, looks around upon arrival, then succeeds.
+--- 🟢 12: Personality-modulated search behavior.
+local function runInvestigateArea(bot, job)
+    local target = job.TargetObj
+    if not target then return STATUS.FAILURE end
+
+    local dist = bot:GetPos():Distance(target)
+    local loco = bot:BotLocomotor()
+
+    if dist > 150 then
+        -- 🟢 12: Talkative archetypes announce their investigation
+        if not job._investigateAnnounced then
+            local personality = bot.components and bot.components.personality
+            local archetype = personality and personality:GetClosestArchetype() or "Default"
+            local A = TTTBots.Archetypes
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On and (archetype == A.Tryhard or archetype == A.Hothead
+                or archetype == A.Teamer or archetype == A.Nice) then
+                chatter:On("InvestigateNoise", {}, false, 0)
+            end
+            job._investigateAnnounced = true
+        end
+        setReachableGoal(bot, target)
+        return STATUS.RUNNING
+    end
+
+    -- Arrived: look around to simulate searching the area
+    if not job._arrivedAt then
+        job._arrivedAt = CurTime()
+    end
+
+    -- 🟢 12: Search radius and linger time vary by archetype
+    local personality = bot.components and bot.components.personality
+    local archetype = personality and personality:GetClosestArchetype() or "Default"
+    local A = TTTBots.Archetypes
+    local searchRadius = 300
+    local lingerTime = 3
+    if archetype == A.Tryhard or archetype == A.Hothead then
+        searchRadius = 400
+        lingerTime = 4  -- thorough search
+    elseif archetype == A.Stoic then
+        searchRadius = 350
+        lingerTime = 5  -- very methodical
+    elseif archetype == A.Dumb then
+        searchRadius = 150
+        lingerTime = 2  -- barely looks around
+    elseif archetype == A.Casual then
+        searchRadius = 200
+        lingerTime = 2  -- doesn't care much
+    end
+
+    if loco then
+        local lookOffset = Vector(math.random(-searchRadius, searchRadius), math.random(-searchRadius, searchRadius), 60)
+        loco:LookAt(target + lookOffset)
+    end
+
+    if (CurTime() - job._arrivedAt) > lingerTime then
+        return STATUS.SUCCESS
+    end
+
+    return STATUS.RUNNING
+end
+
+--- GUARD_TESTER: detective stays near the tester to supervise testing.
+--- Watches for suspicious behavior and looks at whoever is currently using the tester.
+--- 🟢 12: Personality-modulated leadership chatter while guarding.
+local function runGuardTester(bot, job)
+    local testerPos = job.TargetObj
+    if not testerPos then return STATUS.FAILURE end
+
+    -- Refresh tester position in case it moved or was re-discovered
+    local freshPos = IC._FindTesterPos()
+    if freshPos then testerPos = freshPos end
+
+    local dist = bot:GetPos():Distance(testerPos)
+    local loco = bot:BotLocomotor()
+
+    -- Stand ~100-200 units from the tester (close enough to watch, not blocking)
+    if dist > 200 then
+        setReachableGoal(bot, testerPos)
+        return STATUS.RUNNING
+    elseif dist < 80 then
+        -- Too close, step back slightly
+        local backoff = (bot:GetPos() - testerPos):GetNormalized() * 150
+        setReachableGoal(bot, testerPos + backoff)
+        return STATUS.RUNNING
+    end
+
+    -- Watch the tester area: look at whoever is near the tester (queue position 1)
+    if loco then
+        local watchTarget = nil
+        if IC.TesterQueue and #IC.TesterQueue > 0 then
+            local firstInQueue = IC.TesterQueue[1]
+            if IsValid(firstInQueue) and lib.IsPlayerAlive(firstInQueue) then
+                watchTarget = firstInQueue:GetPos()
+            end
+        end
+        loco:LookAt(watchTarget or testerPos)
+    end
+
+    -- 🟢 12: Leadership chatter — periodically prompt players to use the tester.
+    -- Frequency depends on personality archetype.
+    if not bot._guardChatterNext then bot._guardChatterNext = CurTime() + 5 end
+    if CurTime() >= bot._guardChatterNext then
+        local personality = bot.components and bot.components.personality
+        local archetype = personality and personality:GetClosestArchetype() or "Default"
+        local A = TTTBots.Archetypes
+        local chatter = bot:BotChatter()
+
+        -- Determine chatter interval based on archetype
+        local interval = 25  -- default
+        if archetype == A.Teamer or archetype == A.Tryhard then
+            interval = 15  -- chatty leaders, frequent callouts
+        elseif archetype == A.Hothead then
+            interval = 18  -- impatient, demands compliance
+        elseif archetype == A.Stoic then
+            interval = 40  -- rarely speaks, lets actions speak
+        elseif archetype == A.Nice then
+            interval = 20  -- politely encourages testing
+        elseif archetype == A.Casual then
+            interval = 35  -- low-energy
+        elseif archetype == A.Dumb then
+            interval = 30  -- forgets to call out
+        end
+
+        if chatter and chatter.On then
+            if IC.TesterQueue and #IC.TesterQueue > 0 and IsValid(IC.TesterQueue[1]) then
+                chatter:On("RequestRoleCheck", { player = IC.TesterQueue[1]:Nick() }, false, 0)
+            end
+        end
+        bot._guardChatterNext = CurTime() + interval
+    end
+
+    return STATUS.RUNNING
+end
+
 --- DEPLOY_CHECKER: detective walks to a strategic spot and fires the role-checker weapon to place it.
 local DEPLOY_CHECKER_TIMEOUT = 12 -- seconds before giving up on placement
 
@@ -381,6 +518,8 @@ local function buildDispatch()
     ACT_RUNNING_HASH[IC.ACTIONS.HOLD_PERIMETER]  = runHoldPerimeter
     ACT_RUNNING_HASH[IC.ACTIONS.HOLD_LAST_STAND] = runHoldLastStand
     ACT_RUNNING_HASH[IC.ACTIONS.DEPLOY_CHECKER]  = runDeployChecker
+    ACT_RUNNING_HASH[IC.ACTIONS.INVESTIGATE_AREA] = runInvestigateArea
+    ACT_RUNNING_HASH[IC.ACTIONS.GUARD_TESTER]    = runGuardTester
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -427,4 +566,5 @@ end
 function FollowInnocentPlan.OnEnd(bot)
     -- Intentionally do NOT clear the job here — IC.Tick() manages lifetime.
     -- This lets the behavior be restarted on the next tick with the same job.
+    bot._guardChatterNext = nil  -- 🟢 12: cleanup guard-tester chatter timer
 end

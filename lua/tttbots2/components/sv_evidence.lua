@@ -35,6 +35,7 @@ BotEvidence.EvidenceWeights = {
     ALIBI_CONFIRMED     = -8,   -- Someone confirmed suspect's whereabouts
     ALIBI_BROKEN        = 7,    -- Suspect's stated alibi was disproved
     KOS_CALLED_BY       = 5,    -- Another player called KOS on suspect
+    KOS_BY_DETECTIVE    = 11,   -- A detective/police role called KOS on suspect (high authority)
     BODY_FOUND_NEAR     = 3,    -- Suspect was in area when body was found
     SUSPICIOUS_MOVEMENT = 2,    -- General suspicious behavior
     -- Spy role events
@@ -434,6 +435,7 @@ local EVIDENCE_LABELS = {
     DNA_MATCH           = "DNA match",
     ALIBI_BROKEN        = "alibi disproved",
     KOS_CALLED_BY       = "KOS called by others",
+    KOS_BY_DETECTIVE    = "KOS called by detective",
     BODY_FOUND_NEAR     = "found near a body",
     SUSPICIOUS_MOVEMENT = "suspicious movement",
     SPY_INTEL           = "spy intelligence",

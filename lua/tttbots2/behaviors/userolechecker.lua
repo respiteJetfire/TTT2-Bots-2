@@ -12,7 +12,10 @@ UseRoleChecker.UseRange = 100 --- The range at which we can use a health checker
 UseRoleChecker.TargetClass = "ttt_traitorchecker"
 
 --- Maximum time (seconds) the detective will spend trying to place before giving up.
-UseRoleChecker.PlaceTimeout = 15
+UseRoleChecker.PlaceTimeout = 25
+
+--- After this many seconds of failed placement, recalculate the look-at target.
+UseRoleChecker.PlaceRetryInterval = 6
 
 local STATUS = TTTBots.STATUS
 
@@ -125,8 +128,31 @@ function UseRoleChecker.PlaceRoleChecker(bot)
 
     -- Compute and cache a stable look-at position so we don't keep chasing a
     -- moving target as the bot's forward vector changes each frame.
-    if not bot._checkerPlaceTarget then
+    -- 🟡 8: Retry with a new target if the current one hasn't worked after PlaceRetryInterval
+    if not bot._checkerPlaceTarget or
+       (bot._checkerPlaceRetryAt and CurTime() > bot._checkerPlaceRetryAt) then
         bot._checkerPlaceTarget = UseRoleChecker.GetPlacementLookPos(bot)
+        bot._checkerPlaceRetryAt = CurTime() + UseRoleChecker.PlaceRetryInterval
+        bot._checkerPlaceAttempts = (bot._checkerPlaceAttempts or 0) + 1
+
+        -- On retry attempts, vary the look position to find a valid placement surface:
+        -- try looking more steeply downward, or slightly to the side
+        if bot._checkerPlaceAttempts > 1 then
+            local fwd = bot:GetForward()
+            local eyePos = bot:EyePos()
+            local attemptIdx = bot._checkerPlaceAttempts
+            if attemptIdx == 2 then
+                -- Look more steeply down
+                bot._checkerPlaceTarget = eyePos + fwd * 60 - Vector(0, 0, 55)
+            elseif attemptIdx == 3 then
+                -- Look slightly to the right
+                local right = bot:GetRight()
+                bot._checkerPlaceTarget = eyePos + fwd * 70 + right * 30 - Vector(0, 0, 45)
+            else
+                -- Look directly at feet
+                bot._checkerPlaceTarget = bot:GetPos() + Vector(0, 0, 5)
+            end
+        end
     end
     locomotor:LookAt(bot._checkerPlaceTarget, 2)
 
@@ -136,7 +162,14 @@ function UseRoleChecker.PlaceRoleChecker(bot)
     local activeWep = bot:GetActiveWeapon()
     if not IsValid(activeWep) or activeWep:GetClass() ~= "weapon_ttt_traitorchecker" then
         bot:SelectWeapon("weapon_ttt_traitorchecker")
+        bot._checkerEquipTime = CurTime()
         return -- Give one tick for the weapon to deploy before attacking.
+    end
+
+    -- 🟡 8: Wait a brief stabilization period after equipping before firing,
+    -- so the aim direction has time to settle on the target
+    if bot._checkerEquipTime and (CurTime() - bot._checkerEquipTime) < 0.3 then
+        return
     end
 
     -- Pause the attack-compatibility rate limiter so the fire isn't suppressed
@@ -280,6 +313,9 @@ function UseRoleChecker.OnEnd(bot)
     bot._checkerPlacedAt = nil
     bot._checkerPlaceStartedAt = nil
     bot._checkerPlaceTarget = nil
+    bot._checkerPlaceRetryAt = nil
+    bot._checkerPlaceAttempts = nil
+    bot._checkerEquipTime = nil
     local locomotor = bot:BotLocomotor()
     local inventory = bot:BotInventory()
     inventory:ResumeAutoSwitch()

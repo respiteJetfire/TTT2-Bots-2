@@ -34,6 +34,13 @@ local function getAccuseThreshold(bot)
     local A = TTTBots.Archetypes
     local base = lib.GetConVarInt("evidence_accuse_threshold") or 7
 
+    -- Detective/police roles have lower accusation threshold — their authority
+    -- and investigative tools mean they act on less evidence than a regular innocent
+    local role = TTTBots.Roles.GetRoleFor(bot)
+    if role and role:GetAppearsPolice() then
+        base = math.max(base - 2, 2)
+    end
+
     -- Lower threshold → accuses more readily
     if archetype == A.Hothead or archetype == A.Sus then return math.max(base - 3, 2) end
     -- Higher threshold → only accuses on strong evidence

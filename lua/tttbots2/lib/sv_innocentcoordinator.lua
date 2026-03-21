@@ -47,6 +47,8 @@ IC.ACTIONS = {
     HOLD_PERIMETER  = "HoldPerimeter", -- Guard a position near a corpse
     HOLD_LAST_STAND = "HoldLastStand", -- Defend a stronghold position
     DEPLOY_CHECKER  = "DeployChecker", -- Detective deploys role-checker device at a strategic spot
+    INVESTIGATE_AREA = "InvestigateArea", -- Detective searches an unpopular/quiet map area
+    GUARD_TESTER    = "GuardTester",   -- Detective stays near the deployed tester to supervise testing
 }
 
 -- Detective-issued leadership signals (emitted as chatter events)
@@ -304,15 +306,15 @@ end
 IC._patrolZones = {}  -- [bot] = { center = Vector, radius = number }
 
 --- Divide the map into N zones and assign one to each bot.
---- Each bot gets a zone reasonably close to itself so it actually reaches its patrol point.
+--- Maximizes distance between assigned zones so bots spread across the map.
 ---@param bots table<Bot>
 function IC._AssignPatrolZones(bots)
     IC._patrolZones = {}
     local n = #bots
     if n == 0 then return end
 
-    -- Build a pool of candidate nav centres from the whole nav mesh.
-    -- We mix popular (high-traffic) and random navs so coverage varies.
+    -- Build a large pool of candidate nav centres from the whole nav mesh.
+    -- Mix popular (high-traffic) and random navs for good coverage.
     local popular = TTTBots.Lib.GetTopNPopularNavs and TTTBots.Lib.GetTopNPopularNavs(math.min(n * 2, 20)) or {}
     local centres = {}
     for _, entry in ipairs(popular) do
@@ -320,27 +322,42 @@ function IC._AssignPatrolZones(bots)
         if nav then table.insert(centres, nav:GetCenter()) end
     end
 
-    -- Pad with random nav areas so every bot can always get an assignment
+    -- Pad with random nav areas spread across the map
     local allNavs = navmesh.GetAllNavAreas and navmesh.GetAllNavAreas() or {}
-    for i = 1, math.min(#allNavs, 40) do
+    for i = 1, math.min(#allNavs, 60) do
         local nav = allNavs[math.random(#allNavs)]
         if nav then table.insert(centres, nav:GetCenter()) end
     end
 
-    -- For each bot, pick the candidate closest to it (greedy, remove once used)
+    -- Greedy assignment: each bot picks the candidate that is farthest from
+    -- all previously-assigned zones, ensuring maximum spread across the map.
     local used = {}
+    local assignedCentres = {}  -- List of already-assigned zone centres
     for _, bot in ipairs(bots) do
-        local best, bestDist = nil, math.huge
+        local best, bestScore = nil, -math.huge
         for i, centre in ipairs(centres) do
             if used[i] then continue end
-            local d = bot:GetPos():Distance(centre)
-            if d < bestDist then
-                bestDist = d
+            -- Score = minimum distance to any already-assigned zone
+            -- Higher is better (farther from other bots' zones)
+            local minDistToAssigned = math.huge
+            for _, assigned in ipairs(assignedCentres) do
+                local d = centre:Distance(assigned)
+                if d < minDistToAssigned then
+                    minDistToAssigned = d
+                end
+            end
+            -- For the first bot, use distance from the bot itself as tiebreaker
+            if #assignedCentres == 0 then
+                minDistToAssigned = 0 -- All are equal; just pick any
+            end
+            if minDistToAssigned > bestScore then
+                bestScore = minDistToAssigned
                 best = i
             end
         end
         local centre = best and centres[best] or bot:GetPos()
         if best then used[best] = true end
+        table.insert(assignedCentres, centre)
         IC._patrolZones[bot] = { center = centre, radius = 800 }
     end
 end
@@ -482,7 +499,13 @@ function IC._AssignJobsForStrategy(strategy)
     elseif strategy == S.PATROL_ROUTES then
         IC._AssignPatrolZones(bots)
         for _, bot in ipairs(bots) do
-            IC.BotJobs[bot] = IC._MakePatrolJob(bot, now)
+            -- 🟡 6: Detective gets investigation jobs instead of generic patrol
+            local role = TTTBots.Roles.GetRoleFor(bot)
+            if role and role:GetAppearsPolice() then
+                IC.BotJobs[bot] = IC._MakeInvestigateJob(bot, now)
+            else
+                IC.BotJobs[bot] = IC._MakePatrolJob(bot, now)
+            end
         end
 
     elseif strategy == S.TESTER_QUEUE then
@@ -502,19 +525,31 @@ function IC._AssignJobsForStrategy(strategy)
                     State      = IC.BOTSTATES.IDLE,
                 }
             elseif testerPos then
-                local qPos = IC.GetTesterQueuePosition(bot)
-                if qPos then
+                -- 🟡 7: Detective guards the tester instead of queuing (they don't need testing)
+                local role = TTTBots.Roles.GetRoleFor(bot)
+                if role and role:GetAppearsPolice() then
                     IC.BotJobs[bot] = {
-                        Action     = A.QUEUE_TEST,
+                        Action     = A.GUARD_TESTER,
                         TargetObj  = testerPos,
-                        QueuePos   = qPos,
                         AssignTime = now,
-                        ExpiryTime = now + 120,
+                        ExpiryTime = now + 60,
                         State      = IC.BOTSTATES.IDLE,
                     }
                 else
-                    -- Already confirmed; just buddy up while waiting
-                    IC.BotJobs[bot] = IC._MakeBuddyJob(bot, bots, now)
+                    local qPos = IC.GetTesterQueuePosition(bot)
+                    if qPos then
+                        IC.BotJobs[bot] = {
+                            Action     = A.QUEUE_TEST,
+                            TargetObj  = testerPos,
+                            QueuePos   = qPos,
+                            AssignTime = now,
+                            ExpiryTime = now + 120,
+                            State      = IC.BOTSTATES.IDLE,
+                        }
+                    else
+                        -- Already confirmed; just buddy up while waiting
+                        IC.BotJobs[bot] = IC._MakeBuddyJob(bot, bots, now)
+                    end
                 end
             else
                 -- No tester on map yet; just buddy up
@@ -570,19 +605,62 @@ function IC._AssignJobsForStrategy(strategy)
 end
 
 --- Build a PATROL_ZONE job for `bot` using its assigned zone.
+--- When a patrol job expires, the bot gets a completely new zone assignment
+--- so it moves to a different part of the map.
 ---@param bot Bot
 ---@param now number CurTime()
 ---@return table job
 function IC._MakePatrolJob(bot, now)
+    -- Reassign this bot to a new zone far from other bots' current zones
+    IC._AssignPatrolZones({ bot })
     local zone  = IC._patrolZones[bot]
     local center = zone and zone.center or bot:GetPos()
     return {
         Action     = IC.ACTIONS.PATROL_ZONE,
         TargetObj  = center,
         AssignTime = now,
-        ExpiryTime = now + math.random(12, 25), -- Shorter window so bots re-roll destinations often
+        ExpiryTime = now + math.random(10, 20), -- Short window so bots keep moving to new areas
         State      = IC.BOTSTATES.IDLE,
         _wanderPos = nil,
+    }
+end
+
+--- Build an INVESTIGATE_AREA job for detective bots. Directs them to unpopular
+--- nav areas to actively search for evidence rather than aimless patrol.
+---@param bot Bot
+---@param now number CurTime()
+---@return table job
+function IC._MakeInvestigateJob(bot, now)
+    local A = IC.ACTIONS
+    local unpopNavs = TTTBots.Lib.GetTopNUnpopularNavs and TTTBots.Lib.GetTopNUnpopularNavs(5) or {}
+    local target = nil
+
+    if #unpopNavs > 0 then
+        local pick = unpopNavs[math.random(1, #unpopNavs)]
+        local navArea = navmesh.GetNavAreaByID(pick[1])
+        if navArea then
+            target = navArea:GetCenter()
+        end
+    end
+
+    -- Fallback: pick a random nav area
+    if not target then
+        local allNavs = navmesh.GetAllNavAreas()
+        if allNavs and #allNavs > 0 then
+            local nav = allNavs[math.random(1, #allNavs)]
+            if nav then target = nav:GetCenter() end
+        end
+    end
+
+    -- Final fallback
+    target = target or bot:GetPos()
+
+    return {
+        Action     = A.INVESTIGATE_AREA,
+        TargetObj  = target,
+        AssignTime = now,
+        ExpiryTime = now + math.random(15, 30),
+        State      = IC.BOTSTATES.IDLE,
     }
 end
 
@@ -774,6 +852,11 @@ function IC._BuildSingleJob(bot, strategy, now)
         return IC._MakeBuddyJob(bot, bots, now)
 
     elseif strategy == S.PATROL_ROUTES then
+        -- 🟡 6: Detective gets investigation jobs, not patrol
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if role and role:GetAppearsPolice() then
+            return IC._MakeInvestigateJob(bot, now)
+        end
         if not IC._patrolZones[bot] then
             IC._AssignPatrolZones({ bot }) -- Assign a zone for just this bot
         end
@@ -792,7 +875,18 @@ function IC._BuildSingleJob(bot, strategy, now)
                 State      = IC.BOTSTATES.IDLE,
             }
         end
+        -- 🟡 7: Detective guards the tester instead of queuing
         local testerPos = IC._FindTesterPos()
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if role and role:GetAppearsPolice() and testerPos then
+            return {
+                Action     = A.GUARD_TESTER,
+                TargetObj  = testerPos,
+                AssignTime = now,
+                ExpiryTime = now + 60,
+                State      = IC.BOTSTATES.IDLE,
+            }
+        end
         local qPos = IC.GetTesterQueuePosition(bot)
         if qPos and testerPos then
             return {

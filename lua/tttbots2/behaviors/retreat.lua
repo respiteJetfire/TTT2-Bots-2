@@ -60,9 +60,23 @@ local function IsInCoordinatedAttack(bot)
 end
 
 --- Get the retreat health threshold for this bot's personality.
+--- Detectives retreat earlier than regular innocents because losing the
+--- detective is strategically catastrophic for the innocent team.
 ---@param bot Bot
 ---@return number threshold
 local function GetRetreatThreshold(bot)
+    local role = TTTBots.Roles.GetRoleFor(bot)
+    local isPolice = role and role.GetAppearsPolice and role:GetAppearsPolice()
+
+    if isPolice then
+        -- Detectives retreat at higher HP — their survival is critical.
+        -- Cautious detective: 55, normal detective: 45 (vs 45/30 for regulars)
+        if bot.HasTrait and bot:HasTrait("cautious") then
+            return 55
+        end
+        return 45
+    end
+
     if bot.HasTrait and bot:HasTrait("cautious") then
         return RETREAT_HEALTH_CAUTIOUS
     end
@@ -131,10 +145,14 @@ function Retreat.Validate(bot)
     -- the bot fights instead of running from a known traitor. Without this,
     -- bots with only melee weapons endlessly retreat while the traitor kills
     -- the entire team.  Exception: critically low HP (< 20) still retreats.
+    -- Detective exception: detectives always retreat at their threshold — their
+    -- survival is more important than confirming a single kill.
     local pri = bot.attackTargetPriority or 0
     local PRI = TTTBots.Morality and TTTBots.Morality.PRIORITY
     local suspicionPri = PRI and PRI.SUSPICION_THRESHOLD or 2
-    if pri >= suspicionPri and bot:Health() >= COORD_ATTACK_RETREAT_HEALTH then return false end
+    local role = TTTBots.Roles.GetRoleFor(bot)
+    local isPolice = role and role.GetAppearsPolice and role:GetAppearsPolice()
+    if not isPolice and pri >= suspicionPri and bot:Health() >= COORD_ATTACK_RETREAT_HEALTH then return false end
 
     -- Respect post-retreat cooldown to prevent rapid retreat→attack→retreat loops.
     -- Exception: if health is critically low (< 20), always allow retreat.

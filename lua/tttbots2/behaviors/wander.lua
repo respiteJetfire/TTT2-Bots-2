@@ -122,8 +122,9 @@ end
 --- Returns a random nav with preference to the current area
 function Wander.GetAnyRandomNav(bot, level)
     level = level or 0
-    -- 80% chance of getting a random nav in the nearest region, 20% chance of getting a random nav from the entire navmesh
-    local area = (math.random(1, 5) <= 4 and Wander.GetRandomNavInRegion(bot)) or Wander.GetRandomNav()
+    -- 50% chance of getting a random nav in the nearest region, 50% chance of getting a random nav from the entire navmesh
+    -- This encourages bots to spread across the whole map rather than staying local
+    local area = (math.random(1, 2) == 1 and Wander.GetRandomNavInRegion(bot)) or Wander.GetRandomNav()
 
     if level < 5 then
         -- Test if the area is near a known bomb
@@ -139,13 +140,38 @@ function Wander.GetAnyRandomNav(bot, level)
             end
         end
 
-        -- Prefer unvisited areas: 60% chance to retry if we've been here recently
+        -- Prefer unvisited areas: 80% chance to retry if we've been here recently
         local memory = bot:BotMemory()
         local roleData = TTTBots.Roles.GetRoleFor(bot)
         local isInnocent = roleData:GetUsesSuspicion()  -- innocents use suspicion; investigators should explore
         if memory and isInnocent and memory:HasVisitedNavRecently(area) then
-            if math.random(1, 10) <= 6 then
+            if math.random(1, 10) <= 8 then
                 return Wander.GetAnyRandomNav(bot, level + 1)
+            end
+        end
+
+        -- Bot proximity repulsion: avoid wandering to where other bots already are
+        -- This makes innocent bots spread out across the map naturally
+        if isInnocent then
+            local areaCenter = area:GetCenter()
+            local BOT_REPULSION_DIST = 600
+            for _, otherBot in ipairs(TTTBots.Bots) do
+                if not IsValid(otherBot) or otherBot == bot then continue end
+                if not lib.IsPlayerAlive(otherBot) then continue end
+                -- Check distance to the other bot's current position
+                if areaCenter:Distance(otherBot:GetPos()) < BOT_REPULSION_DIST then
+                    if math.random(1, 10) <= 7 then
+                        return Wander.GetAnyRandomNav(bot, level + 1)
+                    end
+                end
+                -- Also check distance to the other bot's wander destination
+                if otherBot.wander and otherBot.wander.targetPos then
+                    if areaCenter:Distance(otherBot.wander.targetPos) < BOT_REPULSION_DIST then
+                        if math.random(1, 10) <= 7 then
+                            return Wander.GetAnyRandomNav(bot, level + 1)
+                        end
+                    end
+                end
             end
         end
 
@@ -258,8 +284,8 @@ function Wander.UpdateWanderGoal(bot)
         targetArea = targetArea,
         targetPos = targetPos,
         timeStart = time,
-        timeEndFar = time + math.random(6, 24) * (isSpot and 1.5 or 1),
-        timeEndClose = time + math.random(3, 12) * (isSpot and 1.5 or 1),
+        timeEndFar = time + math.random(5, 16) * (isSpot and 1.5 or 1),
+        timeEndClose = time + math.random(2, 6) * (isSpot and 1.5 or 1),
     }
 
     bot.wander = wanderTbl

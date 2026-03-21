@@ -37,14 +37,18 @@ local function GetScanner(bot)
 	return bot:HasWeapon("weapon_ttt_wtester") and bot:GetWeapon("weapon_ttt_wtester") or nil
 end
 
---- Returns the closest unscanned corpse this bot should scan, or nil.
+--- Returns the best unscanned corpse this bot should scan, prioritizing:
+---   1. Unidentified bodies (not yet found/confirmed) — highest value intel
+---   2. Fresher corpses (more recent DNA = more actionable leads)
+---   3. Closer corpses (practical accessibility)
 ---@param bot Player
 ---@return Entity|nil
 function UseDNAScanner.GetUnscannedCorpse(bot)
 	local corpses = TTTBots.Match.Corpses
 	local scanned = bot.dnaScannedCorpses or {}
 	local botPos  = bot:GetPos()
-	local best, bestDist = nil, math.huge
+	local best, bestScore = nil, -math.huge
+	local now = CurTime()
 
 	for _, corpse in pairs(corpses) do
 		if not IsValid(corpse) then continue end
@@ -58,9 +62,37 @@ function UseDNAScanner.GetUnscannedCorpse(bot)
 		local visible = bot:Visible(corpse)
 		if not visible and dist > DNA_NEARBYIST then continue end
 
-		if dist < bestDist then
-			best     = corpse
-			bestDist = dist
+		-- Score-based prioritization instead of pure distance
+		local score = 0
+
+		-- Unidentified corpses are top priority — DNA evidence is most valuable
+		-- when the body hasn't been publicly confirmed yet
+		local isIdentified = CORPSE.GetFound and CORPSE.GetFound(corpse)
+		if not isIdentified then
+			score = score + 50  -- Strong boost for unidentified bodies
+		end
+
+		-- Fresher corpses yield more actionable intel (the killer is more likely
+		-- to still be nearby). corpse.CorpseCreationTime is set by TTT2.
+		local creationTime = corpse.CorpseCreationTime or (now - 120)
+		local age = now - creationTime
+		if age < 30 then
+			score = score + 30  -- Very fresh — top priority
+		elseif age < 60 then
+			score = score + 15  -- Moderately fresh
+		end
+
+		-- Distance penalty — closer is better, but not the primary factor
+		score = score - (dist / 100)  -- -10 per 1000 units
+
+		-- Visibility bonus
+		if visible then
+			score = score + 5
+		end
+
+		if score > bestScore then
+			best      = corpse
+			bestScore = score
 		end
 	end
 

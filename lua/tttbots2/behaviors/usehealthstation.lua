@@ -77,8 +77,49 @@ function UseHealthStation.OnStart(bot)
     return STATUS.RUNNING
 end
 
+--- Find a high-traffic nav area to place the health station so it benefits
+--- the most players. Falls back to the bot's current position.
+---@param bot Bot
+---@return Vector
+function UseHealthStation.GetPlacementPos(bot)
+    -- Try to find the most popular nav area (high foot-traffic)
+    local popular = TTTBots.Lib.GetTopNPopularNavs and TTTBots.Lib.GetTopNPopularNavs(3) or {}
+    local botPos = bot:GetPos()
+    local best, bestDist = nil, math.huge
+
+    for _, entry in ipairs(popular) do
+        local nav = navmesh.GetNavAreaByID(entry[1])
+        if nav then
+            local center = nav:GetCenter()
+            local dist = botPos:Distance(center)
+            -- Only consider areas within reasonable reach (1500 units)
+            if dist < 1500 and dist < bestDist then
+                bestDist = dist
+                best = center
+            end
+        end
+    end
+
+    -- Fallback: place at current position
+    return best or botPos
+end
+
 function UseHealthStation.PlaceHealthStation(bot)
     local locomotor = bot:BotLocomotor()
+
+    -- Navigate to placement position if we haven't reached it yet
+    if not bot._hsPlacementPos then
+        bot._hsPlacementPos = UseHealthStation.GetPlacementPos(bot)
+    end
+
+    local distToTarget = bot:GetPos():Distance(bot._hsPlacementPos)
+    if distToTarget > 120 then
+        -- Walk to the placement spot first
+        locomotor:SetGoal(bot._hsPlacementPos)
+        return
+    end
+
+    -- At the target location — place the station
     bot:SelectWeapon("weapon_ttt_health_station")
     locomotor:StartAttack()
 end
@@ -124,6 +165,7 @@ end
 --- Called when the behavior ends
 function UseHealthStation.OnEnd(bot)
     bot.targetStation = nil
+    bot._hsPlacementPos = nil
     local locomotor = bot:BotLocomotor()
     local inventory = bot:BotInventory()
     inventory:ResumeAutoSwitch()

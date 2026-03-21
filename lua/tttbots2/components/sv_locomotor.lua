@@ -1614,6 +1614,9 @@ end
 --- Stop attacking with the current held item.
 function BotLocomotor:StopAttack()
     self.attack = false
+    -- Reset semi-auto click state so the next engagement starts fresh.
+    self.semiAutoLastFire = nil
+    self.semiAutoLastRelease = nil
 end
 
 function BotLocomotor:StartAttack2() self.attack2 = true end
@@ -1691,6 +1694,54 @@ function BotLocomotor:TestShouldPreventFire()
     local attackCompat = self.attackCompat
 
     if (attackCompat == false) then return false end -- explicit false-check so we don't have to define attackCompat in the first place
+
+    -- Semi-auto weapons: toggle IN_ATTACK on/off rapidly so the bot fires
+    -- individual shots as fast as the weapon allows, scaled by difficulty.
+    -- Higher difficulty = shorter pause between clicks = faster fire rate.
+    local inv = self.bot.components and self.bot.components.inventory
+    local wepInfo = inv and inv:GetHeldWeaponInfo()
+    if wepInfo and wepInfo.is_gun and not wepInfo.is_automatic then
+        -- Difficulty-scaled click interval (seconds).
+        -- At difficulty 5 the bot clicks at the weapon's own fire delay (maximum speed).
+        -- At difficulty 1 the bot adds a large extra pause between clicks.
+        local difficulty = lib.GetConVarInt("difficulty") or 3
+        local SEMI_DELAY_EXTRA = {
+            [1] = 0.60, -- very easy:  weapon delay + 0.60 s
+            [2] = 0.35, -- easy:       weapon delay + 0.35 s
+            [3] = 0.15, -- normal:     weapon delay + 0.15 s
+            [4] = 0.05, -- hard:       weapon delay + 0.05 s
+            [5] = 0.00, -- very hard:  weapon delay + 0.00 s (fire as fast as possible)
+        }
+        local extraDelay = SEMI_DELAY_EXTRA[difficulty] or 0.15
+        local fireDelay = (wepInfo.fire_delay or 0.2) + extraDelay
+
+        local now = CurTime()
+        local lastFireTime = self.semiAutoLastFire or 0
+        local lastReleaseTime = self.semiAutoLastRelease or 0
+
+        -- Phase 1: Release tick — must release IN_ATTACK for at least one frame
+        -- after firing so the engine registers a new click on the next press.
+        if lastReleaseTime > lastFireTime then
+            -- We already released; enough time to re-press? Fire!
+            self.semiAutoLastFire = now
+            return false -- allow fire
+        end
+
+        -- Phase 2: Check if enough time has elapsed since last shot.
+        if (now - lastFireTime) >= fireDelay then
+            -- Time to release for one frame so the next frame can press again.
+            self.semiAutoLastRelease = now
+            return true -- prevent fire (release frame)
+        end
+
+        -- Still within the fire-delay window — hold the button down (no-op for semi,
+        -- but keeps the flow consistent; the weapon won't re-fire until its own
+        -- internal delay passes anyway).
+        return false
+    end
+
+    -- Automatic / melee / other weapons: legacy behavior — release once per second
+    -- for modded-gun compatibility.
     return (self.tick % TTTBots.Tickrate == 1)
 end
 

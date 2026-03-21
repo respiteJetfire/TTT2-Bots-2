@@ -40,6 +40,17 @@ local ATTACKMODE = {
     Engaging = 3, -- We have a target and we know where they are, and we trying to shoot
 }
 
+--- Determines whether a bot is on a "killer" team (any team that is NOT
+--- TEAM_NONE and NOT TEAM_INNOCENT).  This covers traitors, serialkillers,
+--- jackals, and any other TTT2 custom evil/neutral-killing roles.
+---@param bot Bot
+---@return boolean
+local function IsKillerRole(bot)
+    if not (IsValid(bot) and bot.GetTeam) then return false end
+    local team = bot:GetTeam()
+    return team ~= TEAM_NONE and team ~= TEAM_INNOCENT
+end
+
 --- Count local witnesses (non-ally alive players who can see the bot's position).
 --- Used for ammo-sufficiency calculations.
 ---@param bot Bot
@@ -679,17 +690,6 @@ end
 
 local INACCURACY_BASE = 9  --- The higher this is, the more inaccurate the bots will be.
 local INACCURACY_SMOKE = 5 --- The inaccuracy modifier when the bot or its target is in smoke.
-
---- Determines whether a bot is on a "killer" team (any team that is NOT
---- TEAM_NONE and NOT TEAM_INNOCENT).  This covers traitors, serialkillers,
---- jackals, and any other TTT2 custom evil/neutral-killing roles.
----@param bot Bot
----@return boolean
-local function IsKillerRole(bot)
-    if not (IsValid(bot) and bot.GetTeam) then return false end
-    local team = bot:GetTeam()
-    return team ~= TEAM_NONE and team ~= TEAM_INNOCENT
-end
 
 --- Calculate the inaccuracy of agent 'bot' according to a) its personality and b) diff setts
 ---@param bot Bot The bot that is shooting.

@@ -128,6 +128,19 @@ Registry.HealthStation = {
     CanBuy = function(ply)
         return testPlyHasTrait(ply, "healer", 6)
     end,
+    SituationalScore = function(ply)
+        local role = TTTBots.Roles and TTTBots.Roles.GetRoleFor and TTTBots.Roles.GetRoleFor(ply)
+        local isPolice = role and role.GetAppearsPolice and role:GetAppearsPolice()
+        local base = 3
+        -- Detective credit economy: Health Station is low priority — detective
+        -- should spend credits on investigative tools first
+        if isPolice then
+            base = 10 -- Well below DNA Scanner (60) and Body Armor (30)
+            -- Boost if health is low
+            if ply:Health() < 50 then base = base + 5 end
+        end
+        return base
+    end,
     Roles = { "detective", "survivalist" },
 }
 
@@ -1222,11 +1235,20 @@ Registry.BodyArmor = {
 	SituationalScore = function(ply)
 		-- More valuable with many players alive (more threats)
 		local aliveCount = #getAlivePlayers()
+		local role = TTTBots.Roles and TTTBots.Roles.GetRoleFor and TTTBots.Roles.GetRoleFor(ply)
+		local isPolice = role and role.GetAppearsPolice and role:GetAppearsPolice()
 		local base = 4
 		if aliveCount > 8 then base = base + 3 end
 		if aliveCount > 5 then base = base + 1 end
-		-- Extra value for detective (main target)
-		if ply:GetRoleStringRaw() == "detective" then base = base + 2 end
+		-- Detective credit economy: Body Armor is 3rd priority after RoleChecker + DNA Scanner
+		-- Give it a strong but lower-than-DNA-Scanner score for police roles
+		if isPolice then
+			base = 30  -- Below DNA Scanner (60) and RoleChecker (100)
+			-- Boost if detective has already been hurt
+			if ply:Armor() < 30 then base = base + 10 end
+		else
+			if ply:GetRoleStringRaw() == "detective" then base = base + 2 end
+		end
 		return base
 	end,
 	RandomChance = 2,  -- 50% chance
@@ -1333,10 +1355,17 @@ Registry.DNAScanner = {
 	Price = 1,
 	Priority = 5,  -- High priority for detective
 	SituationalScore = function(ply)
+		local role = TTTBots.Roles and TTTBots.Roles.GetRoleFor and TTTBots.Roles.GetRoleFor(ply)
+		local isPolice = role and role.GetAppearsPolice and role:GetAppearsPolice()
 		local base = 5
+		-- Detective credit economy: DNA Scanner is the #2 must-buy after RoleChecker
+		-- It is core investigative equipment — higher priority than armor or utility
+		if isPolice then
+			base = 60  -- Very high score so it wins the buy-order after RoleChecker (100)
+		end
 		-- Even more valuable if bodies exist
 		if TTTBots.Match and TTTBots.Match.Corpses and #TTTBots.Match.Corpses > 0 then
-			base = base + 3
+			base = base + 5
 		end
 		return base
 	end,
@@ -1381,8 +1410,22 @@ Registry.DetectiveDefibrillator = {
 	Priority = 0,
 	DeferredEvent = "ally_died",
 	SituationalScore = function(ply)
-		-- Only buy if we have credits and an ally just died
-		return 6
+		-- Detective credit economy: deferred defib is reactive — only bought when
+		-- an ally actually dies. Higher score when multiple allies are down.
+		local role = TTTBots.Roles and TTTBots.Roles.GetRoleFor and TTTBots.Roles.GetRoleFor(ply)
+		local isPolice = role and role.GetAppearsPolice and role:GetAppearsPolice()
+		local base = 6
+		if isPolice then
+			-- Count confirmed dead allies to assess value
+			local deadAllies = 0
+			for deadPly, _ in pairs(TTTBots.Match.ConfirmedDead or {}) do
+				if IsValid(deadPly) and TTTBots.Roles.IsAllies(ply, deadPly) then
+					deadAllies = deadAllies + 1
+				end
+			end
+			base = 6 + math.min(deadAllies * 3, 9) -- up to 15 score with many dead allies
+		end
+		return base
 	end,
 	CanBuy = function(ply)
 		return not ply:HasWeapon("weapon_ttt_defibrillator") and testPlyHasTrait(ply, "healer", 3)

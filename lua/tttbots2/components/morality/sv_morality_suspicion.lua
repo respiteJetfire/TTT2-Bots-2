@@ -29,6 +29,7 @@ BotMorality.SUSPICIONVALUES = {
     HurtByEvil = -5,         -- This player was hurt by a traitor
     KOSByInnocent = 7,       -- KOS called on this player by innocent
     KOSByTrusted = 15,       -- KOS called on this player by trusted innocent
+    KOSByDetective = 20,     -- KOS called on this player by detective/police role (near-guaranteed attack)
     KOSByTraitor = -5,       -- KOS called on this player by known traitor
     KOSByOther = 5,          -- KOS called on this player
     AffirmingKOS = -3,       -- KOS called on a player we think is a traitor (rare, but possible)
@@ -429,7 +430,10 @@ function BotMorality:OnKOSCalled(caller, target)
     if targetSus > TRAITOR then
         self:ChangeSuspicion(caller, "AffirmingKOS")
     end
-    if callerIsPolice or callerSus < INNOCENT then
+    if callerIsPolice then
+        -- Detective/police KOS carries near-absolute authority
+        self:ChangeSuspicion(target, "KOSByDetective")
+    elseif callerSus < INNOCENT then
         self:ChangeSuspicion(target, "KOSByInnocent")
     elseif callerSus < TRUSTED then
         self:ChangeSuspicion(target, "KOSByTrusted")
@@ -440,10 +444,12 @@ function BotMorality:OnKOSCalled(caller, target)
     end
 
     -- Feed evidence log: hearing a KOS gives the bot reason to suspect the target
+    -- Detective/police KOS carries significantly more weight than a regular player's
     local evidence = self.bot:BotEvidence()
     if evidence then
+        local evidenceType = callerIsPolice and "KOS_BY_DETECTIVE" or "KOS_CALLED_BY"
         evidence:AddEvidence({
-            type    = "KOS_CALLED_BY",
+            type    = evidenceType,
             subject = target,
             detail  = caller:Nick(),
         })
@@ -827,15 +833,87 @@ hook.Add("TTTPrepareRound", "TTTBots.Morality.PreparePlayersNearBodies", functio
 end)
 
 -- When a player passes a role tester, mark them as tested clean in nearby bots' morality
+-- 🟡 9: Enhanced tester result sharing — broadcast results to ALL bots within
+-- a generous radius (not just direct witnesses), and have the detective
+-- announce the result via chatter so human players get the information too.
 hook.Add("TTTBots.UseRoleChecker.Result", "TTTBots.Morality.TestedClean", function(user, target, result)
     -- result is expected to be "innocent" or "traitor" or similar
     if not (IsValid(user) and IsValid(target)) then return end
-    if result ~= "innocent" then return end
-    -- Inform nearby bots
-    local witnesses = lib.GetAllWitnessesBasic(user:EyePos(), TTTBots.Match.AlivePlayers, user)
-    for _, bot in ipairs(witnesses) do
-        if not (bot:IsBot() and bot.components and bot.components.morality) then continue end
-        bot.components.morality:SetTestedClean(target)
+
+    -- Gather all bots that should learn about this result.
+    -- Use a generous radius (1500 units) instead of strict line-of-sight
+    -- to simulate the loud/public nature of a tester result announcement.
+    local userPos = user:GetPos()
+    local informedBots = {}
+
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
+        if not (bot.components and bot.components.morality) then continue end
+
+        -- Inform bots that can see the tester user OR are within broadcast range
+        local dist = bot:GetPos():Distance(userPos)
+        local canSee = bot:Visible(user)
+        if canSee or dist < 1500 then
+            table.insert(informedBots, bot)
+        end
+    end
+
+    for _, bot in ipairs(informedBots) do
+        if result == "innocent" then
+            bot.components.morality:SetTestedClean(target)
+        else
+            -- Target failed the test — strong evidence of guilt
+            local morality = bot.components.morality
+            morality:ChangeSuspicion(target, "Kill", 2) -- Strong suspicion
+
+            local evidence = bot:BotEvidence()
+            if evidence then
+                evidence:AddEvidence({
+                    type    = "FAILED_TEST",
+                    subject = target,
+                    detail  = "failed the role tester",
+                })
+            end
+        end
+
+        -- Record in memory for LLM context
+        local mem = bot:BotMemory()
+        if mem and mem.AddWitnessEvent then
+            mem:AddWitnessEvent("tester", string.format(
+                "%s %s the role tester (%s)",
+                target:Nick(),
+                result == "innocent" and "passed" or "FAILED",
+                result
+            ))
+        end
+    end
+
+    -- 🟡 9: Detective announces the tester result via chatter so all players
+    -- (including humans) learn the outcome. Only the closest detective announces.
+    local detBot = nil
+    local detBestDist = math.huge
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if role and role:GetAppearsPolice() then
+            local d = bot:GetPos():Distance(userPos)
+            if d < detBestDist then
+                detBestDist = d
+                detBot = bot
+            end
+        end
+    end
+
+    if detBot then
+        local chatter = detBot:BotChatter()
+        if chatter and chatter.On then
+            if result == "innocent" then
+                chatter:On("DeclareInnocent", { player = target:Nick() })
+            else
+                chatter:On("CallKOS", { player = target:Nick() })
+                TTTBots.Match.CallKOS(detBot, target)
+            end
+        end
     end
 end)
 

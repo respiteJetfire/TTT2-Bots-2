@@ -13,8 +13,8 @@ local Decrowd = TTTBots.Behaviors.Decrowd
 Decrowd.Name = "Decrowd"
 Decrowd.Description = "Try to prevent overcrowding."
 Decrowd.Interruptible = true
-Decrowd.MaxNearbyPlayers = 3
-Decrowd.NearbyThreshold = 800 --- How close a player has to be to be considered "nearby"
+Decrowd.MaxNearbyPlayers = 2
+Decrowd.NearbyThreshold = 600 --- How close a player has to be to be considered "nearby"
 
 ---@class Bot
 ---@field targetRetreatPos Vector?
