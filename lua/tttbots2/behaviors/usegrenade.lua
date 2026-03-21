@@ -180,6 +180,17 @@ function UseGrenade.Validate(bot)
 	local wep, wepInfo = inv:GetGrenade()
 	if not wep then return false end
 
+	-- Reject grenades with bogus ammo values (-1/-1 clip and 0 reserve).
+	-- Some addon weapons (e.g. weapon_holyhand_grenade) report -1 clip and
+	-- -1 max ammo, causing UseGrenade to loop endlessly because the grenade
+	-- is never consumed. Skip these entirely.
+	if wepInfo then
+		local clip = wepInfo.clip or 0
+		local maxAmmo = wepInfo.max_ammo or 0
+		local reserveAmmo = wepInfo.ammo or 0
+		if clip < 0 and maxAmmo < 0 and reserveAmmo <= 0 then return false end
+	end
+
 	-- Cooldown check.
 	local lastToss = bot.lastGrenadeToss
 	if lastToss and (CurTime() - lastToss) < GRENADE_COOLDOWN then return false end
@@ -218,6 +229,10 @@ function UseGrenade.OnStart(bot)
 	-- Cache the throw reason so OnRunning doesn't recompute on every tick.
 	bot.grenadeThrowReason = UseGrenade.GetBestThrowReason(bot)
 
+	-- Record when we started so we can abort if the throw takes too long
+	-- (e.g. weapon doesn't respond to IN_ATTACK due to unusual ammo setup).
+	bot.grenadeStartTime = CurTime()
+
 	-- Prevent AutoManageInventory from switching away from the grenade mid-throw.
 	inv:PauseAutoSwitch()
 	inv:EquipGrenade()
@@ -237,6 +252,15 @@ function UseGrenade.OnRunning(bot)
 
 	local reason = bot.grenadeThrowReason
 	if not reason then return STATUS.FAILURE end
+
+	-- Timeout: if the throw has been running for more than 5 seconds, the
+	-- weapon probably isn't responding to IN_ATTACK. Abort to avoid an
+	-- infinite UseGrenade ↔ FollowPlan loop.
+	if bot.grenadeStartTime and (CurTime() - bot.grenadeStartTime) > 5 then
+		-- Put this grenade on extended cooldown so we don't immediately retry
+		bot.lastGrenadeToss = CurTime() + 30
+		return STATUS.FAILURE
+	end
 
 	local inv = bot:BotInventory()
 	if not inv then return STATUS.FAILURE end
@@ -304,6 +328,7 @@ end
 function UseGrenade.OnEnd(bot)
 	bot.grenadeThrowReason = nil
 	bot.grenadeHoldStart = nil
+	bot.grenadeStartTime = nil
 	local inv = bot:BotInventory()
 	if inv then inv:ResumeAutoSwitch() end
 	local loco = bot:BotLocomotor()

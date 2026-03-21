@@ -388,10 +388,10 @@ timer.Create("TTTBots.DebugLog.Inventory", 8, 0, function()
 
         local held = inv:GetHeldWeaponInfo()
         local heldStr = inv:GetWepInfoText(held)
-        local pri = inv:GetPrimary()
-        local priStr = inv:GetWepInfoText(pri)
-        local sec = inv:GetSecondary()
-        local secStr = inv:GetWepInfoText(sec)
+        local _, priInfo = inv:GetPrimary()
+        local priStr = inv:GetWepInfoText(priInfo)
+        local _, secInfo = inv:GetSecondary()
+        local secStr = inv:GetWepInfoText(secInfo)
 
         DL.Logf("inventory", "INV", "%-20s Held: %-24s  Primary: %-24s  Secondary: %s",
             pname(bot), heldStr or "none", priStr or "none", secStr or "none")
@@ -440,7 +440,7 @@ timer.Create("TTTBots.DebugLog.Morality", 4, 0, function()
         if not mor then continue end
 
         local target = "none"
-        local reason = bot.attackReason or "?"
+        local reason = bot.attackTargetReason or "?"
         local priority = bot.attackTargetPriority or 0
         if IsValid(bot.attackTarget) then
             if bot.attackTarget:IsPlayer() then

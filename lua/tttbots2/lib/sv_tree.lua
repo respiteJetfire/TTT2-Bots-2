@@ -142,6 +142,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Chatter,
         _prior.Grenades,
         _prior.Accuse,
+        _bh.InvestigateCorpse,    -- High priority: ID bodies ASAP for intel
         _bh.FollowInnocentPlan,
         _prior.Support,
         _bh.Defuse,
@@ -183,13 +184,14 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Grenades,
         _prior.Requests,
         _prior.Accuse,
+        _bh.InvestigateCorpse,    -- High priority: detectives MUST ID bodies for intel
+        _prior.Convert,           -- Sheriffs should deputize early; high priority
+        _prior.Restore,           -- Detectives must acquire weapons early (before plans)
         _bh.FollowInnocentPlan,
         _prior.Support,
         _prior.TacticalEquipment,
         _prior.DNAScanner,
-        _prior.Convert,
         _bh.Defuse,
-        _prior.Restore,
         _bh.Interact,
         _prior.Minge,
         _prior.Investigate,

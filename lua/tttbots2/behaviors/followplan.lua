@@ -482,16 +482,23 @@ local ACT_RUNNING_HASH = {
 
         --- How close a traitor must be to the target to count as "staged".
         local STAGE_RADIUS = 800
-        --- How many staged traitors (including this one) trigger the simultaneous attack.
-        --- We use at least 2 or 60% of alive coordinators, whichever is larger.
-        local aliveCoordinators = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
-            return ply:IsBot() and TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate()
+        --- How many staged allies (including this one) trigger the simultaneous attack.
+        --- Only count bots that are actual allies (same team), not just any coordinator.
+        --- This prevents a solo traitor from waiting for a necromancer that doesn't
+        --- share the same plan.
+        local aliveAlliedCoordinators = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+            return ply:IsBot()
+                and TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate()
+                and TTTBots.Roles.IsAllies(bot, ply)
         end)
-        local requiredStaged = math.max(2, math.ceil(#aliveCoordinators * 0.6))
+        -- If we're the only allied coordinator, don't wait for anyone — attack solo.
+        local requiredStaged = #aliveAlliedCoordinators <= 1
+            and 1
+            or math.max(2, math.ceil(#aliveAlliedCoordinators * 0.6))
 
         -- Count how many allied coordinators are already near the target.
         local stagedCount = 0
-        for _, ally in ipairs(aliveCoordinators) do
+        for _, ally in ipairs(aliveAlliedCoordinators) do
             if not lib.IsPlayerAlive(ally) then continue end
             if ally:GetPos():Distance(targetPos) <= STAGE_RADIUS then
                 stagedCount = stagedCount + 1

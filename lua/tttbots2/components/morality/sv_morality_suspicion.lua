@@ -191,7 +191,8 @@ function BotMorality:SetAttackIfTargetSus(target)
     return false
 end
 
---- Allow the bot to have a chance of correctly guessing the role of the player if they are suspicious enough
+--- Allow the bot to have a chance of correctly guessing the role of the player if they are suspicious enough.
+--- Rate-limited: each bot can only guess a given target's role once every 30 seconds to prevent spam.
 function BotMorality:GuessRole(target)
     local sus = self:GetSuspicion(target)
     local archetype = self.bot:BotPersonality().archetype
@@ -199,6 +200,17 @@ function BotMorality:GuessRole(target)
     if not (IsValid(target) and target:IsPlayer() and target:Visible(self.bot) and target:GetPos():Distance(self.bot:GetPos()) <= 600) then
         return
     end
+
+    -- Rate-limit: don't guess the same target more than once every 30 seconds
+    self.roleGuessTimestamps = self.roleGuessTimestamps or {}
+    local lastGuessTime = self.roleGuessTimestamps[target] or 0
+    if CurTime() - lastGuessTime < 30 then return end
+
+    -- Don't re-guess if we already have a guess for this target
+    if self.roleGuesses[target] then return end
+
+    self.roleGuessTimestamps[target] = CurTime()
+
     local chance = math.random(1, 100)
 
     if archetype == "Tryhard/Nerd" then
@@ -613,12 +625,27 @@ hook.Add("PlayerDeath", "TTTBots.Components.Morality.PlayerDeath", function(vict
     if victim:IsBot() then
         victim.components.morality:OnKilled(attacker)
     end
-    if not victim:Visible(attacker) then return end
+    -- Mark red-handed regardless of victim visibility — any witness who saw
+    -- the attacker should be able to identify them as a killer.
     if victim:GetTeam() == TEAM_INNOCENT then
         local ttt_bot_cheat_redhanded_time = lib.GetConVarInt("cheat_redhanded_time")
         attacker.redHandedTime = timestamp + ttt_bot_cheat_redhanded_time
     end
-    local witnesses = lib.GetAllWitnesses(attacker:EyePos(), true)
+    -- Gather witnesses who can see either the attacker or the victim.
+    -- Previously gated on victim:Visible(attacker), which meant backstab kills
+    -- produced zero witness awareness even for bots watching the victim die.
+    -- No FOV restriction: kills are loud and highly noticeable — any bot with
+    -- line-of-sight to either the attacker or the victim should react.
+    local witnesses = {}
+    local seen = {}
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not IsValid(bot) or not lib.IsPlayerAlive(bot) then continue end
+        if seen[bot] then continue end
+        if bot:VisibleVec(attacker:EyePos()) or bot:VisibleVec(victim:EyePos()) then
+            table.insert(witnesses, bot)
+            seen[bot] = true
+        end
+    end
     table.insert(witnesses, victim)
 
     for i, witness in pairs(witnesses) do
@@ -668,14 +695,24 @@ hook.Add("PlayerHurt", "TTTBots.Components.Morality.PlayerHurt", function(victim
     end
 
     -- Notify visible bystander bots (exclude victim — already handled above).
-    if victim:Visible(attacker) then
-        local witnesses = lib.GetAllWitnesses(attacker:EyePos(), true)
-        for i, witness in pairs(witnesses) do
-            if witness == victim then continue end -- already dispatched
-            if witness and witness.components then
-                witness.components.morality:OnWitnessHurt(victim, attacker, healthRemaining, damageTaken)
-                hook.Run("TTTBotsOnWitnessHurt", witness, victim, attacker, healthRemaining, damageTaken)
-            end
+    -- Check witnesses who can see either the attacker OR the victim. Previously
+    -- this was gated on victim:Visible(attacker), which meant backstab attacks
+    -- produced zero bystander awareness even for bots staring at the scene.
+    -- No FOV restriction: gunshots are loud and combat is highly noticeable —
+    -- any bot with line-of-sight to either combatant should react.
+    local witnesses = {}
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not IsValid(bot) or not lib.IsPlayerAlive(bot) then continue end
+        if bot == victim then continue end
+        if bot:VisibleVec(attacker:EyePos()) or bot:VisibleVec(victim:EyePos()) then
+            table.insert(witnesses, bot)
+        end
+    end
+    for i, witness in pairs(witnesses) do
+        if witness == victim then continue end -- already dispatched
+        if witness and witness.components then
+            witness.components.morality:OnWitnessHurt(victim, attacker, healthRemaining, damageTaken)
+            hook.Run("TTTBotsOnWitnessHurt", witness, victim, attacker, healthRemaining, damageTaken)
         end
     end
 end)

@@ -84,6 +84,28 @@ local function CheckAmmoSufficiency(bot)
     -- Hothead bots charge regardless.
     if bot.HasTrait and bot:HasTrait("hothead") then return true end
 
+    -- KOSedByAll targets (Doomguy, infected zombies, etc.): never flee.
+    -- Everyone is expected to fight them, so retreating due to ammo pressure
+    -- is counterproductive — the bot would just wander while the doomguy
+    -- slaughters the team.  Commit to the fight with whatever ammo remains.
+    local targetRole = TTTBots.Roles.GetRoleFor(target)
+    if targetRole and targetRole.GetKOSedByAll and targetRole:GetKOSedByAll() then
+        return true
+    end
+
+    -- KOS list targets & self-defense: commit to the fight regardless of ammo.
+    -- When an innocent bot has a confirmed KOS target (someone the team has
+    -- called out) or is defending itself from an attacker, retreating because
+    -- of ammo insufficiency just lets the traitor kill everyone.  The bot
+    -- should fight with whatever it has — even a crowbar.
+    local pri = bot.attackTargetPriority or 0
+    local PRI = TTTBots.Morality and TTTBots.Morality.PRIORITY
+    local selfDefensePri = PRI and PRI.SELF_DEFENSE or 5
+    local suspicionPri   = PRI and PRI.SUSPICION_THRESHOLD or 2
+    if pri >= suspicionPri then
+        return true
+    end
+
     -- Traitor bots try to buy a weapon before giving up.
     local isTraitor = bot.GetRoleStringRaw and bot:GetRoleStringRaw() == "traitor"
     if isTraitor and TTTBots.Buyables then
@@ -143,17 +165,29 @@ function Attack.Validate(bot)
     end
     -- If the bot fled because it ran out of ammo, don't re-engage the same
     -- target until the cooldown expires or the bot has a ranged weapon again.
+    -- Exception: high-priority targets (KOS list, self-defense) override the
+    -- flee lockout — the bot must fight with whatever it has, even melee.
     if IsValid(bot.attackTarget) and IsValid(bot.fleeFromTarget)
         and bot.attackTarget == bot.fleeFromTarget
         and (bot.fleeFromTargetUntil or 0) > CurTime() then
-        local inv = bot:BotInventory()
-        if inv and inv:HasNoWeaponAvailable(true) then
-            bot:SetAttackTarget(nil, "STILL_UNARMED")
-            return false
-        else
-            -- Bot found a weapon — clear the flee state.
+        local pri = bot.attackTargetPriority or 0
+        local PRI = TTTBots.Morality and TTTBots.Morality.PRIORITY
+        local suspicionPri = PRI and PRI.SUSPICION_THRESHOLD or 2
+        if pri >= suspicionPri then
+            -- High-priority target: clear flee state and commit to the fight.
             bot.fleeFromTarget = nil
             bot.fleeFromTargetUntil = nil
+            bot.isRetreating = false
+        else
+            local inv = bot:BotInventory()
+            if inv and inv:HasNoWeaponAvailable(true) then
+                bot:SetAttackTarget(nil, "STILL_UNARMED")
+                return false
+            else
+                -- Bot found a weapon — clear the flee state.
+                bot.fleeFromTarget = nil
+                bot.fleeFromTargetUntil = nil
+            end
         end
     end
     -- Pre-engagement ammo check: ensure we have enough ammo to kill the target
@@ -359,6 +393,15 @@ function Attack.ShouldLookAtBody(bot, weapon)
     if weapon and weapon.class == "ttt_smart_pistol" then
         return true
     end
+    -- Killer roles get a chance to override body-shot preference and go for
+    -- headshots with rifles/pistols (they're deadlier attackers).
+    if isBodyShotter and IsKillerRole(bot) and not (weapon.is_shotgun or weapon.is_melee) then
+        -- 40% chance a killer-role bot aims for the head even without the
+        -- headshotter personality trait, simulating trained killers.
+        if math.random(1, 100) <= 40 then
+            return false -- false = aim at head
+        end
+    end
     return isBodyShotter or (weapon.is_shotgun or weapon.is_melee)
 end
 
@@ -551,7 +594,15 @@ function Attack.Engage(bot, targetPos)
     local tooFarToAttack = false --- Used to prevent attacking when we are using a melee weapon and are too far away
     local distToTarget = bot:GetPos():Distance(target:GetPos())
     if state.wasPathing and not usingMelee then
-        loco:StopMoving()
+        -- Stop active path-following but keep a goal near the target so the
+        -- locomotor doesn't drop into no_goalpos. If CanShoot flickers false
+        -- on the next tick, RunningAttackLogic will switch to Seek and the
+        -- locomotor will already have a valid goal to path toward.
+        loco:SetGoal(target:GetPos())
+        loco.pathRequest = nil
+        loco:Strafe(nil)
+        loco:Jump(false)
+        loco:Crouch(false)
         state.wasPathing = false
     elseif usingMelee then
         tooFarToAttack = distToTarget > 160
@@ -621,13 +672,25 @@ function Attack.Engage(bot, targetPos)
         loco:SetForceBackward(true)
     end
 
-    local predictedPoint = aimPoint + Attack.PredictMovement(target, 0.4)
+    local predictedPoint = aimPoint + Attack.PredictMovement(target, 0.4, bot)
     local inaccuracyTarget = predictedPoint + Attack.CalculateInaccuracy(bot, aimPoint, target)
     loco:LookAt(inaccuracyTarget)
 end
 
 local INACCURACY_BASE = 9  --- The higher this is, the more inaccurate the bots will be.
 local INACCURACY_SMOKE = 5 --- The inaccuracy modifier when the bot or its target is in smoke.
+
+--- Determines whether a bot is on a "killer" team (any team that is NOT
+--- TEAM_NONE and NOT TEAM_INNOCENT).  This covers traitors, serialkillers,
+--- jackals, and any other TTT2 custom evil/neutral-killing roles.
+---@param bot Bot
+---@return boolean
+local function IsKillerRole(bot)
+    if not (IsValid(bot) and bot.GetTeam) then return false end
+    local team = bot:GetTeam()
+    return team ~= TEAM_NONE and team ~= TEAM_INNOCENT
+end
+
 --- Calculate the inaccuracy of agent 'bot' according to a) its personality and b) diff setts
 ---@param bot Bot The bot that is shooting.
 ---@param origin Vector The original aim point.
@@ -647,11 +710,20 @@ function Attack.CalculateInaccuracy(bot, origin, target)
     local pressure = personality:GetPressure()   -- float [0,1]
     local rage = (personality:GetRage() * 2) + 1 -- float [1,3]
 
-    local isTraitorFactor =
-        (bot:GetRoleStringRaw() == "traitor" and lib.GetConVarBool("cheat_traitor_accuracy"))
-        and 0.5 or 1
+    -- Killer-role accuracy bonus: any team that is NOT innocent/none gets
+    -- improved aim when the cheat cvar is enabled.  This replaces the old
+    -- traitor-only check so custom TTT2 killer roles also benefit.
+    local killerAimFactor = 1
+    if IsKillerRole(bot) and lib.GetConVarBool("cheat_traitor_accuracy") then
+        killerAimFactor = 0.45 -- ~55% less inaccuracy (slightly better than old 0.5)
+    end
 
     local focus_factor = (1 - (TTTBots.Behaviors.GetState(bot, "AttackTarget").attackFocus or 0.01)) * 1.5
+
+    -- Killer roles get reduced focus penalty (they stay calm under fire).
+    if IsKillerRole(bot) then
+        focus_factor = focus_factor * 0.7
+    end
 
     local targetMoveFactor = 1
     local selfMoveFactor = bot:GetVelocity():LengthSqr() > 100 and 1.25 or 0.75
@@ -665,14 +737,20 @@ function Attack.CalculateInaccuracy(bot, origin, target)
     local smokeFn = TTTBots.Match.IsPlyNearSmoke
     local isInSmoke = (smokeFn(bot) or smokeFn(bot.attackTarget)) and INACCURACY_SMOKE or 1
 
+    -- Killer roles are less affected by their own movement (trained shooters).
+    if IsKillerRole(bot) then
+        selfMoveFactor = selfMoveFactor * 0.75
+    end
+
     local inaccuracy_mod = (pressure / difficulty) -- The more pressure we have, the more inaccurate we are; decreased by difficulty
         * distFactor                               -- The further away we are, the more inaccurate we are
         * INACCURACY_BASE                          -- Obviously, multiply by a constant to make it more inaccurate
         * rage                                     -- The more rage we have, the more inaccurate we are
         * focus_factor                             -- The less focus we have, the more inaccurate we are
         * isInSmoke                                -- If we are in smoke, we are more inaccurate
-        * isTraitorFactor                          -- Reduce aim difficulty if the cheat cvar is enabled
+        * killerAimFactor                          -- Reduce aim difficulty for killer roles if cheat cvar is enabled
         * targetMoveFactor                         -- Reduce aim difficulty if the target is immobile
+        * selfMoveFactor                           -- Self-movement penalty (reduced for killer roles)
 
     if heldWeapon and heldWeapon.class == "m9k_minigun" then
         inaccuracy_mod = inaccuracy_mod * 0.55
@@ -687,11 +765,18 @@ end
 
 ---Predict the (relative) movement of the target player using basic linear prediction
 ---@param target Player
+---@param mult number?
+---@param bot Bot?
 ---@return Vector predictedMovement
-function Attack.PredictMovement(target, mult)
+function Attack.PredictMovement(target, mult, bot)
     local vel = target:GetVelocity()
     local predictionSecs = 1.0 / TTTBots.Tickrate
-    local predictionMultSalt = math.random(95, 105) / 100.0
+    -- Killer roles get tighter prediction salt (less random scatter).
+    local saltMin, saltMax = 95, 105
+    if bot and IsValid(bot) and IsKillerRole(bot) then
+        saltMin, saltMax = 98, 102
+    end
+    local predictionMultSalt = math.random(saltMin, saltMax) / 100.0
     local predictionMult = (1 + predictionMultSalt) * (mult or 0.5)
     local predictionRelative = (vel * predictionSecs * predictionMult)
 
@@ -856,6 +941,12 @@ function Attack.LookingCloseToTarget(bot, target)
         threshold = 14
     end
 
+    -- Killer roles have slightly wider fire threshold (better trigger discipline
+    -- / confidence to pull the trigger at wider angles).
+    if IsKillerRole(bot) then
+        threshold = threshold + 3
+    end
+
     local isLookingClose = degDiff < threshold
 
     return isLookingClose
@@ -875,6 +966,18 @@ function Attack.RunningAttackLogic(bot)
     -- print("Can bot ".. bot:Nick() .. " shoot target? " .. tostring(canShoot))
 
     if canShoot and isAlive then mode = ATTACKMODE.Engaging end -- We can shoot them, we are engaging
+
+    -- When we transition from Engaging to Seeking (target ducked behind cover),
+    -- make sure the memory has a position to path toward. Without this, the
+    -- Seek function may find lastKnownPos == nil and the locomotor stalls
+    -- with no_goalpos forever.
+    if mode == ATTACKMODE.Seeking and IsValid(target) and isAlive then
+        local lastKnown = memory:GetSuspectedPositionFor(target)
+            or memory:GetKnownPositionFor(target)
+        if not lastKnown then
+            memory:UpdateKnownPositionFor(target, target:GetPos())
+        end
+    end
 
     local switchcase = {
         [ATTACKMODE.Seeking] = Attack.Seek,
@@ -956,7 +1059,11 @@ function Attack.ValidateTarget(bot)
     local lastSeenTime = bot.components.memory:GetLastSeenTime(target)
     -- 0 means "never recorded in memory" (e.g. target assigned via SELF_DEFENSE without LOS).
     -- Only treat the target as stale when we have a real last-seen timestamp and it is old.
-    local notSeenRecently = lastSeenTime > 0 and (lastSeenTime + 30 < CurTime())
+    -- Self-defense targets (priority 5) get a longer timeout (60s) so bots don't
+    -- give up hunting their attacker too quickly on maps with pathing issues.
+    local selfDefensePri = TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SELF_DEFENSE or 5
+    local staleTimeout = ((bot.attackTargetPriority or 0) >= selfDefensePri) and 60 or 30
+    local notSeenRecently = lastSeenTime > 0 and (lastSeenTime + staleTimeout < CurTime())
     local botIsAlive = bot and bot:Health() > 0 or false
     local targetIsAlive = target and target:IsPlayer() and target:Health() > 0 or false
     local targetIsPlayer = target and target:IsPlayer() or false
@@ -965,12 +1072,15 @@ function Attack.ValidateTarget(bot)
     local targetIsNPCAndAlive = targetIsNPC and target:Health() > 0 or false
     local targetIsPlayerOrNPCAndAlive = (targetIsPlayerAndAlive or targetIsNPCAndAlive) and targetIsAlive or false
     local baseRole = target:IsPlayer() and target:GetBaseRole() or nil
-    -- An ally check that exempts ROLE_INNOCENT targets from being shielded by
-    -- IsAllies (so innocents CAN retaliate against fellow innocents in
-    -- self-defense). Medics are only treated as allies when they actually ARE
-    -- allied — the old `or baseRole == ROLE_MEDIC` unconditionally shielded
-    -- every medic-base-role target, even enemy-team medics.
-    local isAlly = TTTBots.Roles.IsAllies(bot, target) and (baseRole ~= ROLE_INNOCENT)
+    -- Ally check: exempt self-defense targets (priority 5) from the ally gate
+    -- so bots always fight back against someone who is actively shooting them,
+    -- regardless of team. Also exempts ROLE_INNOCENT base-role targets so
+    -- innocents can retaliate against fellow innocents.
+    local selfDefensePri = TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SELF_DEFENSE or 5
+    local isSelfDefense = (bot.attackTargetPriority or 0) >= selfDefensePri
+    local isAlly = TTTBots.Roles.IsAllies(bot, target)
+        and (baseRole ~= ROLE_INNOCENT)
+        and not isSelfDefense
 
     -- print(bot:Nick() .. " validating attack target behavior:")
     -- print("| hasTarget: " .. tostring(hasTarget))
@@ -1070,12 +1180,36 @@ function Attack.OnRunning(bot)
     -- If the bot has no ranged weapon with ammo and is forced to melee,
     -- abort the fight so it can retreat and find a weapon instead.
     -- "Hothead" bots will keep swinging regardless.
+    -- KOSedByAll targets (Doomguy, etc.): keep fighting with melee — retreating
+    -- from a universally hostile target just lets them slaughter the team.
+    -- KOS/self-defense targets: keep fighting — confirmed enemies must be
+    -- engaged, not fled from while they kill the rest of the team.
     -- Coordinated / plan attacks: keep fighting even with melee unless HP < 20%.
     local inv = bot:BotInventory()
     if inv and inv:HasNoWeaponAvailable(true) then
         local isHothead = bot.HasTrait and bot:HasTrait("hothead")
         local suppressRetreat = false
-        if not isHothead then
+
+        -- KOSedByAll targets: always suppress retreat — commit to the fight.
+        local targetRole = TTTBots.Roles.GetRoleFor(target)
+        local targetIsKOSedByAll = targetRole and targetRole.GetKOSedByAll and targetRole:GetKOSedByAll()
+        if targetIsKOSedByAll then
+            suppressRetreat = true
+        end
+
+        -- High-priority targets (KOS list, self-defense): commit to melee.
+        -- Retreating from a confirmed traitor while unarmed just means the
+        -- traitor freely kills everyone. Better to crowbar-rush them.
+        if not suppressRetreat then
+            local pri = bot.attackTargetPriority or 0
+            local PRI = TTTBots.Morality and TTTBots.Morality.PRIORITY
+            local suspicionPri = PRI and PRI.SUSPICION_THRESHOLD or 2
+            if pri >= suspicionPri then
+                suppressRetreat = true
+            end
+        end
+
+        if not isHothead and not suppressRetreat then
             local reason = bot.attackTargetReason
             local inCoordAttack = (reason == "COORD_ATTACK_STRIKE" or reason == "FOLLOW_PLAN_ATTACK")
             if not inCoordAttack then
@@ -1146,6 +1280,10 @@ function Attack.UpdateFocus(bot)
     local factor = -FOCUS_DECAY
     factor = factor * (bot.attackTarget ~= nil and -2.5 or 1)
     factor = factor * (bot:GetTraitMult("focus") or 1)
+    -- Killer roles gain focus faster (they're trained combatants).
+    if IsKillerRole(bot) then
+        factor = factor * (bot.attackTarget ~= nil and 1.4 or 1.0)
+    end
     state.attackFocus = (state.attackFocus or 0.1) + factor
     state.attackFocus = math.Clamp(state.attackFocus, 0.1, 1)
 end

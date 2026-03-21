@@ -425,7 +425,7 @@ function Memory:SetupPlayerLifeStates()
     local RoundActive = TTTBots.Match.RoundActive
     if not RoundActive then return false end
 
-    for i, ply in pairs(PlayersInRound) do
+    for ply, _ in pairs(PlayersInRound) do
         self:SetPlayerLifeState(ply, ConfirmedDead[ply] and DEAD or ALIVE)
     end
 end
@@ -435,7 +435,7 @@ function Memory:GetPlayerLifeState(ply)
 end
 
 function Memory:SetPlayerLifeState(ply, state)
-    if not ply or not IsValid(ply) then return end
+    if not ply or type(ply) == "boolean" or not IsValid(ply) then return end
     local nick = (type(ply) == "string" and ply) or ply:Nick()
     self.PlayerLifeStates[nick] = state
 end

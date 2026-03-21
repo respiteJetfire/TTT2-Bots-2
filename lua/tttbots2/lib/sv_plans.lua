@@ -97,14 +97,38 @@ local conditionsHashedFuncs = {
     Chance = function(conditions, data)
         return math.random(1, 100) <= (conditions.Chance or 100)
     end,
+    --- Require at least one living police-type player (detective, sheriff, etc.)
+    RequiresPolice = function(conditions, data)
+        if not conditions.RequiresPolice then return true end
+        return data.HasPolice
+    end,
 }
 function TTTBots.Plans.AreConditionsValid(conditions)
+    -- Coordinators: any role with GetCanCoordinate (traitors, necromancer, etc.)
     local aliveCoordinators = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers,
         function(ply) return TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate() end)
+    -- Actual traitor-team players only (for MinTraitors/MaxTraitors conditions)
+    local aliveTraitors = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers,
+        function(ply)
+            local team = ply.GetTeam and ply:GetTeam()
+            return team == TEAM_TRAITOR
+        end)
+    -- Check if any police-type player exists
+    local hasPolice = #TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+        if not TTTBots.Lib.IsPlayerAlive(ply) then return false end
+        if ply:GetRoleStringRaw() == "detective" then return true end
+        if ply.GetSubRoleData then
+            local rd = ply:GetSubRoleData()
+            if rd and rd.isPolicingRole then return true end
+        end
+        return false
+    end) > 0
     local Data = {
         NumPlysA = #TTTBots.Match.AlivePlayers,
-        NumTraitorsA = #aliveCoordinators,
-        NumHumanTraitorsA = #TTTBots.Lib.FilterTable(aliveCoordinators, function(ply) return not ply:IsBot() end),
+        NumTraitorsA = #aliveTraitors,
+        NumCoordinatorsA = #aliveCoordinators,
+        NumHumanTraitorsA = #TTTBots.Lib.FilterTable(aliveTraitors, function(ply) return not ply:IsBot() end),
+        HasPolice = hasPolice,
     }
     for key, value in pairs(conditions) do
         if key == nil or value == nil then continue end

@@ -210,6 +210,39 @@ function DefendSelf.OnRunning(bot)
     -- INNOCENT branch
     -- -------------------------------------------------------------------------
     if isInnocent(bot) then
+        local loco = bot:BotLocomotor()
+
+        -- ACTIVE DEFENSE: Always move toward the nearest group of allies for
+        -- protection, rather than standing still doing nothing.
+        if loco then
+            local nearestAlly = nil
+            local nearestDist = math.huge
+            local alivePlayers = TTTBots.Match.AlivePlayers or {}
+            for _, p in ipairs(alivePlayers) do
+                if not IsValid(p) or p == bot or not lib.IsPlayerAlive(p) then continue end
+                if p == accuser then continue end
+                -- Move toward known innocents / police for safety
+                local pRole = TTTBots.Roles.GetRoleFor(p)
+                local isTrusted = pRole and pRole:GetAppearsPolice()
+                local morality = bot:BotMorality()
+                local pSus = morality and morality:GetSuspicion(p) or 0
+                if isTrusted or pSus <= -2 then
+                    local d = bot:GetPos():Distance(p:GetPos())
+                    if d < nearestDist then
+                        nearestDist = d
+                        nearestAlly = p
+                    end
+                end
+            end
+            if nearestAlly and nearestDist > 200 then
+                loco:SetGoal(nearestAlly:GetPos())
+            elseif IsValid(accuser) then
+                -- No trusted ally nearby — actively flee from accuser
+                local awayVec = (bot:GetPos() - accuser:GetPos()):GetNormalized() * 600
+                loco:SetGoal(bot:GetPos() + awayVec)
+            end
+        end
+
         if state.phase == "offer_test" and not state.escalated then
             -- If no one believes us after a few seconds, counter-accuse
             if (CurTime() - state.startTime) > 5 then
@@ -233,22 +266,17 @@ function DefendSelf.OnRunning(bot)
             end
         end
 
-        -- Last resort: flee if situation is truly dangerous
-        if state.isKOS and (CurTime() - state.startTime) > 15 then
-            -- Move away from accuser
-            if IsValid(accuser) then
-                local loco = bot:BotLocomotor()
-                if loco then
-                    local awayVec = (bot:GetPos() - accuser:GetPos()):GetNormalized() * 600
-                    loco:SetGoal(bot:GetPos() + awayVec)
-                end
-            end
+        -- If KOS'd and enough time has passed, just finish and let other
+        -- behaviors (FightBack/AttackTarget) take over naturally.
+        if state.isKOS and (CurTime() - state.startTime) > 10 then
             return STATUS.SUCCESS
         end
     -- -------------------------------------------------------------------------
     -- TRAITOR branch
     -- -------------------------------------------------------------------------
     else
+        local loco = bot:BotLocomotor()
+
         if state.phase == "feign" and not state.escalated then
             -- After a few seconds, try to counter-accuse or frame someone
             if (CurTime() - state.startTime) > 4 then
@@ -276,11 +304,14 @@ function DefendSelf.OnRunning(bot)
             end
         end
 
-        -- Traitor last resort: if alone with the accuser, eliminate them
+        -- Traitor active defense: if accuser is nearby and somewhat isolated,
+        -- eliminate them. Lower threshold than before so bots actually fight.
         if state.isKOS and IsValid(accuser) then
             local isolation = lib.RateIsolation(bot, accuser)
             local dist      = bot:GetPos():Distance(accuser:GetPos())
-            if isolation > 0.7 and dist < 400 then
+            -- Lower isolation requirement (0.4 instead of 0.7) and larger
+            -- distance range (800 instead of 400) so traitors actually respond.
+            if isolation > 0.4 and dist < 800 then
                 Arb.RequestAttackTarget(bot, accuser, "SILENCE_WITNESS", Arb.PRIORITY.SELF_DEFENSE)
                 if chatter and chatter.On then
                     chatter:On("DefendAssassinate", { player = accuser:Nick() }, bot:GetTeam() ~= TEAM_INNOCENT, 0)
@@ -289,10 +320,22 @@ function DefendSelf.OnRunning(bot)
             end
         end
 
-        -- Cornered last stand (KOS'd by multiple people or very high suspicion)
-        local morality = bot:BotMorality()
-        if morality and morality:GetSuspicion(bot) and false then -- placeholder for multi-KOS check
-            -- Accept the accusation: pick the closest enemy and fight
+        -- ACTIVE FLEEING: when KOS'd and can't fight, actively flee from the
+        -- accuser rather than standing still waiting to die.
+        if state.isKOS and IsValid(accuser) and loco then
+            local awayVec = (bot:GetPos() - accuser:GetPos()):GetNormalized() * 800
+            loco:SetGoal(bot:GetPos() + awayVec)
+        end
+
+        -- Cornered last stand: KOS'd by multiple people — accept fate and fight.
+        local kosList = TTTBots.Match.KOSList
+        local kosCallerCount = 0
+        if kosList and kosList[bot] then
+            for caller, _ in pairs(kosList[bot]) do
+                if IsValid(caller) then kosCallerCount = kosCallerCount + 1 end
+            end
+        end
+        if kosCallerCount >= 2 then
             local closest = lib.GetClosest(TTTBots.Roles.GetNonAllies(bot), bot:GetPos())
             if closest then
                 Arb.RequestAttackTarget(bot, closest, "LAST_STAND", Arb.PRIORITY.SELF_DEFENSE)

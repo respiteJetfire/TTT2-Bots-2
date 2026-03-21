@@ -334,7 +334,9 @@ local function attackKOSListed(bot)
         if mem and mem.UpdateKnownPositionFor then
             mem:UpdateKnownPositionFor(bestTarget, bestTarget:GetPos())
         end
-        Arb.RequestAttackTarget(bot, bestTarget, "KOS_LIST_TARGET", PRI.SUSPICION_THRESHOLD)
+        -- Use PLAYER_REQUEST priority (4) for visible KOS targets so the attack
+        -- cannot be overridden by low-priority clears (ceasefire, wait, etc.)
+        Arb.RequestAttackTarget(bot, bestTarget, "KOS_LIST_TARGET", PRI.PLAYER_REQUEST)
         return
     end
 
@@ -380,7 +382,9 @@ local function attackKOSListed(bot)
         if mem and mem.UpdateKnownPositionFor then
             mem:UpdateKnownPositionFor(huntTarget, huntTarget:GetPos())
         end
-        Arb.RequestAttackTarget(bot, huntTarget, "KOS_LIST_TARGET", PRI.OPPORTUNISTIC)
+        -- Use SUSPICION_THRESHOLD (2) for non-visible KOS targets so the bot
+        -- actively hunts them down rather than being easily distracted.
+        Arb.RequestAttackTarget(bot, huntTarget, "KOS_LIST_TARGET", PRI.SUSPICION_THRESHOLD)
     end
 end
 
@@ -435,11 +439,18 @@ end
 
 local function preventAttackAlly(bot)
     local attackTarget = bot.attackTarget
+    if not IsValid(attackTarget) then return end
     local role = TTTBots.Roles.GetRoleFor(attackTarget)
     if not role then return end
     local isAllies = TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, attackTarget) or TTTBots.Roles.IsAllies(bot, attackTarget)
     if isAllies then
-        Arb.RequestClearTarget(bot, "PREVENT_ALLY", PRI.ROLE_HOSTILITY)
+        -- For same-team allies (e.g. traitor vs traitor), use a higher clear
+        -- priority so we can override even SUSPICION_THRESHOLD or ROLE_HOSTILITY
+        -- assignments. Only true SELF_DEFENSE (priority 5, someone actively
+        -- shooting this bot) should override ally protection.
+        local sameTeam = bot:GetTeam() == attackTarget:GetTeam() and bot:GetTeam() ~= TEAM_INNOCENT
+        local clearPri = sameTeam and PRI.PLAYER_REQUEST or PRI.ROLE_HOSTILITY
+        Arb.RequestClearTarget(bot, "PREVENT_ALLY", clearPri)
     end
 end
 

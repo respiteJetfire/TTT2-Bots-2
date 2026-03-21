@@ -827,6 +827,15 @@ local pressureEvents = { --- The amount that is added to our pressure when an ev
 function BotPersonality:OnPressureEvent(event_name)
     local pressure = pressureEvents[event_name]
     if pressure then
+        -- Killer roles (any team not TEAM_NONE/TEAM_INNOCENT) gain less
+        -- positive pressure (they stay calm under fire) but still benefit
+        -- fully from negative pressure events (kills, hurting enemies).
+        if pressure > 0 and self.bot and IsValid(self.bot) and self.bot.GetTeam then
+            local team = self.bot:GetTeam()
+            if team ~= TEAM_NONE and team ~= TEAM_INNOCENT then
+                pressure = pressure * 0.6 -- 40% less pressure gain for killer roles
+            end
+        end
         self:AddPressure(pressure)
     end
 

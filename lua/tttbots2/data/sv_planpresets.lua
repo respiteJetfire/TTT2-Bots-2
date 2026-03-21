@@ -325,6 +325,7 @@ PRESETS.MediumPlayerCount_DetectiveHunt = {
         PlyMax = 16,
         MinTraitors = 2,
         Chance = 30,
+        RequiresPolice = true,
     },
     Jobs = {
         -- Short gather.

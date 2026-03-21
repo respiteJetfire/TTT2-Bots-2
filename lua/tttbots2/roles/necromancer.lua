@@ -25,9 +25,9 @@ local necroTree = {
     _prior.SelfDefense,
     _prior.Requests,
     _bh.NecroDefib,     -- Dedicated necro defi behavior (corpse → zombie)
+    _bh.Stalk,          -- Stalk isolated targets to CREATE corpses for reviving
     _prior.Deception,   -- AlibiBuilding, FakeInvestigate, PlausibleIgnorance (EARLY blend-in)
     _prior.Restore,
-    _bh.Stalk,          -- Stalk isolated targets (after deception is exhausted)
     _prior.Investigate,
     _prior.Minge,
     _prior.Patrol,

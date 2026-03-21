@@ -204,6 +204,7 @@ end
 function BotMorality:ResetRoundState()
     self.suspicions = {}
     self.roleGuesses = {}
+    self.roleGuessTimestamps = {}
     self.testedClean = nil
 
     local bot = self.bot

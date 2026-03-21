@@ -807,7 +807,9 @@ function TTTBots.Lib.UpdateBotModels()
     local model = TTTBots.Lib.GetConVarString("playermodel")
     if model == "" then return end
     for i, bot in pairs(TTTBots.Bots) do
-        bot:SetModel(model)
+        if IsValid(bot) then
+            bot:SetModel(model)
+        end
     end
 end
 

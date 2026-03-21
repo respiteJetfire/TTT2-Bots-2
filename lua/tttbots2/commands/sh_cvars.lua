@@ -44,7 +44,7 @@ bot_sh_cvar("cheat_redhanded_time", "3",
 bot_sh_cvar("cheat_traitor_reactionspd", "1",
     "If set to 1, traitor bots will have a superior reaction speed. TTT2: Does not apply to custom traitor-ish roles.")
 bot_sh_cvar("cheat_traitor_accuracy", "1",
-    "If set to 1, traitor bots will have double the accuracy of standard bots. TTT2: Does not apply to custom traitor-ish roles.")
+    "If set to 1, killer-role bots (any team that is NOT innocent or none) will have significantly improved accuracy. TTT2: Now applies to ALL custom killer roles, not just vanilla traitors.")
 bot_sh_cvar("cheat_know_jester", "1",
     "If set to 1, bots will automatically ''know'' who the jester is. They will still shoot at them if they're too annoying, but they inherently know to devalue their sus actions.")
 bot_sh_cvar("cheat_know_swapper", "1",

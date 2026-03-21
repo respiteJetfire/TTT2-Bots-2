@@ -94,8 +94,8 @@ TTTBots.Behaviors.RegisterRoleWeapon({
     getWeaponFn  = function(inv) return inv:GetDeputyGun() end,
     equipFn      = function(inv) return inv:EquipDeputyGun() end,
     findTargetFn = function(bot) return lib.FindCloseInnocentTarget(bot) end,
-    engageDistance = 1000,
-    startChance  = 25,
+    engageDistance = 1500,
+    startChance  = 50,
     isConversion = true,  -- Prefer converting in early game
     validateStartBothConditions = true,
     equipFailureFails = true,

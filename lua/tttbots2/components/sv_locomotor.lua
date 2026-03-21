@@ -2020,13 +2020,22 @@ function plyMeta:SetAttackTarget(target, reason, priority)
     -- Block assigning new targets to dead bots — they cannot fight.
     -- Clearing (target==nil) is always allowed so cleanup paths still work.
     if target ~= nil and not TTTBots.Lib.IsPlayerAlive(self) then return end
-    if (IsValid(target) and TTTBots.Roles.IsAllies(self, target)) then return end
-    if (hook.Run("TTTBotsCanAttack", self, target) == false) then return end
 
-    -- Record reason codes from the arbitration system (or from pending request)
+    -- Resolve reason/priority early so the ally-check can inspect them.
     local Arb = TTTBots.Morality
     reason   = reason   or (self._pendingTargetReason)   or "LEGACY"
     priority = priority or (self._pendingTargetPriority)  or (Arb and Arb.PRIORITY and Arb.PRIORITY.ROLE_HOSTILITY or 3)
+
+    -- Ally check: block attacking allies UNLESS this is a self-defense response.
+    -- Bots must always be allowed to fight back against someone who is actively
+    -- shooting them, even if that person is on the same team.
+    local selfDefensePri = Arb and Arb.PRIORITY and Arb.PRIORITY.SELF_DEFENSE or 5
+    if IsValid(target) and TTTBots.Roles.IsAllies(self, target) then
+        if priority < selfDefensePri then
+            return
+        end
+    end
+    if (hook.Run("TTTBotsCanAttack", self, target) == false) then return end
     self._pendingTargetReason   = nil
     self._pendingTargetPriority = nil
 

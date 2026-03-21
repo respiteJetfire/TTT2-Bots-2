@@ -159,8 +159,12 @@ function Stalk.Validate(bot)
                 -- Serial Killers are exempt — their core mechanic IS stalking + knife kills
                 local isSerialKiller = bot.GetRoleStringRaw
                     and bot:GetRoleStringRaw() == "serialkiller"
-                if isInfectedHost or isSerialKiller then
-                    -- Allow stalking to continue for infected hosts / serial killers at all phases
+                -- Necromancer masters are exempt — they need to pick off isolated targets
+                -- to create zombie minions, which is their primary win condition
+                local isNecroMaster = TTTBots.Roles.IsNecroMaster
+                    and TTTBots.Roles.IsNecroMaster(bot)
+                if isInfectedHost or isSerialKiller or isNecroMaster then
+                    -- Allow stalking to continue for these roles at all phases
                 elseif not ra:IsOvertake() then
                     -- In overtime with overtake advantage, allow stalking to continue (assassinate stragglers)
                     return false

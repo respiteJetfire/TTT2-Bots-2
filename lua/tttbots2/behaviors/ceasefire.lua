@@ -25,6 +25,13 @@ end
 ---@return BStatus
 function BehaviorCeaseFire.OnStart(bot)
     print(bot:Nick() .. " is now ceasing fire.")
+    -- Don't drop a high-priority attack target (KOS'd enemy, self-defense, etc.)
+    -- just because someone asked for ceasefire.
+    local pri = bot.attackTargetPriority or 0
+    if pri >= (TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SUSPICION_THRESHOLD or 2) then
+        bot.ceaseFire = false
+        return STATUS.FAILURE
+    end
     if bot.attackTarget then
         bot:SetAttackTarget(nil, "CEASEFIRE")
         bot.attackTarget = nil
@@ -62,6 +69,23 @@ function BehaviorCeaseFire.HandleRequest(bot, player, teamOnly)
     local chatter = bot:BotChatter()
     local Morality = bot:BotMorality()
     local playerSus = Morality:GetSuspicion(player) or 0
+
+    -- Reject ceasefire from KOS'd players — a KOS'd traitor should not be able
+    -- to tell everyone to stop fighting.
+    local kosList = TTTBots.Match.KOSList
+    if kosList and kosList[player] and not table.IsEmpty(kosList[player]) then
+        print(bot:Nick() .. " refused ceasefire from KOS'd player " .. player:Nick())
+        if chatter and chatter.On then chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4)) end
+        return
+    end
+
+    -- Reject ceasefire from highly suspicious players
+    if not roleDisablesSuspicion and playerSus >= (Morality.Thresholds and Morality.Thresholds.KOS or 7) then
+        print(bot:Nick() .. " refused ceasefire from suspicious player " .. player:Nick())
+        if chatter and chatter.On then chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4)) end
+        return
+    end
+
     local chance = 0.5
     if playerIsPolice and bot:GetTeam() == TEAM_INNOCENT then
         chance = 1
@@ -69,11 +93,12 @@ function BehaviorCeaseFire.HandleRequest(bot, player, teamOnly)
         local sus = math.Clamp(playerSus, -10, 10)
         chance = math.Clamp((10 - sus) / 20, 0, 1)
     end
-    if teamOnly and not bot:GetTeam() == player:GetTeam() then
+    if teamOnly and bot:GetTeam() ~= player:GetTeam() then
         print(bot:Nick() .. " refused to cease fire for " .. player:Nick())
         return
     end
-    if math.random() > chance * 100 then
+    -- FIX: math.random() returns 0-1 float, compare directly against chance (also 0-1)
+    if math.random() > chance then
         print(bot:Nick() .. " refused to cease fire for " .. player:Nick())
         if chatter and chatter.On then chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4)) end
         return

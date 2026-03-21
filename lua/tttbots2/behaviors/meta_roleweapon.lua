@@ -171,8 +171,11 @@ function TTTBots.Behaviors.RegisterRoleWeapon(config)
                     elseif phase == PHASE.MID then
                         -- Strong boost in mid game
                         effectiveChance = math.max(effectiveChance * 4, 60)
+                    elseif phase == PHASE.LATE then
+                        -- Moderate boost in late game — still worth converting if possible
+                        effectiveChance = math.max(effectiveChance * 2, 40)
                     end
-                    -- LATE/OVERTIME: use base startChance (killing becomes more important)
+                    -- OVERTIME: use base startChance (killing becomes more important)
                 end
             end
         end

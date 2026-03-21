@@ -252,12 +252,28 @@ function PlanCoordinator.CalcRandFriendlyHuman(caller)
 end
 
 --- A Target Hashtable function to calculate a target for a job.
+--- Finds any "police" player — detective or any role with a public police flag.
+--- Falls back to a random enemy if no police-type player is alive.
 function PlanCoordinator.CalcRandPolice(caller)
-    local police = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers,
-        function(ply) return ply:GetRoleStringRaw() == "detective" end)
-    local randPolice = table.Random(police)
+    local police = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+        if not TTTBots.Lib.IsPlayerAlive(ply) then return false end
+        -- Direct detective check
+        if ply:GetRoleStringRaw() == "detective" then return true end
+        -- TTT2 publicPolice flag (sheriff, investigator, etc.)
+        if ply.GetSubRoleData then
+            local rd = ply:GetSubRoleData()
+            if rd and rd.isPolicingRole then return true end
+        end
+        return false
+    end)
 
-    return randPolice
+    if #police > 0 then
+        return table.Random(police)
+    end
+
+    -- No police-type player exists — fall back to a random enemy so the
+    -- plan doesn't stall with a nil target.
+    return PlanCoordinator.CalcRandEnemy(caller)
 end
 
 --- Shared-target helpers: pick one enemy and cache it so every traitor

@@ -127,6 +127,15 @@ function Retreat.Validate(bot)
     -- Exception: if HP drops below 20%, self-preservation wins.
     if IsInCoordinatedAttack(bot) and bot:Health() >= COORD_ATTACK_RETREAT_HEALTH then return false end
 
+    -- Confirmed-hostile targets (KOS list, self-defense): suppress retreat so
+    -- the bot fights instead of running from a known traitor. Without this,
+    -- bots with only melee weapons endlessly retreat while the traitor kills
+    -- the entire team.  Exception: critically low HP (< 20) still retreats.
+    local pri = bot.attackTargetPriority or 0
+    local PRI = TTTBots.Morality and TTTBots.Morality.PRIORITY
+    local suspicionPri = PRI and PRI.SUSPICION_THRESHOLD or 2
+    if pri >= suspicionPri and bot:Health() >= COORD_ATTACK_RETREAT_HEALTH then return false end
+
     -- Respect post-retreat cooldown to prevent rapid retreat→attack→retreat loops.
     -- Exception: if health is critically low (< 20), always allow retreat.
     if (bot.retreatCooldownUntil or 0) > CurTime() and bot:Health() >= 20 then return false end

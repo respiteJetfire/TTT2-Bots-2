@@ -222,8 +222,9 @@ function BotInventory:GetWeaponInfo(wep)
     info.can_drop = wep.AllowDrop
     -- If it is a shotgun
     info.is_shotgun = string.find(info.ammo_type_string or "", "buckshot") ~= nil
-    -- If it is melee
-    info.is_melee = info.clip == -1
+    -- If it is melee (clip -1 but NOT a grenade — some addon grenades like
+    -- the Holy Hand Grenade report clip -1 which falsely classifies them)
+    info.is_melee = info.clip == -1 and info.slot ~= "grenade"
     -- If it is the Doom Super Shotgun (has meathook capability)
     info.has_hook = (info.class == "weapon_dredux_de_supershotgun") or false
     -- If it is a gap-closer (shotgun or meathook weapon — close range commitment)
