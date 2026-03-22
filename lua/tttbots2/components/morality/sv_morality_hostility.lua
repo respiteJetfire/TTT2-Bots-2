@@ -440,17 +440,18 @@ end
 local function preventAttackAlly(bot)
     local attackTarget = bot.attackTarget
     if not IsValid(attackTarget) then return end
+    -- Works for both human players and bot targets equally
+    if not attackTarget:IsPlayer() then return end
     local role = TTTBots.Roles.GetRoleFor(attackTarget)
     if not role then return end
-    local isAllies = TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, attackTarget) or TTTBots.Roles.IsAllies(bot, attackTarget)
+    local isAllies = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, attackTarget))
+        or TTTBots.Roles.IsAllies(bot, attackTarget)
     if isAllies then
-        -- For same-team allies (e.g. traitor vs traitor), use a higher clear
-        -- priority so we can override even SUSPICION_THRESHOLD or ROLE_HOSTILITY
-        -- assignments. Only true SELF_DEFENSE (priority 5, someone actively
-        -- shooting this bot) should override ally protection.
-        local sameTeam = bot:GetTeam() == attackTarget:GetTeam() and bot:GetTeam() ~= TEAM_INNOCENT
-        local clearPri = sameTeam and PRI.PLAYER_REQUEST or PRI.ROLE_HOSTILITY
-        Arb.RequestClearTarget(bot, "PREVENT_ALLY", clearPri)
+        -- Use SELF_DEFENSE priority to clear ally targets so no lower-priority
+        -- assignment can keep an ally locked as a target. The self-defense
+        -- trigger itself already checks alliance before requesting, so this
+        -- won't conflict with legitimate self-defense.
+        Arb.RequestClearTarget(bot, "PREVENT_ALLY", PRI.SELF_DEFENSE)
     end
 end
 
@@ -482,12 +483,14 @@ end
 local function preventAttackAllies(bot)
     local attackTarget = bot.attackTarget
     if not IsValid(attackTarget) then return end
+    if not attackTarget:IsPlayer() then return end
     local role = TTTBots.Roles.GetRoleFor(attackTarget)
     if not role then return end
-    local isAllies = TTTBots.Roles.IsAllies(bot, attackTarget)
+    local isAllies = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, attackTarget))
+        or TTTBots.Roles.IsAllies(bot, attackTarget)
     local isChecked = TTTBots.Match.CheckedPlayers[attackTarget] or nil
     if isAllies and isChecked then
-        Arb.RequestClearTarget(bot, "PREVENT_CHECKED_ALLY", PRI.ROLE_HOSTILITY)
+        Arb.RequestClearTarget(bot, "PREVENT_CHECKED_ALLY", PRI.SELF_DEFENSE)
     end
 end
 

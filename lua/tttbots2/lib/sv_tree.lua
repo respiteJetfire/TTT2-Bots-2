@@ -156,6 +156,7 @@ TTTBots.Behaviors.DefaultTrees = {
     traitor = {
         _bh.Jihad,
         _bh.UsePeacekeeper,
+        _bh.ActivateSmartBullets,
         _prior.Grenades,
         _prior.Chatter,
         _prior.FightBack,

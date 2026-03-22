@@ -537,15 +537,39 @@ function BotPersonality:Initialize(bot)
     local gameDiff = lib.GetConVarInt("difficulty")
 
     -- These are different to normal traits, as I want them to be more common and specific to the current difficulty
-    self.isHeadshotter = math.random(1, math.floor(15 / gameDiff)) == 1 -- 1 in 15 chance on easy, 1 in 5 chance on hard
-    self.isStrafer = math.random(1, gameDiff) ~= 1                      -- never on easy, 4 in 5 chance on hardest
+    -- Extreme scaling: diff 1 = never headshot/strafe, diff 5 = almost always headshot/strafe
+    local HEADSHOT_CHANCES = {
+        [1] = 0,    -- Very easy: NEVER headshot
+        [2] = 8,    -- Easy: 8% chance
+        [3] = 20,   -- Normal: 20% chance
+        [4] = 40,   -- Hard: 40% chance
+        [5] = 65,   -- Very hard: 65% chance - laser precision
+    }
+    local STRAFE_CHANCES = {
+        [1] = 0,    -- Very easy: NEVER strafe, stand still like targets
+        [2] = 30,   -- Easy: occasionally strafe
+        [3] = 55,   -- Normal: strafe more than half the time
+        [4] = 80,   -- Hard: almost always strafe
+        [5] = 95,   -- Very hard: nearly always strafing, extremely hard to hit
+    }
+    self.isHeadshotter = math.random(1, 100) <= (HEADSHOT_CHANCES[gameDiff] or 20)
+    self.isStrafer = math.random(1, 100) <= (STRAFE_CHANCES[gameDiff] or 55)
 
     -- just some shorthands
     bot.canHeadshot = self.isHeadshotter
     bot.canStrafe = self.isStrafer
 
+    -- Extreme difficulties get more trait slots so the personality is more pronounced
+    local TRAIT_COUNTS = {
+        [1] = 5,  -- Very easy: 5 traits, more chances for bad traits to stack
+        [2] = 4,  -- Easy: standard
+        [3] = 4,  -- Normal: standard
+        [4] = 4,  -- Hard: standard
+        [5] = 5,  -- Very hard: 5 traits, more chances for good traits to stack
+    }
+    local traitCount = TRAIT_COUNTS[gameDiff] or 4
     local traits_enabled = lib.GetConVarBool("personalities")
-    self.traits = (traits_enabled and self:GetNoConflictTraits(4)) or
+    self.traits = (traits_enabled and self:GetNoConflictTraits(traitCount)) or
         {} -- The bot's traits. These are just keynames and not the actual trait objects.
     self.archetype = self:GetClosestArchetype()
     ---ch

@@ -404,6 +404,11 @@ function Attack.ShouldLookAtBody(bot, weapon)
     if weapon and weapon.class == "ttt_smart_pistol" then
         return true
     end
+    -- Smart Bullets buff: body aim is fine — the lock-on cone (~18°) handles
+    -- bullet redirection to the target's head automatically.
+    if bot.ttt2_smart_bullets_active then
+        return true
+    end
     -- Killer roles get a chance to override body-shot preference and go for
     -- headshots with rifles/pistols (they're deadlier attackers).
     if isBodyShotter and IsKillerRole(bot) and not (weapon.is_shotgun or weapon.is_melee) then
@@ -568,6 +573,18 @@ function Attack.CheckCoverConditions(bot, target)
         lowHealth = hp < 40
     end
 
+    -- Smart Bullets threat: if our attacker has active Smart Bullets with lock,
+    -- urgently seek cover. Smart Bullets redirect ALL shots to the head,
+    -- making open engagement extremely dangerous.
+    if IsValid(target) and target.ttt2_smart_bullets_active and target.ttt2_smart_bullets_locked then
+        local lockTarget = target.ttt2_smart_bullets_lock_target
+        if IsValid(lockTarget) and lockTarget == bot then
+            -- We ARE the lock target — cover is critical regardless of health
+            bot.coverTarget = target
+            return
+        end
+    end
+
     if (hp < coverThreshold and lowHealth) or outgunned then
         bot.coverTarget = target
     end
@@ -679,7 +696,9 @@ function Attack.Engage(bot, targetPos)
 
     -- During reload, backpedal toward cover direction.
     -- Clipless weapons (e.g. Doomguy SSG) never truly reload, so skip this.
-    if weapon.should_reload and not weapon.is_clipless then
+    -- Smart Bullets active: suppress reload backpedal — the buff is timed,
+    -- so every second counts. The bot should keep pressing the attack.
+    if weapon.should_reload and not weapon.is_clipless and not bot.ttt2_smart_bullets_active then
         loco:SetForceBackward(true)
     end
 
@@ -691,6 +710,16 @@ end
 local INACCURACY_BASE = 9  --- The higher this is, the more inaccurate the bots will be.
 local INACCURACY_SMOKE = 5 --- The inaccuracy modifier when the bot or its target is in smoke.
 
+--- Difficulty-based inaccuracy multipliers: applied ON TOP of the pressure/difficulty formula.
+--- Diff 1 bots are wildly inaccurate even without pressure; diff 5 bots are surgically precise.
+local DIFFICULTY_INACCURACY_MULT = {
+    [1] = 3.5,   -- Very easy: 3.5x inaccuracy, bots spray everywhere
+    [2] = 1.6,   -- Easy: noticeably worse
+    [3] = 1.0,   -- Normal: baseline
+    [4] = 0.55,  -- Hard: much tighter groupings
+    [5] = 0.25,  -- Very hard: near-perfect aim, almost no random scatter
+}
+
 --- Calculate the inaccuracy of agent 'bot' according to a) its personality and b) diff setts
 ---@param bot Bot The bot that is shooting.
 ---@param origin Vector The original aim point.
@@ -699,6 +728,11 @@ function Attack.CalculateInaccuracy(bot, origin, target)
     local heldWeapon = bot:BotInventory() and bot:BotInventory():GetHeldWeaponInfo() or nil
     if heldWeapon and heldWeapon.class == "ttt_smart_pistol" then
         return VectorRand() * 0.35
+    end
+    -- Smart Bullets buff with lock acquired: bullets redirect server-side,
+    -- so inaccuracy is irrelevant. Near-zero scatter.
+    if bot.ttt2_smart_bullets_active and bot.ttt2_smart_bullets_locked then
+        return VectorRand() * 0.15
     end
 
     local personality = bot:BotPersonality()
@@ -742,6 +776,8 @@ function Attack.CalculateInaccuracy(bot, origin, target)
         selfMoveFactor = selfMoveFactor * 0.75
     end
 
+    local difficultyInaccuracyMult = DIFFICULTY_INACCURACY_MULT[difficulty] or 1.0
+
     local inaccuracy_mod = (pressure / difficulty) -- The more pressure we have, the more inaccurate we are; decreased by difficulty
         * distFactor                               -- The further away we are, the more inaccurate we are
         * INACCURACY_BASE                          -- Obviously, multiply by a constant to make it more inaccurate
@@ -751,6 +787,7 @@ function Attack.CalculateInaccuracy(bot, origin, target)
         * killerAimFactor                          -- Reduce aim difficulty for killer roles if cheat cvar is enabled
         * targetMoveFactor                         -- Reduce aim difficulty if the target is immobile
         * selfMoveFactor                           -- Self-movement penalty (reduced for killer roles)
+        * difficultyInaccuracyMult                 -- Extreme difficulty scaling: easy=wildly inaccurate, hard=surgical
 
     if heldWeapon and heldWeapon.class == "m9k_minigun" then
         inaccuracy_mod = inaccuracy_mod * 0.55
@@ -935,7 +972,10 @@ function Attack.LookingCloseToTarget(bot, target)
     local THRESHOLD = 10
     local heldWeapon = bot:BotInventory() and bot:BotInventory():GetHeldWeaponInfo() or nil
     local threshold = THRESHOLD
-    if heldWeapon and heldWeapon.class == "ttt_smart_pistol" then
+    if bot.ttt2_smart_bullets_active then
+        -- Smart Bullets buff: widen threshold to match the lock-on cone (~18°)
+        threshold = 20
+    elseif heldWeapon and heldWeapon.class == "ttt_smart_pistol" then
         threshold = 18
     elseif heldWeapon and heldWeapon.class == "m9k_minigun" then
         threshold = 14
@@ -963,6 +1003,21 @@ function Attack.RunningAttackLogic(bot)
     local isAlive = bot.attackTarget:Health() > 0
     local mode = ATTACKMODE.Seeking -- Default to seeking
     local canShoot = lib.CanShoot(bot, target)
+
+    -- Smart Bullets target-hold: during lock acquisition, suppress target
+    -- switching so the lock timer completes. The lock resets if the bot
+    -- looks away from the current target.
+    if bot.ttt2_smart_bullets_active
+        and bot.ttt2_smart_bullets_lock_target
+        and not bot.ttt2_smart_bullets_locked
+        and IsValid(bot.ttt2_smart_bullets_lock_target)
+    then
+        local lockTarget = bot.ttt2_smart_bullets_lock_target
+        if target ~= lockTarget and TTTBots.Lib.IsPlayerAlive(lockTarget) then
+            -- Hold aim on the lock target instead of switching
+            target = lockTarget
+        end
+    end
     -- print("Can bot ".. bot:Nick() .. " shoot target? " .. tostring(canShoot))
 
     if canShoot and isAlive then mode = ATTACKMODE.Engaging end -- We can shoot them, we are engaging
@@ -1071,15 +1126,15 @@ function Attack.ValidateTarget(bot)
     local targetIsPlayerAndAlive = targetIsPlayer and TTTBots.Lib.IsPlayerAlive(target) or false
     local targetIsNPCAndAlive = targetIsNPC and target:Health() > 0 or false
     local targetIsPlayerOrNPCAndAlive = (targetIsPlayerAndAlive or targetIsNPCAndAlive) and targetIsAlive or false
-    local baseRole = target:IsPlayer() and target:GetBaseRole() or nil
     -- Ally check: exempt self-defense targets (priority 5) from the ally gate
     -- so bots always fight back against someone who is actively shooting them,
-    -- regardless of team. Also exempts ROLE_INNOCENT base-role targets so
-    -- innocents can retaliate against fellow innocents.
+    -- regardless of team. Uses perception-aware ally check to handle disguised
+    -- roles (Spy, etc.) and applies to ALL base roles equally — the alliance
+    -- system itself already handles innocent-vs-innocent correctly.
     local selfDefensePri = TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SELF_DEFENSE or 5
     local isSelfDefense = (bot.attackTargetPriority or 0) >= selfDefensePri
-    local isAlly = TTTBots.Roles.IsAllies(bot, target)
-        and (baseRole ~= ROLE_INNOCENT)
+    local isAlly = ((TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, target))
+        or TTTBots.Roles.IsAllies(bot, target))
         and not isSelfDefense
 
     -- print(bot:Nick() .. " validating attack target behavior:")
@@ -1156,10 +1211,19 @@ function Attack.ValidateTarget(bot)
 end
 
 function Attack.IsTargetAlly(bot)
-    --- if bot.attackTarget is an NPC, return false
-    if not (IsValid(bot.attackTarget) and bot.attackTarget:IsNPC()) then return false end
-    if not (IsValid(bot.attackTarget) and bot.attackTarget:IsPlayer()) then return false end
-    return TTTBots.Roles.IsAllies(bot, bot.attackTarget)
+    if not IsValid(bot.attackTarget) then return false end
+    -- NPCs cannot be allies — only check players
+    if bot.attackTarget:IsNPC() then return false end
+    if not bot.attackTarget:IsPlayer() then return false end
+    -- Use perception-aware ally check so disguised roles (Spy) are handled
+    local isAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, bot.attackTarget))
+        or TTTBots.Roles.IsAllies(bot, bot.attackTarget)
+    -- Self-defense overrides ally protection — if we're being shot we fight back
+    local Arb = TTTBots.Morality
+    local selfDefensePri = Arb and Arb.PRIORITY and Arb.PRIORITY.SELF_DEFENSE or 5
+    local isSelfDefense = (bot.attackTargetPriority or 0) >= selfDefensePri
+    if isAlly and isSelfDefense then return false end -- allow self-defense
+    return isAlly
 end
 
 --- Called when the behavior's last state is running

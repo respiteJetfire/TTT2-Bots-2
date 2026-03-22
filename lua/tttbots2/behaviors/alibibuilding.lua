@@ -78,6 +78,19 @@ function AlibiBuilding.Validate(bot)
     if not isDeceptiveHostile(bot) then return false end
     if bot.attackTarget then return false end  -- don't loiter while in combat
 
+    -- Abort alibi building if this bot is the last traitor alive.
+    -- There is no team left to benefit from cover — switch to active play.
+    local aliveAllies = TTTBots.Roles.GetLivingAllies(bot)
+    if aliveAllies then
+        local aliveAllyCount = 0
+        for _, ally in ipairs(aliveAllies) do
+            if ally ~= bot then
+                aliveAllyCount = aliveAllyCount + 1
+            end
+        end
+        if aliveAllyCount == 0 then return false end
+    end
+
     -- Only active in the EARLY phase
     local ra = bot:BotRoundAwareness()
     if not ra then return false end
@@ -106,6 +119,18 @@ end
 
 function AlibiBuilding.OnRunning(bot)
     local state = TTTBots.Behaviors.GetState(bot, "AlibiBuilding")
+
+    -- Abort immediately if this bot is now the last traitor alive
+    local aliveAllies = TTTBots.Roles.GetLivingAllies(bot)
+    if aliveAllies then
+        local aliveAllyCount = 0
+        for _, ally in ipairs(aliveAllies) do
+            if ally ~= bot then
+                aliveAllyCount = aliveAllyCount + 1
+            end
+        end
+        if aliveAllyCount == 0 then return STATUS.SUCCESS end
+    end
 
     -- Refresh target periodically (every 8 s)
     if not state.target or not IsValid(state.target) or

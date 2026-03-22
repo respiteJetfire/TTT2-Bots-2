@@ -22,6 +22,7 @@ include("tttbots2/components/morality/sv_morality_arbitration.lua")
 include("tttbots2/components/morality/sv_karma_awareness.lua")
 include("tttbots2/components/morality/sv_morality_suspicion.lua")
 include("tttbots2/components/morality/sv_morality_hostility.lua")
+include("tttbots2/components/morality/sv_morality_smartbullets.lua")
 
 local Arb = TTTBots.Morality
 local PRI = Arb.PRIORITY
@@ -125,22 +126,44 @@ function BotMorality:SetRandomNearbyTarget()
     -- EARLY phase suppression for deceptive roles:
     -- Only attack if the target is truly isolated (1 visible enemy, no other witnesses).
     -- KOS-by-all roles (Doomguy etc.) skip this — they are already publicly hostile.
+    -- EXCEPTION: solo traitors (last one alive on their team) skip EARLY suppression
+    -- entirely — they need to act now, not wait for allies that no longer exist.
     if PHASE and phase == PHASE.EARLY and not isKOSedByAll then
-        -- In EARLY phase, refuse to start random fights unless there is exactly 1 visible
-        -- non-ally and no other witnesses near that target.
-        if #targets > 1 then return end
-        local soleTarget = targets[1]
-        if soleTarget and IsValid(soleTarget) then
-            local witnessesNearTarget = lib.GetAllWitnessesBasic(
-                soleTarget:GetPos(),
-                TTTBots.Roles.GetNonAllies(self.bot),
-                self.bot
-            )
-            -- Abort if anyone else can see the target (we'd be caught)
-            if table.Count(witnessesNearTarget) > 1 then return end
+        -- Check if this bot is the last traitor alive
+        local isSoloTraitor = false
+        local aliveAllies = TTTBots.Roles.GetLivingAllies(self.bot)
+        if aliveAllies then
+            local aliveAllyCount = 0
+            for _, ally in ipairs(aliveAllies) do
+                if ally ~= self.bot then
+                    aliveAllyCount = aliveAllyCount + 1
+                end
+            end
+            isSoloTraitor = (aliveAllyCount == 0)
         end
-        -- Even with an isolated target in EARLY, dramatically reduce the chance
-        aggression = aggression * 0.15
+
+        if not isSoloTraitor then
+            -- Normal EARLY phase suppression: refuse to start random fights
+            -- unless there is exactly 1 visible non-ally and no other witnesses.
+            if #targets > 1 then return end
+            local soleTarget = targets[1]
+            if soleTarget and IsValid(soleTarget) then
+                local witnessesNearTarget = lib.GetAllWitnessesBasic(
+                    soleTarget:GetPos(),
+                    TTTBots.Roles.GetNonAllies(self.bot),
+                    self.bot
+                )
+                -- Abort if anyone else can see the target (we'd be caught)
+                if table.Count(witnessesNearTarget) > 1 then return end
+            end
+            -- Even with an isolated target in EARLY, dramatically reduce the chance
+            aggression = aggression * 0.15
+        else
+            -- Solo traitor in EARLY: still prefer isolated targets but don't
+            -- hard-block on witness count. Moderate suppression instead of near-zero.
+            if #targets > 2 then return end
+            aggression = aggression * 0.5
+        end
     end
 
     -- MID phase: moderate suppression — reduce chance somewhat

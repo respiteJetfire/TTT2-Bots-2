@@ -248,3 +248,23 @@ L.label_tttbots_emotional_chatter = "Enable Emotional Reaction Chatter"
 L.help_tttbots_evidence_thresholds = "Controls the evidence weight thresholds that trigger different levels of bot accusations. Higher thresholds = bots accuse less readily."
 L.help_tttbots_evidence_timing = "Controls how long evidence persists in memory and how often bots can re-accuse the same player."
 L.help_tttbots_evidence_trust = "Controls the trust network system used for vouching, travel companions, and cooperative play."
+
+-- Performance / Dynamic Tick Rate Scaler
+L.submenu_tttbots_performance_title = "Performance"
+L.header_tttbots_tickscaler = "Dynamic Tick Rate Scaler"
+L.help_tttbots_tickscaler = "When many bots are on the server, the tick scaler logarithmically reduces how often each bot thinks, making them 'dumber' to save CPU. Below the threshold bot count, bots run at full speed with zero overhead. The formula is: skip = 1 + factor × ln(bots / threshold)."
+L.label_tttbots_tickscaler_enabled = "Enable Dynamic Tick Scaling"
+L.label_tttbots_tickscaler_threshold = "Threshold (no scaling below this)"
+L.label_tttbots_tickscaler_factor = "Log Scaling Factor"
+L.label_tttbots_tickscaler_max_skip = "Maximum Skip (hard cap)"
+
+L.header_tttbots_tickscaler_behavior = "Exemptions & Behavior"
+L.help_tttbots_tickscaler_behavior = "Combat exemption ensures bots fighting an enemy always think at full speed. Staggering spreads bot think calls across different ticks so not all bots skip the same frames, distributing CPU load evenly."
+L.label_tttbots_tickscaler_exempt_combat = "Exempt Bots in Combat"
+L.label_tttbots_tickscaler_stagger = "Stagger Bot Think Across Ticks"
+
+L.header_tttbots_tickscaler_debug = "Tick Scaler Debug"
+L.label_tttbots_tickscaler_debug = "Log Tick Scaler Diagnostics"
+
+L.header_tttbots_tickscaler_reference = "Scaling Reference (default settings)"
+L.help_tttbots_tickscaler_reference = "With default settings (threshold 8, factor 1.44):\n≤8 bots → Skip 1 → 5.0 Hz (full speed)\n16 bots → Skip 2 → 2.5 Hz (half speed)\n32 bots → Skip 3 → 1.7 Hz (noticeably slower)\n64 bots → Skip 4 → 1.25 Hz (quite sluggish)\nBots in combat are always full speed when exempt_combat is on."

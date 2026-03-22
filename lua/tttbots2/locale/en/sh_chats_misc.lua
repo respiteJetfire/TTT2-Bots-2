@@ -209,6 +209,42 @@ local function LoadMiscChats()
         }
     )
 
+    RegisterSimpleEvent("TimestopHunting", P.IMPORTANT,
+        "When a bot picks a frozen target to execute during timestop.",
+        {
+            "Target acquired.",
+            "Moving to target.",
+            "They can't run.",
+        },
+        {
+            [A.Casual] = { "easy pickings", "sitting ducks", "they can't move lol" },
+        }
+    )
+
+    RegisterSimpleEvent("TimestopKill", P.IMPORTANT,
+        "When a bot kills a frozen player during timestop.",
+        {
+            "Target eliminated.",
+            "One down.",
+            "Next.",
+        },
+        {
+            [A.Casual] = { "got one", "rip", "deleted" },
+        }
+    )
+
+    RegisterSimpleEvent("TimestopMassacre", P.IMPORTANT,
+        "When a bot finishes a timestop killing spree.",
+        {
+            "Time stop complete. All targets eliminated.",
+            "That was productive.",
+            "Cleanup complete.",
+        },
+        {
+            [A.Casual] = { "ez clap", "that was free", "too easy" },
+        }
+    )
+
     RegisterSimpleEvent("TurretDeployed", P.IMPORTANT,
         "When a bot finishes deploying a turret.",
         {
@@ -274,6 +310,153 @@ local function LoadMiscChats()
     RegisterBuyEvent("Thomas")
     RegisterBuyEvent("TTTE")
     RegisterBuyEvent("Weeping Angel")
+    RegisterBuyEvent("Smart Bullets")
+    RegisterBuyEvent("Poison Dart Gun")
+    RegisterBuyEvent("Hologram Decoy")
+    RegisterBuyEvent("EMP Grenade")
+    RegisterBuyEvent("Gravity Mine")
+
+    -- -----------------------------------------------------------------------
+    -- Poison Dart Gun — Traitor-side chatter (team-only)
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("UsingPoisonDart", P.NORMAL,
+        "When a traitor bot fires a poison dart at a target.",
+        {
+            "Firing a poison dart. They won't notice until it's too late.",
+            "Dart away. Poison will do the work.",
+            "Tagged them with a poison dart.",
+        },
+        {
+            [A.Casual] = { "darted someone lol", "poison go brrr" },
+            [A.Stoic] = { "Poison dart deployed." },
+        }
+    )
+
+    -- -----------------------------------------------------------------------
+    -- Hologram Decoy — Traitor-side chatter (team-only)
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("DeployingDecoy", P.NORMAL,
+        "When a bot deploys a hologram decoy.",
+        {
+            "Deploying a distraction...",
+            "Sending out a decoy.",
+            "Hologram deployed, use the confusion.",
+        },
+        {
+            [A.Casual] = { "decoy out, watch the chaos", "fake player deployed lol" },
+            [A.Stoic] = { "Decoy active." },
+        }
+    )
+
+    -- -----------------------------------------------------------------------
+    -- Gravity Mine — Traitor-side chatter (team-only)
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("DeployingGravityMine", P.NORMAL,
+        "When a bot throws a gravity mine.",
+        {
+            "Throwing a gravity mine...",
+            "Mine deployed, stay clear.",
+            "Gravity mine out. It'll pull them in.",
+        },
+        {
+            [A.Casual] = { "grav mine out, don't get caught", "yeet gravity mine" },
+            [A.Stoic] = { "Gravity mine deployed." },
+        }
+    )
+
+    -- -----------------------------------------------------------------------
+    -- Smart Bullets — Traitor-side chatter (team-only)
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("SmartBulletsActivated", P.NORMAL,
+        "When a traitor bot activates smart bullets.",
+        {
+            "Smart bullets online. Let's clean up.",
+            "Activating auto-aim. Cover me.",
+            "Lock and load. Smart bullets active.",
+        },
+        {
+            [A.Casual] = { "smart bullets go brrr", "aimbot engaged lol" },
+            [A.Hothead] = { "SMART BULLETS ONLINE! PUSHING NOW!" },
+            [A.Stoic] = { "Smart bullets activated." },
+        }
+    )
+
+    RegisterSimpleEvent("SmartBulletsKill", P.NORMAL,
+        "When a traitor bot kills someone during smart bullets buff.",
+        {
+            "Got one with the tracking rounds.",
+            "Target down. This thing is nasty.",
+            "Easy kill. Love these bullets.",
+        },
+        {
+            [A.Casual] = { "another one bites the dust lol", "too easy" },
+        }
+    )
+
+    RegisterSimpleEvent("SmartBulletsExpired", P.NORMAL,
+        "When a traitor bot's smart bullets buff expires.",
+        {
+            "Smart bullets wore off.",
+            "Auto-aim expired. Back to manual.",
+            "Tracking rounds are done.",
+        },
+        {
+            [A.Casual] = { "aimbot ran out sadge" },
+        }
+    )
+
+    -- -----------------------------------------------------------------------
+    -- Smart Bullets — Innocent/Detective-side chatter (public)
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("SmartBulletsDetected", P.IMPORTANT,
+        "When a bot witnesses smart bullet tracers from {{player}}.",
+        {
+            "What are those red beams?! That's not normal!",
+            "Those tracers — someone has some kind of auto-aim!",
+            "Those aren't normal bullets — they're tracking!",
+            "RED BEAMS! Someone has traitor tech!",
+        },
+        {
+            [A.Casual] = { "yo what are those red lasers", "bro has aimbot bullets" },
+            [A.Hothead] = { "WHAT THE HELL ARE THOSE RED BEAMS?!" },
+        }
+    )
+
+    RegisterSimpleEvent("SmartBulletsKOS", P.CRITICAL,
+        "When a bot identifies the smart bullets user as a traitor.",
+        {
+            "KOS {{player}}! They're using smart bullets!",
+            "It's {{player}}! They have auto-aim bullets, kill them!",
+            "{{player}} has tracking rounds — they're a traitor!",
+        },
+        {
+            [A.Casual] = { "kos {{player}} they got aimbot bullets" },
+        }
+    )
+
+    RegisterSimpleEvent("SmartBulletsWarning", P.IMPORTANT,
+        "When a bot warns others about a smart bullets user.",
+        {
+            "Be careful, someone has homing bullets out there.",
+            "Watch the red tracers — stay behind cover!",
+            "Don't go out in the open, there's a smart bullets user.",
+        },
+        {
+            [A.Casual] = { "careful there's aimbot bullets flying around" },
+        }
+    )
+
+    RegisterSimpleEvent("SmartBulletsSurvived", P.NORMAL,
+        "When a bot survives the smart bullets buff duration.",
+        {
+            "I think the tracking effect wore off...",
+            "The red beams stopped. Safe to peek?",
+            "Smart bullets seem to be done — pushing!",
+        },
+        {
+            [A.Casual] = { "i think the aimbot wore off" },
+        }
+    )
 
 end
 

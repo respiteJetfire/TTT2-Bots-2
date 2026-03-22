@@ -40,6 +40,7 @@ local function includeServer()
     include("tttbots2/lib/sv_ollama.lua")
     include("tttbots2/lib/sv_openrouter.lua")
     include("tttbots2/lib/sv_spots.lua")
+    include("tttbots2/lib/sv_tickscaler.lua")
     include("tttbots2/lib/sv_plancoordinator.lua")
     include("tttbots2/lib/sv_innocentcoordinator.lua")
     include("tttbots2/lib/sv_infectedcoordinator.lua")
@@ -129,7 +130,21 @@ function TTTBots.Reload()
         local call, err = pcall(function()
             -- _testBotAttack()
             TTTBots.Match.Tick()
-            TTTBots.Behaviors.RunTreeOnBots()
+
+            -- Dynamic tick scaler: recalculate skip value once per tick
+            TTTBots.TickScaler.Recalculate()
+
+            -- Run behavior trees only on bots that the tick scaler allows
+            -- this tick. When scaling is disabled every bot passes.
+            for _, bot in ipairs(TTTBots.Bots) do
+                if not IsValid(bot) then continue end
+                if not bot.components then continue end
+                if not TTTBots.TickScaler.ShouldBotThink(bot) then continue end
+                local tree = TTTBots.Behaviors.GetTreeFor(bot)
+                if not tree then continue end
+                TTTBots.Behaviors.RunTree(bot, tree)
+            end
+
             TTTBots.PlanCoordinator.Tick()
             TTTBots.InnocentCoordinator.Tick()
             local bots = TTTBots.Bots
@@ -141,11 +156,19 @@ function TTTBots.Reload()
                 local loco = bot:BotLocomotor()
                 bot.tick = loco and loco.tick or 0
 
+                -- Dynamic tick scaler: skip component Think for throttled bots this tick.
+                -- timeInGame always advances so round-time tracking stays accurate.
+                local botShouldThink = TTTBots.TickScaler.ShouldBotThink(bot)
+
                 for i, component in pairs(bot.components) do
                     if component.Think == nil then
                         print("No think")
                         continue
                     end
+                    -- Dynamic tick scaler gate: if this bot is throttled, skip
+                    -- component thinking entirely (locomotor still runs via
+                    -- StartCommand so movement doesn't freeze).
+                    if not botShouldThink then continue end
                     -- ThinkRate throttling: ThinkRate=1 runs every tick, 2=every other tick, etc.
                     local rate = component.ThinkRate or 1
                     if rate <= 1 or (bot.tick % rate == 0) then

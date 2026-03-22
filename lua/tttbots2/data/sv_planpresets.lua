@@ -46,6 +46,17 @@ local PRESETS = {
                 },
                 Repeat = true,
             },
+            -- SOLO TRAITOR FALLBACK: lone survivor picks off isolated enemies
+            {
+                Chance = 100,
+                Action = ACTIONS.ATTACKANY,
+                Target = TARGETS.SHARED_ISOLATED_ENEMY,
+                MaxAssigned = 1,
+                Conditions = {
+                    MaxTraitors = 1,
+                },
+                Repeat = true,
+            },
         }
     },
     MediumPlayerCount_Standard = {
@@ -83,7 +94,7 @@ local PRESETS = {
                 },
                 Repeat = false,
             },
-            -- kill everyone
+            -- kill everyone (multi-traitor)
             {
                 Chance = 100,
                 Action = ACTIONS.ATTACKANY,
@@ -91,6 +102,17 @@ local PRESETS = {
                 MaxAssigned = 99,
                 Conditions = {
                     MinTraitors = 2,
+                },
+                Repeat = true,
+            },
+            -- SOLO TRAITOR FALLBACK: lone survivor picks off isolated enemies
+            {
+                Chance = 100,
+                Action = ACTIONS.ATTACKANY,
+                Target = TARGETS.SHARED_ISOLATED_ENEMY,
+                MaxAssigned = 1,
+                Conditions = {
+                    MaxTraitors = 1,
                 },
                 Repeat = true,
             },
@@ -164,7 +186,7 @@ local PRESETS = {
                 },
                 Repeat = false,
             },
-            -- kill everyone
+            -- kill everyone (multi-traitor coordinated attack)
             {
                 Chance = 100,
                 Action = ACTIONS.ATTACKANY,
@@ -172,6 +194,19 @@ local PRESETS = {
                 MaxAssigned = 99,
                 Conditions = {
                     MinTraitors = 2,
+                },
+                Repeat = true,
+            },
+            -- SOLO TRAITOR FALLBACK: when all other traitors are dead, the lone
+            -- survivor hunts the most isolated enemy instead of being left jobless.
+            -- Uses SHARED_ISOLATED_ENEMY so the solo traitor picks off weak targets.
+            {
+                Chance = 100,
+                Action = ACTIONS.ATTACKANY,
+                Target = TARGETS.SHARED_ISOLATED_ENEMY,
+                MaxAssigned = 1,
+                Conditions = {
+                    MaxTraitors = 1,
                 },
                 Repeat = true,
             },

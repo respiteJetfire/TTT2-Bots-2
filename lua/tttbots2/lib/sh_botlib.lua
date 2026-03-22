@@ -686,13 +686,13 @@ function TTTBots.Lib.GetAllWitnesses(pos, botsOnly)
 end
 
 TTTBots.Lib.DIFFICULTY_RANGES = {    --- The expected :GetDifficulty() ranges per difficulty setting
-    [1] = -7,                        -- Very easy
-    [2] = -3,                        -- Easy
+    [1] = -12,                       -- Very easy: bots are bumbling idiots
+    [2] = -4,                        -- Easy
     [3] = 0,                         -- Normal
-    [4] = 3,                         -- Hard
-    [5] = 7                          -- Very hard
+    [4] = 4,                         -- Hard
+    [5] = 12                         -- Very hard: bots are elite killing machines
 }
-TTTBots.Lib.DIFFICULTY_TOLERANCE = 4 --- The variability in difficulty that is allowed for a bot to be considered for removal.
+TTTBots.Lib.DIFFICULTY_TOLERANCE = 3 --- The variability in difficulty that is allowed for a bot to be considered for removal.
 
 --- Function responsible for managing bots to be added and removed by the quota system.
 ---@realm server

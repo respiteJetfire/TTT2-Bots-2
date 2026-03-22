@@ -214,6 +214,16 @@ local chancesOf100 = {
     AmnesiacDesperateLate          = 75,  -- Late-round, still no conversion — urgency
     AmnesiacNoBodiesAvailable      = 50,  -- No unconfirmed corpses exist
     AmnesiacPostConversionDisguise = 70,  -- Bot is acting carefully after conversion popup
+    -- -----------------------------------------------------------------------
+    -- Smart Bullets SWEP events
+    -- -----------------------------------------------------------------------
+    SmartBulletsActivated          = 80,  -- Traitor activated Smart Bullets buff (team-only)
+    SmartBulletsKill               = 60,  -- Traitor killed someone during Smart Bullets buff
+    SmartBulletsExpired            = 50,  -- Traitor's Smart Bullets buff wore off
+    SmartBulletsDetected           = 90,  -- Innocent/detective saw Smart Bullets tracers
+    SmartBulletsKOS                = 95,  -- Innocent/detective calling KOS on Smart Bullets user
+    SmartBulletsWarning            = 70,  -- Innocent/detective warning others about Smart Bullets
+    SmartBulletsSurvived           = 60,  -- Bot survived being targeted by Smart Bullets
 }
 
 -- ---------------------------------------------------------------------------

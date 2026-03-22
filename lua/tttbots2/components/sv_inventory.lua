@@ -418,6 +418,13 @@ end
 function BotInventory:ScoreWeaponForContext(wepInfo, bot, distToTarget)
     if not wepInfo then return -999 end
 
+    -- Smart Bullets SWEP is a utility activator, never a combat weapon.
+    if wepInfo.class == "weapon_ttt2_smart_bullets" then return -999 end
+
+    -- Hologram Decoy and Gravity Mine are one-shot utility activators, not combat weapons.
+    if wepInfo.class == "weapon_ttt2_hologram_decoy" then return -999 end
+    if wepInfo.class == "weapon_ttt2_gravity_mine" then return -999 end
+
     -- No ammo anywhere: strongly penalise.
     if (wepInfo.ammo <= 0 and wepInfo.clip <= 0) then return -999 end
 
@@ -504,6 +511,18 @@ function BotInventory:ScoreWeaponForContext(wepInfo, bot, distToTarget)
             end
         else
             score = score + 3
+        end
+    elseif wepInfo.class == "weapon_ttt2_poison_dart" then
+        -- Prefer as a stealth weapon when not in direct combat
+        local inCombat = IsValid(bot.attackTarget)
+        if not inCombat then
+            score = score + 15  -- Strong preference for stealth DOT play
+        else
+            score = score - 5   -- Weak in direct combat (low DPS)
+        end
+        -- Always bonus for silent property
+        if wepInfo.silent then
+            score = score + 5
         end
     elseif wepInfo.class == "m9k_minigun" then
         score = score + 10

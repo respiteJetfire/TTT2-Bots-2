@@ -308,6 +308,44 @@ These cvars enable text-based logging to the **server console** so you can get a
 - **ttt_bot_allow_leaving** (default: `1`)
   - Enables bots to leave the server if they get too bored or angry.
 
+## Dynamic Tick Rate Scaler CVARS
+
+When many bots are on the server, the tick scaler logarithmically reduces how often each bot's behavior tree and components fire, making bots "dumber" to save CPU. Below the threshold bot count, bots run at full speed with zero overhead. The feature is **opt-in** (disabled by default).
+
+The scaling formula is: `skip = floor(1 + factor × ln(botCount / threshold))` when `botCount > threshold`, clamped to `max_skip`. With default settings (threshold 8, factor 1.4427 ≈ 1/ln2):
+
+| Bots | Skip | Effective Hz (at tickrate 5) | Effect |
+|------|------|------------------------------|--------|
+| ≤8   | 1    | 5.0 Hz                       | Full speed, no change |
+| 16   | 2    | 2.5 Hz                       | Half as responsive    |
+| 24   | 2    | 2.5 Hz                       | Half as responsive    |
+| 32   | 3    | ~1.7 Hz                      | Noticeably slower     |
+| 48   | 3    | ~1.7 Hz                      | Noticeably slower     |
+| 64   | 4    | 1.25 Hz                      | Quite sluggish        |
+
+Bots in active combat are exempt from throttling by default (`tickscaler_exempt_combat 1`).
+
+- **ttt_bot_tickscaler_enabled** (default: `0`)
+  - Master toggle. Set to `1` to enable dynamic tick scaling. When `0`, all bots think at the full `TTTBots.Tickrate` with zero overhead.
+
+- **ttt_bot_tickscaler_threshold** (default: `8`)
+  - Bot count at or below which no scaling is applied. Bots think at full speed until there are more than this many.
+
+- **ttt_bot_tickscaler_factor** (default: `1.4427`)
+  - Logarithmic multiplier. Higher = more aggressive throttling. The default `1.4427` (= 1/ln(2)) means every doubling of bots above the threshold adds +1 to the skip value.
+
+- **ttt_bot_tickscaler_max_skip** (default: `6`)
+  - Hard cap on the skip value. At tickrate 5, a skip of 6 means a bot only thinks ~0.83 times per second. Prevents bots from becoming completely unresponsive.
+
+- **ttt_bot_tickscaler_exempt_combat** (default: `1`)
+  - When `1`, bots that currently have an active attack target bypass throttling and think at full speed. This ensures combat responsiveness even on crowded servers.
+
+- **ttt_bot_tickscaler_stagger** (default: `1`)
+  - When `1`, bot think calls are staggered across ticks using each bot's UserID as a phase offset. This spreads CPU load evenly instead of having all bots think on the same tick.
+
+- **ttt_bot_tickscaler_debug** (default: `0`)
+  - Periodically (every 10s) prints tick scaler diagnostics to server console: bot count, skip value, and per-bot effective Hz with combat status. Tag: `[BOTDBG:TICKSCALER]`
+
 ## Pathfinding CVARS
 
 - **ttt_bot_pathfinding_cpf** (default: `240`)

@@ -230,11 +230,11 @@ function BotLocomotor:OnNewTarget(target)
     local REACTION_SPEED_BASE = lib.GetConVarFloat("reaction_speed")
     local DIFFICULTY = lib.GetConVarInt("difficulty")
     local DIFFICULTY_MULTIPLIERS = {
-        [1] = 3,
-        [2] = 2,
-        [3] = 1,
-        [4] = 0.6,
-        [5] = 0,
+        [1] = 5.0,  -- Very easy: 4+ second reaction time, practically AFK
+        [2] = 2.5,  -- Easy: noticeable delay
+        [3] = 1.0,  -- Normal: baseline
+        [4] = 0.4,  -- Hard: fast reactions
+        [5] = 0,    -- Very hard: instant snap-on, zero reaction time
     }
     local TRAITORS_REACT_QUICKER = lib.GetConVarBool("cheat_traitor_reactionspd")
     if TRAITORS_REACT_QUICKER and self.bot:GetTeam() == TEAM_TRAITOR then
@@ -1706,11 +1706,11 @@ function BotLocomotor:TestShouldPreventFire()
         -- At difficulty 1 the bot adds a large extra pause between clicks.
         local difficulty = lib.GetConVarInt("difficulty") or 3
         local SEMI_DELAY_EXTRA = {
-            [1] = 0.60, -- very easy:  weapon delay + 0.60 s
-            [2] = 0.35, -- easy:       weapon delay + 0.35 s
+            [1] = 1.20, -- very easy:  weapon delay + 1.20 s, painfully slow trigger
+            [2] = 0.45, -- easy:       weapon delay + 0.45 s
             [3] = 0.15, -- normal:     weapon delay + 0.15 s
-            [4] = 0.05, -- hard:       weapon delay + 0.05 s
-            [5] = 0.00, -- very hard:  weapon delay + 0.00 s (fire as fast as possible)
+            [4] = 0.03, -- hard:       weapon delay + 0.03 s, near-perfect timing
+            [5] = 0.00, -- very hard:  weapon delay + 0.00 s (fire as fast as mechanically possible)
         }
         local extraDelay = SEMI_DELAY_EXTRA[difficulty] or 0.15
         local fireDelay = (wepInfo.fire_delay or 0.2) + extraDelay
@@ -2077,12 +2077,14 @@ function plyMeta:SetAttackTarget(target, reason, priority)
     reason   = reason   or (self._pendingTargetReason)   or "LEGACY"
     priority = priority or (self._pendingTargetPriority)  or (Arb and Arb.PRIORITY and Arb.PRIORITY.ROLE_HOSTILITY or 3)
 
-    -- Ally check: block attacking allies UNLESS this is a self-defense response.
-    -- Bots must always be allowed to fight back against someone who is actively
-    -- shooting them, even if that person is on the same team.
-    local selfDefensePri = Arb and Arb.PRIORITY and Arb.PRIORITY.SELF_DEFENSE or 5
-    if IsValid(target) and TTTBots.Roles.IsAllies(self, target) then
-        if priority < selfDefensePri then
+    -- Ally check: block attacking allies (both bots AND players).
+    -- Uses perception-aware check to handle disguised roles (Spy, etc.).
+    -- Self-defense is no longer an override here — the self-defense trigger
+    -- in sv_morality_suspicion.lua already checks alliance before requesting.
+    if IsValid(target) and target:IsPlayer() then
+        local isAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(self, target))
+            or TTTBots.Roles.IsAllies(self, target)
+        if isAlly then
             return
         end
     end

@@ -312,6 +312,22 @@ bot_sh_cvar("chatter_voice_local_tts_url", "",
 bot_sh_cvar("chatter_voice_url_mode", "0",
     "To enable URL mode set this to 1, this will make the bot voice chat go through URL rather than net.Send which should be quicker, to disable set to 0 (default).")
 
+-- Dynamic Tick Rate Scaler cvars
+bot_sh_cvar("tickscaler_enabled", "0",
+    "Enable dynamic tick rate scaling. When enabled, bots on high-population servers will think less often (logarithmically scaled), making them 'dumber' to reduce CPU load. 0 = off, 1 = on.")
+bot_sh_cvar("tickscaler_threshold", "8",
+    "Bot count at or below which no tick scaling is applied — bots think at full speed. Above this count the logarithmic slowdown kicks in.")
+bot_sh_cvar("tickscaler_factor", "1.4427",
+    "Logarithmic multiplier for tick scaling. Higher = more aggressive throttling as bot count grows. Default 1.4427 (= 1/ln2) means doubling bots above threshold adds +1 skip.")
+bot_sh_cvar("tickscaler_max_skip", "6",
+    "Hard cap on the tick-skip value. A skip of 6 at tickrate 5 means a bot only thinks ~0.83 times per second. Prevents bots from becoming completely unresponsive.")
+bot_sh_cvar("tickscaler_exempt_combat", "1",
+    "If 1, bots that are currently in combat (have an active attack target) are NOT throttled and think at full speed regardless of population.")
+bot_sh_cvar("tickscaler_stagger", "1",
+    "If 1, bot think calls are staggered across ticks so not all bots skip the same frames. Distributes CPU load more evenly.")
+bot_sh_cvar("tickscaler_debug", "0",
+    "Periodically prints tick scaler diagnostics to server console: bot count, skip value, per-bot effective Hz, and combat exemptions. Filter: [BOTDBG:TICKSCALER]")
+
 -- Evidence / Social Deduction cvars
 bot_sh_cvar("evidence_kos_threshold", "14",
     "The minimum evidence weight (sum of all evidence entries) required before a bot will call KOS on a player. Higher = less accusatory.")

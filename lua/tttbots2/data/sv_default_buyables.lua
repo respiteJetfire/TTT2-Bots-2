@@ -1542,6 +1542,172 @@ Registry.InfiniShoot = {
     Roles = KillerRoles,
 }
 
+---@type Buyable
+--- Smart Bullets: one-time use traitor equipment that grants auto-aim headshots
+--- for a limited duration. Consumed on activation. Produces extremely visible
+--- red energy tracers that reveal the user as a traitor.
+Registry.SmartBullets = {
+    Name = "Smart Bullets",
+    Class = "weapon_ttt2_smart_bullets",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = true,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        -- Don't buy if buff is already active
+        if ply.ttt2_smart_bullets_active then return false end
+        -- Don't buy if we already have one in inventory
+        if ply:HasWeapon("weapon_ttt2_smart_bullets") then return false end
+        -- Trait preferences: aggressive, gimmick, or tryhard bots
+        return testPlyHasTrait(ply, "aggressive", 4)
+            or testPlyHasTrait(ply, "gimmick", 3)
+            or testPlyHasTrait(ply, "tryhard", 5)
+    end,
+    SituationalScore = function(ply)
+        local base = 5
+        -- More enemies alive = more value from the buff
+        local enemies = countAliveNonAllies(ply)
+        if enemies >= 3 then base = base + 2 end
+        if enemies >= 5 then base = base + 3 end
+        -- Currently in combat = higher urgency
+        if IsValid(ply.attackTarget) then base = base + 4 end
+        -- Bonus if we have a good weapon to pair with the buff
+        local inv = ply.BotInventory and ply:BotInventory()
+        if inv then
+            local bestSpecial = inv:GetSpecialPrimary()
+            if bestSpecial then base = base + 3 end
+            local primary = inv:GetPrimary()
+            if primary then base = base + 2 end
+        end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Silent ranged DOT weapon — ideal for stealthy traitor play.
+Registry.PoisonDartGun = {
+    Name = "Poison Dart Gun",
+    Class = "weapon_ttt2_poison_dart",
+    Price = 1,
+    Priority = 4,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt2_poison_dart") then return false end
+        -- Stealth-oriented bots prefer this weapon
+        return testPlyHasTrait(ply, "disguiser", 3)
+            or testPlyHasTrait(ply, "cautious", 3)
+            or testPlyHasTrait(ply, "strategic", 4)
+    end,
+    SituationalScore = function(ply)
+        local base = 5
+        local enemies = countAliveNonAllies(ply)
+        -- More valuable when many targets (poison multiple)
+        if enemies >= 4 then base = base + 3 end
+        if enemies >= 6 then base = base + 2 end
+        -- Stealth bonus when not in active combat
+        if not IsValid(ply.attackTarget) then base = base + 3 end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false, -- It's a utility sidearm, not a primary
+}
+
+---@type Buyable
+--- Spawns a fake player model that walks forward, distracting innocents.
+Registry.HologramDecoy = {
+    Name = "Hologram Decoy",
+    Class = "weapon_ttt2_hologram_decoy",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt2_hologram_decoy") then return false end
+        return testPlyHasTrait(ply, "gimmick", 3)
+            or testPlyHasTrait(ply, "disguiser", 4)
+            or testPlyHasTrait(ply, "strategic", 4)
+    end,
+    SituationalScore = function(ply)
+        local base = 4
+        local enemies = countAliveNonAllies(ply)
+        -- More useful with many innocents to distract
+        if enemies >= 5 then base = base + 3 end
+        -- Less useful in overtime (people are cautious)
+        local awareness = ply.BotRoundAwareness and ply:BotRoundAwareness()
+        if awareness then
+            local phase = awareness:GetPhase()
+            if phase == "EARLY" or phase == 1 then base = base + 2 end
+        end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Disables nearby equipment (health stations, radars) for a duration.
+Registry.EMPGrenade = {
+    Name = "EMP Grenade",
+    Class = "weapon_ttt2_emp_grenade",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt2_emp_grenade") then return false end
+        return testPlyHasTrait(ply, "grenades", 3)
+            or testPlyHasTrait(ply, "strategic", 4)
+    end,
+    SituationalScore = function(ply)
+        local base = 3
+        -- Higher value if health stations exist nearby
+        for _, ent in ipairs(ents.FindByClass("ttt_health_station")) do
+            if IsValid(ent) and ply:GetPos():Distance(ent:GetPos()) < 2000 then
+                base = base + 5
+                break
+            end
+        end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Throwable mine that pulls players toward it, then detonates.
+Registry.GravityMine = {
+    Name = "Gravity Mine",
+    Class = "weapon_ttt2_gravity_mine",
+    Price = 1,
+    Priority = 4,
+    RandomChance = 1,
+    ShouldAnnounce = false,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt2_gravity_mine") then return false end
+        return testPlyHasTrait(ply, "grenades", 3)
+            or testPlyHasTrait(ply, "planter", 3)
+            or testPlyHasTrait(ply, "aggressive", 5)
+    end,
+    SituationalScore = function(ply)
+        local base = 5
+        local enemies = countAliveNonAllies(ply)
+        -- More valuable with clusters of enemies
+        if enemies >= 3 then base = base + 3 end
+        if enemies >= 6 then base = base + 2 end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
 for key, data in pairs(Registry) do
 	TTTBots.Buyables.RegisterBuyable(data)
 end

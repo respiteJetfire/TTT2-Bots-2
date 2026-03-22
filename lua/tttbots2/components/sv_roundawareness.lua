@@ -60,6 +60,8 @@ function BotRoundAwareness:ClearRoundState()
     self.confirmedTraitorDeaths = 0
     self.tooQuiet               = false
     self.tooQuietTimer          = CurTime()
+    self.minPhase               = nil       -- forced minimum phase (set when ally dies)
+    self.minAggressionMult      = nil       -- forced minimum aggression (set when ally dies)
 end
 
 ---------------------------------------------------------------------------
@@ -124,6 +126,17 @@ function BotRoundAwareness:UpdatePhase()
         phase = PHASE.OVERTIME
     end
 
+    -- Respect forced minimum phase (set when an allied traitor dies).
+    -- Phase ordering: EARLY < MID < LATE < OVERTIME
+    if self.minPhase then
+        local phaseOrder = { [PHASE.EARLY] = 1, [PHASE.MID] = 2, [PHASE.LATE] = 3, [PHASE.OVERTIME] = 4 }
+        local currentOrder = phaseOrder[phase] or 1
+        local minOrder = phaseOrder[self.minPhase] or 1
+        if currentOrder < minOrder then
+            phase = self.minPhase
+        end
+    end
+
     self.phase         = phase
     self.phaseProgress = progress
 
@@ -136,6 +149,10 @@ function BotRoundAwareness:UpdatePhase()
     elseif phase == PHASE.LATE     then aggrBase = 1.7
     else                                aggrBase = 2.2 end
     if haste and phase == PHASE.OVERTIME then aggrBase = aggrBase + 0.3 end
+    -- Respect forced minimum aggression (set when an allied traitor dies)
+    if self.minAggressionMult and aggrBase < self.minAggressionMult then
+        aggrBase = self.minAggressionMult
+    end
     self.aggressionMult = startsFights and aggrBase or 1.0
 
     -- Group urgency (innocents benefit most)
@@ -325,12 +342,96 @@ if SERVER then
     end)
 
     --- On player death: reset the "too quiet" timer for all bots
+    --- and escalate phase for surviving traitor allies when a teammate dies.
     hook.Add("PlayerDeath", "TTTBots.RoundAwareness.PlayerDeath", function(victim, inflictor, attacker)
         if not TTTBots.Bots then return end
         local now = CurTime()
+
+        -- Check if the victim was a traitor-team member
+        local victimIsTraitor = false
+        if IsValid(victim) then
+            local victimRole = TTTBots.Roles.GetRoleFor(victim)
+            if victimRole and victimRole:GetTeam() == TEAM_TRAITOR then
+                victimIsTraitor = true
+            end
+        end
+
         for _, bot in ipairs(TTTBots.Bots) do
             if IsValid(bot) and bot.components and bot.components.roundawareness then
                 bot.components.roundawareness.tooQuietTimer = now
+
+                -- When a traitor teammate dies, escalate surviving traitors'
+                -- phase to at least MID with boosted aggression.
+                -- This prevents the "solo traitor stuck in EARLY" problem.
+                if victimIsTraitor and bot ~= victim and TTTBots.Lib.IsPlayerAlive(bot) then
+                    local botRole = TTTBots.Roles.GetRoleFor(bot)
+                    if botRole and botRole:GetTeam() == TEAM_TRAITOR then
+                        local ra = bot.components.roundawareness
+                        local currentPhase = ra.phase
+
+                        -- If still in EARLY, force-escalate to MID
+                        if currentPhase == PHASE.EARLY then
+                            ra.phase = PHASE.MID
+                            ra.aggressionMult = math.max(ra.aggressionMult, 1.5)
+                            -- Set minimum phase floor so UpdatePhase doesn't
+                            -- downgrade back to EARLY on the next think tick
+                            ra.minPhase = PHASE.MID
+                            ra.minAggressionMult = 1.5
+
+                            -- Check if this bot is now the LAST traitor alive
+                            local aliveTraitorAllies = 0
+                            local allies = TTTBots.Roles.GetLivingAllies(bot)
+                            if allies then
+                                for _, ally in ipairs(allies) do
+                                    if ally ~= bot and TTTBots.Lib.IsPlayerAlive(ally) then
+                                        aliveTraitorAllies = aliveTraitorAllies + 1
+                                    end
+                                end
+                            end
+
+                            -- Solo traitor gets even more aggressive
+                            if aliveTraitorAllies == 0 then
+                                ra.phase = PHASE.LATE
+                                ra.aggressionMult = math.max(ra.aggressionMult, 1.7)
+                                ra.minPhase = PHASE.LATE
+                                ra.minAggressionMult = 1.7
+                            end
+
+                            if TTTBots.Lib.GetConVarBool("debug_misc") then
+                                print(string.format(
+                                    "[RoundAwareness] %s phase escalated to %s (ally %s died, aggr=%.1f)",
+                                    bot:Nick(), ra.phase, victim:Nick(), ra.aggressionMult))
+                            end
+                        end
+
+                        -- Also clear any current FollowPlan job so the bot
+                        -- re-evaluates with new (solo) conditions
+                        local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+                        if state and state.Job then
+                            local job = state.Job
+                            -- Clear jobs gated on MinTraitors that no longer apply
+                            if job.Conditions and job.Conditions.MinTraitors then
+                                local aliveTraitors = #TTTBots.Lib.FilterTable(
+                                    TTTBots.Match.AlivePlayers,
+                                    function(ply)
+                                        local team = ply.GetTeam and ply:GetTeam()
+                                        return team == TEAM_TRAITOR
+                                    end)
+                                if aliveTraitors < job.Conditions.MinTraitors then
+                                    state.Job = nil
+                                    state.shouldClear = true
+                                end
+                            end
+                        end
+
+                        -- Invalidate shared target cache so the survivor picks
+                        -- a fresh target instead of re-engaging the player
+                        -- who just killed the ally
+                        if TTTBots.Plans.SharedTargetCache then
+                            TTTBots.Plans.SharedTargetCache = {}
+                        end
+                    end
+                end
             end
         end
     end)

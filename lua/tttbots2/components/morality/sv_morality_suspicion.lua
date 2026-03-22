@@ -61,6 +61,9 @@ BotMorality.SUSPICIONVALUES = {
     AnkhConversionWitnessed = 10,  -- We saw someone converting (holding USE on) an ankh
     AnkhDestructionWitnessed = 5,  -- We saw someone shooting/damaging an ankh
     AnkhLoiteringNearby = 2,       -- Non-owner player loitering near an ankh (per interval)
+    -- Smart Bullets SWEP events
+    SmartBulletsVisual = 8,        -- We SAW bright red tracer beams from Smart Bullets (very distinctive)
+    SmartBulletsAudio = 4,         -- We HEARD Smart Bullets firing nearby (unusual sound cue)
 }
 
 BotMorality.SuspicionDescriptions = {
@@ -328,22 +331,34 @@ function BotMorality:OnWitnessHurtIfAlly(victim, attacker, healthRemaining, dama
         or TTTBots.Roles.IsAllies(self.bot, attacker)
     if attackerIsAlly then return end
 
-    -- Defend our ally: use SELF_DEFENSE priority so the bot actually engages
-    -- instead of waiting for suspicion to slowly reach KOS threshold.
-    -- Allow overriding lower-priority targets (e.g. OPPORTUNISTIC wander attacks).
+    -- Defend our ally: use PLAYER_REQUEST priority so the bot actively engages
+    -- the threat. We don't use SELF_DEFENSE here because the ally-protection
+    -- system now clears ally targets at SELF_DEFENSE priority, and we want
+    -- SetAttackTarget's ally gate to correctly block if the attacker somehow
+    -- turns out to be an ally (should be caught above, but belt-and-suspenders).
     local currentPri = self.bot.attackTargetPriority or 0
-    if currentPri < PRI.SELF_DEFENSE then
+    if currentPri < PRI.PLAYER_REQUEST then
         -- Seed attacker position so AttackTarget can path toward them immediately
         local mem = self.bot.components and self.bot.components.memory
         if mem and mem.UpdateKnownPositionFor and IsValid(attacker) then
             mem:UpdateKnownPositionFor(attacker, attacker:GetPos())
         end
-        Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.SELF_DEFENSE)
+        Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.PLAYER_REQUEST)
     end
 end
 
 function BotMorality:OnKilled(attacker)
-    if not (attacker and IsValid(attacker) and attacker:IsPlayer()) or (self.bot:GetTeam() == TEAM_INNOCENT and attacker:GetTeam() == TEAM_INNOCENT) then
+    if not (attacker and IsValid(attacker) and attacker:IsPlayer()) then
+        self.bot.grudge = nil
+        return
+    end
+
+    -- Never hold a grudge against an ally (teammate) — this applies to all
+    -- teams, not just innocents. Prevents Hothead traitors from grudge-hunting
+    -- fellow traitors next round after accidental friendly fire.
+    local attackerIsAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(self.bot, attacker))
+        or TTTBots.Roles.IsAllies(self.bot, attacker)
+    if attackerIsAlly then
         self.bot.grudge = nil
         return
     end
@@ -475,7 +490,33 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
         return
     end
     if self.bot == victim then
-        -- Bot was hurt: request retaliation and apply HurtMe suspicion.
+        -- Bot was hurt: check if the attacker is an ally (bot OR player).
+        -- If so, do NOT retaliate — just apply suspicion and call out.
+        -- This prevents friendly-fire chains between teammates.
+        local attackerIsAlly = IsValid(attacker) and attacker:IsPlayer()
+            and ((TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(self.bot, attacker))
+                or TTTBots.Roles.IsAllies(self.bot, attacker))
+        if attackerIsAlly then
+            -- Still apply suspicion so repeated team damage accumulates
+            self:ChangeSuspicion(attacker, "HurtMe")
+            local personality = self.bot:BotPersonality()
+            if personality then
+                personality:OnPressureEvent("Hurt")
+            end
+            -- Verbally call out (rate-limited per attacker to 10s)
+            local now = CurTime()
+            self.lastShotChatterTime = self.lastShotChatterTime or {}
+            if (now - (self.lastShotChatterTime[attacker] or 0)) >= 10 then
+                self.lastShotChatterTime[attacker] = now
+                local chatter = self.bot:BotChatter()
+                if chatter and chatter.On and TTTBots.Roles.GetRoleFor(self.bot):GetUsesSuspicion() then
+                    chatter:On("BeingShotAt", { player = attacker:Nick(), playerEnt = attacker })
+                end
+            end
+            return -- ally hit us, do NOT retaliate
+        end
+
+        -- Non-ally attacker: request retaliation and apply HurtMe suspicion.
         -- Seed the attacker's position into memory so AttackTarget's Seek mode
         -- can immediately path toward them rather than wandering aimlessly.
         -- This is critical when the bot is shot from behind and has never

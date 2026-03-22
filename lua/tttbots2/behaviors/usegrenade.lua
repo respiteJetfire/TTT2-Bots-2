@@ -34,6 +34,8 @@ local function GetGrenadeType(classname)
 		return "smoke"
 	elseif string.find(c, "firegrenade") or string.find(c, "fire") or string.find(c, "incendiary") then
 		return "incendiary"
+	elseif string.find(c, "emp") then
+		return "emp"
 	end
 	return "generic"
 end
@@ -156,6 +158,32 @@ function UseGrenade.GetBestThrowReason(bot)
 		local dropDistance = (probePos - traceResult.HitPos):Length()
 		if dropDistance > LEDGE_DROP_THRESHOLD then
 			return { throwPos = targetPos, type = "discombob", reason = "near_ledge" }
+		end
+
+		return nil
+	end
+
+	-- ── EMP ──────────────────────────────────────────────────────────────────
+	if grenadeType == "emp" then
+		-- Look for equipment entities nearby
+		local equipClasses = {"ttt_health_station", "ttt_radio", "ttt_beacon", "ttt_decoy"}
+		local myPos = bot:GetPos()
+		local bestEquipPos = nil
+		local bestDist = 1500
+
+		for _, class in ipairs(equipClasses) do
+			for _, ent in ipairs(ents.FindByClass(class)) do
+				if not IsValid(ent) then continue end
+				local d = myPos:Distance(ent:GetPos())
+				if d < bestDist then
+					bestDist = d
+					bestEquipPos = ent:GetPos()
+				end
+			end
+		end
+
+		if bestEquipPos then
+			return { throwPos = bestEquipPos, type = "emp", reason = "disable_equipment" }
 		end
 
 		return nil
