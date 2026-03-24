@@ -400,3 +400,270 @@ PRESETS.MediumPlayerCount_DetectiveHunt = {
 }
 
 TTTBots.Plans.PRESETS = PRESETS
+
+---------------------------------------------------------------------------
+-- Revival / Conversion Recovery Presets
+--
+-- These plans activate when a hostile team (traitors, necromancers, etc.)
+-- is outnumbered AND has the capability to revive corpses or convert
+-- living enemies.  Instead of rushing into fights they can't win, the
+-- team splits: some bots roam toward corpses to revive/convert, while
+-- one or two create opportunities by isolating targets for kills.
+--
+-- Key design:
+--   1.  One bot stalks / creates a fresh corpse (the "hunter").
+--   2.  Bots with revival weapons roam toward corpse-rich areas.
+--   3.  After the roam timer, any remaining bots attack to clean up.
+--   4.  These presets have HIGHER Chance when the team is heavily
+--       outnumbered, giving them priority over pure-aggression plans.
+---------------------------------------------------------------------------
+
+--- Revival Blitz — small server: outnumbered team with revive capability.
+--- One bot hunts isolated targets to create corpses, others roam to revive.
+PRESETS.LowPlayer_RevivalRecovery = {
+    Name = "LowPlayer_RevivalRecovery",
+    Description = "Outnumbered team with revival capability: create corpses and revive them as allies.",
+    Conditions = {
+        PlyMin = 1,
+        PlyMax = 6,
+        MinTraitors = 1,
+        TeamOutnumberedRatio = 0.75,
+        RequiresReviveOrConvert = true,
+        Chance = 70,
+    },
+    Jobs = {
+        -- Hunter: one bot stalks the most isolated enemy to create a corpse.
+        {
+            Chance = 100,
+            Action = ACTIONS.ATTACK,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 1,
+            MinDuration = 15,
+            MaxDuration = 30,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Revivers: roam toward corpse areas to use defibs/conversion weapons.
+        {
+            Chance = 100,
+            Action = ACTIONS.ROAM,
+            Target = TARGETS.NEAREST_CORPSE_AREA,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 35,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- After revive window: coordinated attack on shared enemy.
+        {
+            Chance = 100,
+            Action = ACTIONS.COORD_ATTACK,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 30,
+            Conditions = {},
+            Repeat = true,
+        },
+    },
+}
+
+--- Revival Recovery — medium server: outnumbered team with revive capability.
+--- Split strategy: hunter creates corpses, revivers roam, then all attack.
+PRESETS.MediumPlayer_RevivalRecovery = {
+    Name = "MediumPlayer_RevivalRecovery",
+    Description = "Outnumbered team creates kills then revives the corpses to rebuild numbers.",
+    Conditions = {
+        PlyMin = 5,
+        PlyMax = 9,
+        MinTraitors = 1,
+        TeamOutnumberedRatio = 0.6,
+        RequiresReviveOrConvert = true,
+        Chance = 65,
+    },
+    Jobs = {
+        -- Hunter: one bot picks off an isolated enemy.
+        {
+            Chance = 100,
+            Action = ACTIONS.ATTACK,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 1,
+            MinDuration = 15,
+            MaxDuration = 30,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Revivers: bots with defibs roam toward corpse-rich areas.
+        {
+            Chance = 100,
+            Action = ACTIONS.ROAM,
+            Target = TARGETS.NEAREST_CORPSE_AREA,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 40,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Fallback coordinated attack once revival window is over.
+        {
+            Chance = 100,
+            Action = ACTIONS.COORD_ATTACK,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 30,
+            Conditions = {},
+            Repeat = true,
+        },
+    },
+}
+
+--- Revival Recovery — large server: heavily outnumbered team.
+--- More aggressive split: dedicated bomber distracts, multiple hunters create
+--- corpses, revivers fan out to the bodies.
+PRESETS.LargePlayer_RevivalRecovery = {
+    Name = "LargePlayer_RevivalRecovery",
+    Description = "Heavily outnumbered team: bomb distraction + targeted kills + mass revival.",
+    Conditions = {
+        PlyMin = 10,
+        PlyMax = 16,
+        MinTraitors = 2,
+        TeamOutnumberedRatio = 0.5,
+        RequiresReviveOrConvert = true,
+        Chance = 60,
+    },
+    Jobs = {
+        -- Bomber distraction: one bot plants C4 to draw attention away.
+        {
+            Chance = 30,
+            Action = ACTIONS.PLANT,
+            Target = TARGETS.ANY_BOMBSPOT,
+            MaxAssigned = 1,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Hunters: up to 2 bots stalk isolated enemies to create corpses.
+        {
+            Chance = 100,
+            Action = ACTIONS.ATTACK,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 2,
+            MinDuration = 10,
+            MaxDuration = 25,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Revivers: remaining bots roam toward corpses.
+        {
+            Chance = 100,
+            Action = ACTIONS.ROAM,
+            Target = TARGETS.NEAREST_CORPSE_AREA,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 40,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Final push: coordinated attack.
+        {
+            Chance = 100,
+            Action = ACTIONS.COORD_ATTACK,
+            Target = TARGETS.SHARED_ENEMY,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 30,
+            Conditions = {},
+            Repeat = true,
+        },
+    },
+}
+
+--- Conversion Blitz — team has conversion weapons (sidekick deagle, etc.)
+--- and is outnumbered. Bots roam to find living targets for conversion,
+--- with one bot stalking isolated enemies in case conversion fails.
+PRESETS.ConversionRecovery = {
+    Name = "ConversionRecovery",
+    Description = "Outnumbered team with conversion capability: seek out isolated targets to convert.",
+    Conditions = {
+        PlyMin = 4,
+        PlyMax = 16,
+        MinTraitors = 1,
+        TeamOutnumberedRatio = 0.65,
+        RequiresConvertCapability = true,
+        Chance = 55,
+    },
+    Jobs = {
+        -- Follow an isolated enemy at a distance (conversion prep).
+        {
+            Chance = 100,
+            Action = ACTIONS.FOLLOW,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 2,
+            MinDuration = 10,
+            MaxDuration = 25,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Others roam unpopular areas looking for stragglers to convert.
+        {
+            Chance = 100,
+            Action = ACTIONS.ROAM,
+            Target = TARGETS.RAND_UNPOPULAR_AREA,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 35,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- Cleanup: attack remaining enemies.
+        {
+            Chance = 100,
+            Action = ACTIONS.ATTACKANY,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 99,
+            Conditions = {},
+            Repeat = true,
+        },
+    },
+}
+
+--- Corpse Harvest — there are already corpses on the map AND the team has
+--- revive capability. Skip the "create corpses" phase and immediately roam
+--- to revive. This is the fastest recovery plan.
+PRESETS.CorpseHarvest = {
+    Name = "CorpseHarvest",
+    Description = "Corpses already exist — immediately roam to revive them.",
+    Conditions = {
+        PlyMin = 1,
+        PlyMax = 16,
+        MinTraitors = 1,
+        TeamOutnumberedRatio = 0.75,
+        RequiresReviveCapability = true,
+        MinCorpses = 1,
+        Chance = 80,
+    },
+    Jobs = {
+        -- Everyone roam to corpses for immediate revival.
+        {
+            Chance = 100,
+            Action = ACTIONS.ROAM,
+            Target = TARGETS.NEAREST_CORPSE_AREA,
+            MaxAssigned = 99,
+            MinDuration = 10,
+            MaxDuration = 30,
+            Conditions = {},
+            Repeat = false,
+        },
+        -- After revival window: coordinated strike.
+        {
+            Chance = 100,
+            Action = ACTIONS.COORD_ATTACK,
+            Target = TARGETS.SHARED_ISOLATED_ENEMY,
+            MaxAssigned = 99,
+            MinDuration = 15,
+            MaxDuration = 30,
+            Conditions = {},
+            Repeat = true,
+        },
+    },
+}

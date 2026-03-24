@@ -341,6 +341,45 @@ function PlanCoordinator.CalcSharedIsolatedEnemy(caller)
     return bestTarget
 end
 
+--- A Target Hashtable function to calculate a target position near a revivable corpse.
+--- Guides bots toward areas with corpses so they can use revival weapons.
+--- Prefers corpses that aren't already claimed by another bot.
+function PlanCoordinator.CalcNearestCorpseArea(caller)
+    local corpses = TTTBots.Lib.GetRevivableCorpses and TTTBots.Lib.GetRevivableCorpses() or {}
+    local callerPos = caller:GetPos()
+    local bestCorpsePos = nil
+    local bestDist = math.huge
+    local cTime = CurTime()
+
+    for _, rag in ipairs(corpses) do
+        if not TTTBots.Lib.IsValidBody(rag) then continue end
+
+        local deadply = player.GetBySteamID64(rag.sid64)
+        if not IsValid(deadply) then continue end
+        if (deadply.reviveCooldown or 0) > cTime then continue end
+
+        -- Skip if another bot is already claiming this body
+        if TTTBots.Match.MarkedForDefib[deadply]
+            and TTTBots.Match.MarkedForDefib[deadply] ~= caller then
+            continue
+        end
+
+        local ragPos = rag:GetPos()
+        local dist = callerPos:Distance(ragPos)
+        if dist < bestDist then
+            bestDist = dist
+            bestCorpsePos = ragPos
+        end
+    end
+
+    -- Fallback: if no corpses, roam to an unpopular area to find kills/corpses
+    if not bestCorpsePos then
+        return PlanCoordinator.CalcUnpopularArea(caller)
+    end
+
+    return bestCorpsePos
+end
+
 local P = PlanCoordinator
 local targetHashTable = {
     [TARGETS.ANY_BOMBSPOT] = P.CalcBombSpot,
@@ -358,6 +397,7 @@ local targetHashTable = {
     [TARGETS.RAND_UNPOPULAR_AREA] = P.CalcUnpopularArea,
     [TARGETS.SHARED_ENEMY] = P.CalcSharedEnemy,
     [TARGETS.SHARED_ISOLATED_ENEMY] = P.CalcSharedIsolatedEnemy,
+    [TARGETS.NEAREST_CORPSE_AREA] = P.CalcNearestCorpseArea,
 }
 
 --- Calculates the target for a job, based upon the job's Target string.

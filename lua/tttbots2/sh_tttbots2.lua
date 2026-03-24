@@ -15,10 +15,18 @@ if not gamemodeCompatible() then return end
 -- Declare TTTBots table
 TTTBots = {
     Version = "v1.3",
-    Tickrate = 5, -- Ticks per second. Do not change unless you really know what you're doing.
+    Tickrate = 5, -- Ticks per second. Overridden by the ttt_bot_tickrate cvar at runtime.
     Lib = {},
     Chat = {}
 }
+
+--- Read the base tick rate from the cvar (or fall back to the default 5).
+--- Called during Reload() to pick up cvar changes and auto-adjust results.
+function TTTBots.RefreshTickrate()
+    local cv = GetConVar("ttt_bot_tickrate")
+    local rate = cv and cv:GetInt() or 5
+    TTTBots.Tickrate = math.Clamp(rate, 1, 20)
+end
 
 function TTTBots.Chat.MessagePlayer(ply, message)
     ply:ChatPrint("[TTT Bots 2] " .. message)
@@ -116,6 +124,9 @@ local alreadyAddedResources = false
 
 ---Load all of the mod's depdenencies and initialize the mod
 function TTTBots.Reload()
+    -- Pick up the current tickrate cvar value before building the timer
+    TTTBots.RefreshTickrate()
+
     includeServer()
 
     -- Shorthands
@@ -127,6 +138,9 @@ function TTTBots.Reload()
 
     -- Bot behavior
     timer.Create("TTTBots_Tick", 1 / TTTBots.Tickrate, 0, function()
+        -- Performance sampling: record tick start for auto-adjuster
+        if TTTBots.TickRateAuto then TTTBots.TickRateAuto.BeginSample() end
+
         local call, err = pcall(function()
             -- _testBotAttack()
             TTTBots.Match.Tick()
@@ -136,10 +150,16 @@ function TTTBots.Reload()
 
             -- Run behavior trees only on bots that the tick scaler allows
             -- this tick. When scaling is disabled every bot passes.
+            -- Emergency escalation may additionally skip tree runs for idle bots.
             for _, bot in ipairs(TTTBots.Bots) do
                 if not IsValid(bot) then continue end
                 if not bot.components then continue end
                 if not TTTBots.TickScaler.ShouldBotThink(bot) then continue end
+                -- Escalation: skip behavior tree for non-combat bots when under heavy load
+                if TTTBots.TickRateAuto and TTTBots.TickRateAuto.ShouldSkipBehaviorTree
+                   and TTTBots.TickRateAuto.ShouldSkipBehaviorTree(bot) then
+                    continue
+                end
                 local tree = TTTBots.Behaviors.GetTreeFor(bot)
                 if not tree then continue end
                 TTTBots.Behaviors.RunTree(bot, tree)
@@ -160,6 +180,20 @@ function TTTBots.Reload()
                 -- timeInGame always advances so round-time tracking stays accurate.
                 local botShouldThink = TTTBots.TickScaler.ShouldBotThink(bot)
 
+                -- Emergency escalation: skip behavior trees for non-combat bots
+                -- when performance is still bad at minimum tick rate.
+                local escalationTreeSkip = false
+                if TTTBots.TickRateAuto and TTTBots.TickRateAuto.ShouldSkipBehaviorTree then
+                    escalationTreeSkip = TTTBots.TickRateAuto.ShouldSkipBehaviorTree(bot)
+                end
+
+                -- Emergency escalation: multiply component ThinkRates when
+                -- the auto-adjuster has escalated beyond tick rate reduction.
+                local thinkRateMulti = 1
+                if TTTBots.TickRateAuto and TTTBots.TickRateAuto.GetThinkRateMultiplier then
+                    thinkRateMulti = TTTBots.TickRateAuto.GetThinkRateMultiplier()
+                end
+
                 for i, component in pairs(bot.components) do
                     if component.Think == nil then
                         print("No think")
@@ -169,8 +203,12 @@ function TTTBots.Reload()
                     -- component thinking entirely (locomotor still runs via
                     -- StartCommand so movement doesn't freeze).
                     if not botShouldThink then continue end
+                    -- Escalation gate: if the behavior tree is being skipped
+                    -- for this bot, also skip heavy components (but not locomotor).
+                    if escalationTreeSkip and component ~= bot.components.locomotor then continue end
                     -- ThinkRate throttling: ThinkRate=1 runs every tick, 2=every other tick, etc.
-                    local rate = component.ThinkRate or 1
+                    -- Emergency escalation multiplies the rate to slow components further.
+                    local rate = (component.ThinkRate or 1) * thinkRateMulti
                     if rate <= 1 or (bot.tick % rate == 0) then
                         component:Think()
                     end
@@ -185,6 +223,9 @@ function TTTBots.Reload()
         if err then
             ErrorNoHaltWithStack(err)
         end
+
+        -- Performance sampling: record tick end for auto-adjuster
+        if TTTBots.TickRateAuto then TTTBots.TickRateAuto.EndSample() end
     end)
 
     -- GM:StartCommand

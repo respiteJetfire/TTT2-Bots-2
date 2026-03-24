@@ -251,6 +251,28 @@ L.help_tttbots_evidence_trust = "Controls the trust network system used for vouc
 
 -- Performance / Dynamic Tick Rate Scaler
 L.submenu_tttbots_performance_title = "Performance"
+
+-- Base Tick Rate
+L.header_tttbots_tickrate = "Base Tick Rate"
+L.help_tttbots_tickrate = "Controls how many times per second bots think (run their behavior trees and components). Lower values reduce CPU load but make bots less responsive. Default is 5. Changes apply immediately when auto-adjust is off, or set the target ceiling when auto-adjust is on."
+L.label_tttbots_tickrate = "Bot Tick Rate (ticks/sec)"
+
+-- Automatic Tick Rate Adjustment
+L.header_tttbots_tickrate_auto = "Automatic Tick Rate Adjustment"
+L.help_tttbots_tickrate_auto = "When enabled, the system monitors how long each bot tick takes. If the average tick duration exceeds the threshold (default 30ms), the tick rate is immediately lowered. When performance stays consistently below the threshold for the recovery delay, the rate gradually recovers back to the configured value above."
+L.label_tttbots_tickrate_auto = "Enable Auto-Adjust"
+L.label_tttbots_tickrate_auto_threshold_ms = "Max Tick Duration (ms)"
+L.label_tttbots_tickrate_auto_min = "Minimum Tick Rate Floor"
+L.label_tttbots_tickrate_auto_recover = "Recovery Delay (seconds)"
+L.label_tttbots_tickrate_auto_debug = "Log Auto-Adjust Diagnostics"
+
+-- Emergency Escalation
+L.header_tttbots_tickrate_escalation = "Emergency Escalation"
+L.help_tttbots_tickrate_escalation = "When the tick rate is already at its minimum but ticks still exceed the threshold, the system can escalate further by slowing down bot components and skipping behavior tree runs for idle bots. Combat bots are never affected."
+L.label_tttbots_tickrate_auto_escalate = "Enable Emergency Escalation"
+L.label_tttbots_tickrate_auto_escalate_max = "Max Escalation Level (1-3)"
+L.help_tttbots_tickrate_escalation_levels = "Level 1: Component ThinkRates doubled (evidence, memory, etc. run half as often).\nLevel 2: ThinkRates tripled + behavior trees skipped 50% for non-combat bots.\nLevel 3: ThinkRates quadrupled + behavior trees skipped 75% for non-combat bots.\nBots in active combat are always exempt and think at full speed."
+
 L.header_tttbots_tickscaler = "Dynamic Tick Rate Scaler"
 L.help_tttbots_tickscaler = "When many bots are on the server, the tick scaler logarithmically reduces how often each bot thinks, making them 'dumber' to save CPU. Below the threshold bot count, bots run at full speed with zero overhead. The formula is: skip = 1 + factor × ln(bots / threshold)."
 L.label_tttbots_tickscaler_enabled = "Enable Dynamic Tick Scaling"

@@ -76,6 +76,9 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.GetPirateContract,
         _bh.GetWeapons,
         _bh.LootNearby,
+        _bh.ClaimConsignment,
+        _bh.BreakConsignment,
+        _bh.RequestConsignment,
         _bh.UseHealthStation
     },
     --- Investigate corpses/noises.
@@ -109,6 +112,7 @@ TTTBots.Behaviors.PriorityNodes = {
     TacticalEquipment = {
         _bh.UseTurret,
         _bh.UseTimestop,
+        _bh.UseGravityMine,
     },
     --- DNA Scanner usage for detective roles
     DNAScanner = {
@@ -136,6 +140,7 @@ local _prior = TTTBots.Behaviors.PriorityNodes
 ---@type table<string, Tree>
 TTTBots.Behaviors.DefaultTrees = {
     innocent = {
+        _bh.EvadeGravityMine,
         _prior.FightBack,
         _prior.SelfDefense,
         _prior.Requests,
@@ -154,6 +159,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Patrol
     },
     traitor = {
+        _bh.EvadeGravityMine,
         _bh.Jihad,
         _bh.UsePeacekeeper,
         _bh.ActivateSmartBullets,
@@ -179,6 +185,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Patrol
     },
     detective = {
+        _bh.EvadeGravityMine,
         _prior.FightBack,
         _prior.SelfDefense,
         _prior.Chatter,

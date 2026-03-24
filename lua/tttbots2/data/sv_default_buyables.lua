@@ -1437,6 +1437,59 @@ Registry.DetectiveDefibrillator = {
 	Roles = { "detective", "survivalist", "sheriff", "deputy" },
 }
 
+--- Traitor Defibrillator (Deferred) — reactive purchase when a traitor ally dies.
+--- Traitors can buy the standard defibrillator to revive their OWN dead team-mates
+--- (the Defib behavior enforces allyOnly=true for non-doctor/non-medic roles).
+--- This mirrors DetectiveDefibrillator but for traitor-team roles, so traitors
+--- reactively acquire a defib mid-round when allies start dying — especially
+--- important for revival-plan coordination.
+---@type Buyable
+Registry.TraitorDefibrillator = {
+	Name = "Defibrillator (Traitor Deferred)",
+	Class = "weapon_ttt_defibrillator",
+	Price = 1,
+	Priority = 0,
+	DeferredEvent = "ally_died",
+	SituationalScore = function(ply)
+		-- Higher score when the traitor team is outnumbered — reviving an ally
+		-- is more valuable than any other mid-round purchase at that point.
+		local aliveAllies = 0
+		local deadAllies = 0
+		for _, other in ipairs(player.GetAll()) do
+			if not IsValid(other) or other == ply then continue end
+			if not TTTBots.Roles.IsAllies(ply, other) then continue end
+			if TTTBots.Lib.IsPlayerAlive(other) then
+				aliveAllies = aliveAllies + 1
+			end
+		end
+		for deadPly, _ in pairs(TTTBots.Match.ConfirmedDead or {}) do
+			if IsValid(deadPly) and TTTBots.Roles.IsAllies(ply, deadPly) then
+				deadAllies = deadAllies + 1
+			end
+		end
+
+		local base = 4
+		-- More dead allies → more valuable to revive
+		base = base + math.min(deadAllies * 3, 9)
+		-- Fewer alive allies → more urgent
+		if aliveAllies <= 1 then base = base + 4 end
+		return base
+	end,
+	CanBuy = function(ply)
+		-- Don't buy if we already have a defib or role-defib
+		if ply:HasWeapon("weapon_ttt_defibrillator") then return false end
+		if ply:HasWeapon("weapon_ttt_defib_traitor") then return false end
+		-- Trait gate: healer trait or 1-in-4 random chance (more permissive than
+		-- the round-start buy so traitors are more willing to react mid-round)
+		return testPlyHasTrait(ply, "healer", 4)
+	end,
+	RandomChance = 1,
+	ShouldAnnounce = false,
+	AnnounceTeam = false,
+	TTT2 = false,
+	Roles = GetRolesByTeam(TEAM_TRAITOR),
+}
+
 -- ============================================================
 -- TTT2 Weapons — Newly Supported Equipment
 -- ============================================================

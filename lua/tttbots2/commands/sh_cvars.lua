@@ -312,6 +312,24 @@ bot_sh_cvar("chatter_voice_local_tts_url", "",
 bot_sh_cvar("chatter_voice_url_mode", "0",
     "To enable URL mode set this to 1, this will make the bot voice chat go through URL rather than net.Send which should be quicker, to disable set to 0 (default).")
 
+-- Base Tick Rate cvars
+bot_sh_cvar("tickrate", "5",
+    "The base tick rate (ticks per second) for bot thinking. Lower values reduce CPU load but make bots less responsive. Range 1-20, default 5. Changes take effect next round or on reload.")
+bot_sh_cvar("tickrate_auto", "0",
+    "Enable automatic tick rate adjustment based on server performance. When enabled, the tick rate will decrease if tick processing takes too long and recover when performance improves. 0 = off, 1 = on.")
+bot_sh_cvar("tickrate_auto_threshold_ms", "30",
+    "Maximum allowed average tick duration in milliseconds. If the average bot tick takes longer than this, the tick rate is lowered. Default 30ms. Range 5-200.")
+bot_sh_cvar("tickrate_auto_min", "2",
+    "Minimum tick rate the auto-adjuster is allowed to set. Bots will never think slower than this many times per second. Default 2.")
+bot_sh_cvar("tickrate_auto_recover", "5",
+    "Seconds of consistently good tick performance (below threshold) before the auto-adjuster tries increasing the tick rate again. Default 5.")
+bot_sh_cvar("tickrate_auto_debug", "0",
+    "Periodically prints tick rate auto-adjuster diagnostics to server console. Filter: [BOTDBG:TICKRATE]")
+bot_sh_cvar("tickrate_auto_escalate", "1",
+    "When enabled and the tick rate is already at its minimum but ticks still exceed the threshold, the system escalates further: level 1 doubles component ThinkRates, level 2 triples them and skips behavior trees for idle bots, level 3 quadruples them and skips trees 75% of the time. 0 = off, 1 = on.")
+bot_sh_cvar("tickrate_auto_escalate_max", "3",
+    "Maximum escalation level (1-3). Higher levels are more aggressive. Level 1 = slow components, Level 2 = also skip behavior trees for non-combat bots, Level 3 = maximum throttle. Default 3.")
+
 -- Dynamic Tick Rate Scaler cvars
 bot_sh_cvar("tickscaler_enabled", "0",
     "Enable dynamic tick rate scaling. When enabled, bots on high-population servers will think less often (logarithmically scaled), making them 'dumber' to reduce CPU load. 0 = off, 1 = on.")

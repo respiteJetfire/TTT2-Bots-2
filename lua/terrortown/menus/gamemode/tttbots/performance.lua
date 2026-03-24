@@ -6,6 +6,92 @@ CLGAMEMODESUBMENU.priority = 85
 CLGAMEMODESUBMENU.title = "submenu_tttbots_performance_title"
 
 function CLGAMEMODESUBMENU:Populate(parent)
+    -- Base Tick Rate
+    local form0 = vgui.CreateTTT2Form(parent, "header_tttbots_tickrate")
+
+    form0:MakeHelp({
+        label = "help_tttbots_tickrate",
+    })
+
+    form0:MakeSlider({
+        serverConvar = "ttt_bot_tickrate",
+        label = "label_tttbots_tickrate",
+        min = 1,
+        max = 20,
+        decimal = 0,
+    })
+
+    -- Automatic Tick Rate Adjustment
+    local form0a = vgui.CreateTTT2Form(parent, "header_tttbots_tickrate_auto")
+
+    form0a:MakeHelp({
+        label = "help_tttbots_tickrate_auto",
+    })
+
+    local enbAuto = form0a:MakeCheckBox({
+        serverConvar = "ttt_bot_tickrate_auto",
+        label = "label_tttbots_tickrate_auto",
+    })
+
+    form0a:MakeSlider({
+        serverConvar = "ttt_bot_tickrate_auto_threshold_ms",
+        label = "label_tttbots_tickrate_auto_threshold_ms",
+        min = 5,
+        max = 200,
+        decimal = 0,
+        master = enbAuto,
+    })
+
+    form0a:MakeSlider({
+        serverConvar = "ttt_bot_tickrate_auto_min",
+        label = "label_tttbots_tickrate_auto_min",
+        min = 1,
+        max = 10,
+        decimal = 0,
+        master = enbAuto,
+    })
+
+    form0a:MakeSlider({
+        serverConvar = "ttt_bot_tickrate_auto_recover",
+        label = "label_tttbots_tickrate_auto_recover",
+        min = 1,
+        max = 30,
+        decimal = 0,
+        master = enbAuto,
+    })
+
+    form0a:MakeCheckBox({
+        serverConvar = "ttt_bot_tickrate_auto_debug",
+        label = "label_tttbots_tickrate_auto_debug",
+        master = enbAuto,
+    })
+
+    -- Emergency Escalation
+    local form0b = vgui.CreateTTT2Form(parent, "header_tttbots_tickrate_escalation")
+
+    form0b:MakeHelp({
+        label = "help_tttbots_tickrate_escalation",
+    })
+
+    form0b:MakeCheckBox({
+        serverConvar = "ttt_bot_tickrate_auto_escalate",
+        label = "label_tttbots_tickrate_auto_escalate",
+        master = enbAuto,
+    })
+
+    form0b:MakeSlider({
+        serverConvar = "ttt_bot_tickrate_auto_escalate_max",
+        label = "label_tttbots_tickrate_auto_escalate_max",
+        min = 1,
+        max = 3,
+        decimal = 0,
+        master = enbAuto,
+    })
+
+    form0b:MakeHelp({
+        label = "help_tttbots_tickrate_escalation_levels",
+    })
+
     -- Dynamic Tick Rate Scaler
     local form = vgui.CreateTTT2Form(parent, "header_tttbots_tickscaler")
 

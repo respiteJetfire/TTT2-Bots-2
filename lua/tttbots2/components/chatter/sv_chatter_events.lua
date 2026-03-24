@@ -224,6 +224,17 @@ local chancesOf100 = {
     SmartBulletsKOS                = 95,  -- Innocent/detective calling KOS on Smart Bullets user
     SmartBulletsWarning            = 70,  -- Innocent/detective warning others about Smart Bullets
     SmartBulletsSurvived           = 60,  -- Bot survived being targeted by Smart Bullets
+    -- -----------------------------------------------------------------------
+    -- Gun Dealer role events
+    -- -----------------------------------------------------------------------
+    GunDealerDelivering            = 80,  -- Gun Dealer is sending a consignment crate
+    GunDealerDelivered             = 70,  -- Gun Dealer finished delivering a crate
+    GunDealerCrateSpotted          = 60,  -- Bot spotted a consignment crate nearby
+    GunDealerCrateBroken           = 50,  -- Bot broke open a consignment crate
+    GunDealerRequestWeapon         = 75,  -- Bot is requesting a weapon from the Gun Dealer
+    GunDealerRequestAmmo           = 75,  -- Bot is requesting ammo from the Gun Dealer
+    GunDealerRequestThanks         = 60,  -- Bot thanks the Gun Dealer for supplies
+    GunDealerUnderAttack           = 90,  -- Gun Dealer bot is being attacked
 }
 
 -- ---------------------------------------------------------------------------

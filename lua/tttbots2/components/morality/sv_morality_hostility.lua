@@ -657,6 +657,28 @@ local function ankhBasedHostility(bot)
 end
 
 -- ===========================================================================
+-- Gun Dealer protection — prevent all bots from targeting gun dealers
+-- ===========================================================================
+
+--- Gun Dealers are neutral merchants; no bot should attack them under
+--- normal circumstances. This runs at SELF_DEFENSE priority (the highest)
+--- so that it overrides opportunistic, suspicion and role-hostility
+--- targeting that would otherwise pick a Gun Dealer as a target.
+---@param bot Bot
+local function preventAttackGunDealer(bot)
+    if not ROLE_GUNDEALER then return end
+    local attackTarget = bot.attackTarget
+    if not IsValid(attackTarget) then return end
+    if not attackTarget:IsPlayer() then return end
+    if attackTarget:GetSubRole() ~= ROLE_GUNDEALER then return end
+
+    -- Allow self-defence: if the Gun Dealer is actively shooting at us,
+    -- the bot may still fight back (handled by the FightBack behavior).
+    -- But we clear any *policy-generated* target on the dealer.
+    Arb.RequestClearTarget(bot, "PREVENT_GUNDEALER", PRI.SELF_DEFENSE)
+end
+
+-- ===========================================================================
 -- Combined prevent wrapper
 -- ===========================================================================
 
@@ -665,6 +687,7 @@ local function preventAttackAll(bot)
     preventCloaked(bot)
     preventAttackAllies(bot)
     preventAttack(bot)
+    preventAttackGunDealer(bot)
 end
 
 -- ===========================================================================
