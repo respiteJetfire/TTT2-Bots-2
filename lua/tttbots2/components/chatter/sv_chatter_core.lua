@@ -78,7 +78,14 @@ end
 function BotChatter:SayRaw(text, teamOnly)
     if not IsValid(self.bot) then return end
     self.bot:Say(text, teamOnly)
-    for _, bot in ipairs(TTTBots.Lib.GetAliveBots()) do
+
+    -- When proximity chat is active, only nearby bots "hear" this message
+    local aliveBots = TTTBots.Lib.GetAliveBots()
+    local hearingBots = TTTBots.Proximity
+        and TTTBots.Proximity.FilterRecipients(self.bot, aliveBots, teamOnly)
+        or aliveBots
+
+    for _, bot in ipairs(hearingBots) do
         bot:BotMemory():UpdateMessages(text, self.bot)
     end
 end
@@ -178,7 +185,17 @@ function BotChatter:WriteDataFree(teamOnly, ply, IsOnePart, FileID, FileData, Fi
             end
         end
 
-    net.Broadcast()
+    -- Proximity chat: send only to nearby human players when active
+    local recipients = TTTBots.Proximity
+        and TTTBots.Proximity.GetHumanRecipients(ply, teamOnly)
+        or nil
+
+    if recipients and #recipients > 0 then
+        net.Send(recipients)
+    elseif not recipients then
+        net.Broadcast()
+    end
+    -- If recipients is an empty table (no one in range), don't send at all
 end
 
 -- ---------------------------------------------------------------------------

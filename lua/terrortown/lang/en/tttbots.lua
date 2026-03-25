@@ -171,6 +171,8 @@ L.label_tttbots_chatter_openrouter_site_name = "Site Name (Attribution)"
 
 -- Voice / TTS labels
 L.label_tttbots_chatter_enable_tts = "Enable TTS Voice Chat"
+L.label_tttbots_chatter_proximity = "Respect Proximity Voice Chat"
+L.help_tttbots_chatter_proximity = "When enabled, bots integrate with TTT2's proximity/locational voice chat system (ttt_locational_voice). Bot text and TTS voice output will only be heard by players and other bots within the configured proximity range. Disable to let bots bypass proximity restrictions."
 L.label_tttbots_chatter_voice_chance = "Voice Chat Chance (%)"
 L.label_tttbots_chatter_voice_tts_provider = "TTS Provider"
 L.label_tttbots_chatter_voice_url_mode = "URL Mode (Faster Streaming)"

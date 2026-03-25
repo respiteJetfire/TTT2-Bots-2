@@ -33,6 +33,7 @@ function TTTBots.Chat.MessagePlayer(ply, message)
 end
 
 local function includeServer()
+    include("tttbots2/lib/sv_proximity.lua")
     include("tttbots2/lib/sv_pathmanager.lua")
     include("tttbots2/lib/sv_debug.lua")
     include("tttbots2/lib/sv_miscnetwork.lua")

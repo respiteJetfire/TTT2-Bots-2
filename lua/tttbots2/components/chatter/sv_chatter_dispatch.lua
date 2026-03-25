@@ -72,13 +72,18 @@ function BotChatter:textorTTS(bot, text, teamOnly, event_name, args, wasVoice)
         text = string.gsub(text, "\\", "")
         text = string.gsub(text, "/", "")
 
-        -- Inform alive bots of this message
-        for _, aliveBot in ipairs(TTTBots.Lib.GetAliveBots()) do
+        -- Inform alive bots of this message (proximity-filtered)
+        local aliveBots = TTTBots.Lib.GetAliveBots()
+        local hearingBots = TTTBots.Proximity
+            and TTTBots.Proximity.FilterRecipients(bot, aliveBots, teamOnly)
+            or aliveBots
+
+        for _, aliveBot in ipairs(hearingBots) do
             local memory = IsValid(aliveBot) and aliveBot:BotMemory()
             if memory then memory:UpdateMessages(text, bot) end
         end
 
-        TTTBots.Providers.SendVoice(bot, text, { teamOnly = teamOnly }, function(envelope)
+        TTTBots.Providers.SendVoice(bot, text, { teamOnly = teamOnly, proximity = true }, function(envelope)
             onVoiceComplete(envelope.ok and envelope.text or 1)
         end)
 

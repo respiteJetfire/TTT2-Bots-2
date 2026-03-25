@@ -14,6 +14,15 @@ function CLGAMEMODESUBMENU:Populate(parent)
         label = "label_tttbots_chatter_enable_tts",
     })
 
+    form:MakeHelp({
+        label = "help_tttbots_chatter_proximity",
+    })
+
+    form:MakeCheckBox({
+        serverConvar = "ttt_bot_chatter_proximity",
+        label = "label_tttbots_chatter_proximity",
+    })
+
     local enbVoice = form:MakeSlider({
         serverConvar = "ttt_bot_chatter_voice_chance",
         label = "label_tttbots_chatter_voice_chance",

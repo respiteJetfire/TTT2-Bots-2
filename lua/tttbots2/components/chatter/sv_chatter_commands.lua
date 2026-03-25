@@ -339,6 +339,11 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         bots = TTTBots.Lib.GetAliveBots()
     end
 
+    -- Proximity chat: only bots within range of the speaker can hear the message
+    if TTTBots.Proximity and TTTBots.Proximity.IsActive() then
+        bots = TTTBots.Proximity.FilterRecipients(ply, bots, teamOnly)
+    end
+
     local bot = Parser.findBestBot(ply, bots, fulltxt, wasVoice, teamOnly)
 
     -- Non-attack keyword commands

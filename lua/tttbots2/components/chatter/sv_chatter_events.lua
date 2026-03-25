@@ -469,14 +469,33 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
 end
 
 -- ---------------------------------------------------------------------------
--- PlayerCanSeePlayersChat — restrict team chat to team members
+-- PlayerCanSeePlayersChat — restrict team chat to team members,
+-- and restrict all bot chat by proximity range when locational voice is active
 -- ---------------------------------------------------------------------------
 
 hook.Add("PlayerCanSeePlayersChat", "TTTBots_PlayerCanSeePlayersChat", function(text, teamOnly, listener, sender)
-    if not (IsValid(sender) and sender:IsBot() and teamOnly) then return end
+    if not (IsValid(sender) and sender:IsBot()) then return end
     if not lib.IsPlayerAlive(sender) then return false end
-    if listener:IsInTeam(sender) then return true end
-    return false
+
+    -- Team-only restriction: only teammates can see team chat
+    if teamOnly then
+        if not listener:IsInTeam(sender) then return false end
+    end
+
+    -- Proximity chat restriction: when TTT2 locational voice is active,
+    -- bot text chat is only visible to players within the configured range.
+    if TTTBots.Proximity and TTTBots.Proximity.IsActive() then
+        -- For team-only messages, skip proximity check if team proximity is disabled
+        if teamOnly and not TTTBots.Proximity.IsTeamProximity() then
+            return true
+        end
+
+        if not TTTBots.Proximity.CanHear(listener, sender, teamOnly) then
+            return false
+        end
+    end
+
+    return true
 end)
 
 -- ---------------------------------------------------------------------------

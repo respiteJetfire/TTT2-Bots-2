@@ -11,7 +11,19 @@ local function playTTSUrl(ply, url, teamOnly, duration)
     net.WriteString(url)
     net.WriteBool(teamOnly)
     net.WriteFloat(duration)
-    net.Broadcast()
+
+    -- Proximity chat: send only to nearby human players when active
+    local recipients = TTTBots.Proximity
+        and TTTBots.Proximity.GetHumanRecipients(ply, teamOnly)
+        or nil
+
+    if recipients and #recipients > 0 then
+        net.Send(recipients)
+    elseif not recipients then
+        net.Broadcast()
+    end
+    -- If recipients is an empty table (no one in range), don't send at all
+
     TTTBots.Match.speakingBot = nil -- Clear speakingBot after completion
 end
 
