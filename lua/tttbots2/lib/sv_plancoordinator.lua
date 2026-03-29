@@ -78,7 +78,15 @@ end
 ---@param caller Player|nil the player who is calling this function. used for calculating targets if isAssignment is true. otherwise optional
 function PlanCoordinator.GetNextJob(isAssignment, caller)
     if not IsRoundActive() then return nil end
+    -- Determine which plan to use: prefer the caller's team-specific plan
     local selectedPlan = Plans.SelectedPlan
+    if caller and caller.GetTeam then
+        local callerTeam = caller:GetTeam()
+        local teamPlan = Plans.GetPlanForTeam and Plans.GetPlanForTeam(callerTeam)
+        if teamPlan then
+            selectedPlan = teamPlan
+        end
+    end
     if not selectedPlan then return nil end
     local jobs = selectedPlan.Jobs
 

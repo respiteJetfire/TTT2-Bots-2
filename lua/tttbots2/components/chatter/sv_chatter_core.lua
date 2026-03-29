@@ -86,7 +86,10 @@ function BotChatter:SayRaw(text, teamOnly)
         or aliveBots
 
     for _, bot in ipairs(hearingBots) do
-        bot:BotMemory():UpdateMessages(text, self.bot)
+        local mem = bot:BotMemory()
+        if mem then
+            mem:UpdateMessages(text, self.bot)
+        end
     end
 end
 

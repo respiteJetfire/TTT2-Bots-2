@@ -64,6 +64,9 @@ BotMorality.SUSPICIONVALUES = {
     -- Smart Bullets SWEP events
     SmartBulletsVisual = 8,        -- We SAW bright red tracer beams from Smart Bullets (very distinctive)
     SmartBulletsAudio = 4,         -- We HEARD Smart Bullets firing nearby (unusual sound cue)
+    -- TTT2 role confirmation events (body found / public role reveal)
+    RoleConfirmedHostile = 20,     -- This player's hostile role is publicly confirmed by TTT2 (body search, resurrection, etc.)
+    RoleConfirmedAlly = -10,       -- This player's friendly role is publicly confirmed by TTT2
 }
 
 BotMorality.SuspicionDescriptions = {
@@ -395,7 +398,7 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
     -- Feed evidence log
     local evidence = self.bot:BotEvidence()
     if evidence then
-        local weaponName = (weapon and IsValid(weapon) and weapon.GetPrintName) and weapon:GetPrintName() or "unknown weapon"
+        local weaponName = (weapon and IsValid(weapon) and weapon.GetClass) and weapon:GetClass() or "unknown weapon"
         local navArea    = navmesh.GetNearestNavArea(attacker:GetPos())
         local location   = (navArea and navArea.GetPlace and navArea:GetPlace() ~= "") and navArea:GetPlace() or "unknown location"
         evidence:AddEvidence({
@@ -419,9 +422,20 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
 
     local chatter = self.bot:BotChatter()
     if not chatter or not chatter.On then return end
+    -- Prevent self-reporting: a bot should never call out its own kills
+    if self.bot == attacker then return end
     if TTTBots.Roles.IsAllies(self.bot, attacker) and self.bot:GetTeam() ~= TEAM_INNOCENT then return end
     -- Use the richer WitnessCallout event; fall back to Kill for backwards compat
-    local weaponName = (weapon and IsValid(weapon) and weapon.GetPrintName) and weapon:GetPrintName() or nil
+    -- Store full weapon class in evidence but strip prefix for chat display
+    local fullWeaponName = (weapon and IsValid(weapon) and weapon:GetClass()) or nil
+    local displayWeapon = fullWeaponName
+    if displayWeapon then
+        -- Strip leading components (e.g. "weapon_ttt_m16" -> "m16")
+        local parts = string.Explode("_", displayWeapon)
+        if #parts > 2 then
+            displayWeapon = table.concat(parts, "_", 3)
+        end
+    end
     local navArea    = navmesh.GetNearestNavArea(attacker:GetPos())
     local location   = (navArea and navArea.GetPlace and navArea:GetPlace() ~= "") and navArea:GetPlace() or nil
     chatter:On("WitnessCallout", {
@@ -429,7 +443,7 @@ function BotMorality:OnWitnessKill(victim, weapon, attacker)
         victimEnt   = victim,
         attacker    = attacker:Nick(),
         attackerEnt = attacker,
-        weapon      = weaponName,
+        weapon      = displayWeapon,
         location    = location,
     })
     -- Also fire legacy Kill event so existing locale lines still trigger
@@ -702,7 +716,7 @@ hook.Add("PlayerDeath", "TTTBots.Components.Morality.PlayerDeath", function(vict
             attacker.selfDefenseKills[victim] = timestamp
         end
     end
-    if victim:IsBot() then
+    if victim:IsBot() and victim.components and victim.components.morality then
         victim.components.morality:OnKilled(attacker)
     end
     -- Mark red-handed regardless of victim visibility — any witness who saw

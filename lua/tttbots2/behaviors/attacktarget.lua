@@ -72,6 +72,80 @@ local function CountLocalWitnesses(bot)
     return count
 end
 
+--- Evaluate whether the bot should disengage from its current combat.
+--- Returns true when conditions have deteriorated enough that continuing
+--- the fight is suicidal or would blow the bot's cover irreparably.
+---@param bot Bot
+---@param target Player|Entity
+---@return boolean shouldDisengage
+local function ShouldDisengage(bot, target)
+    if not (IsValid(bot) and IsValid(target)) then return false end
+
+    -- ── Never disengage conditions ────────────────────────────────────
+    -- Self-defense: always fight back.
+    local Arb = TTTBots.Morality
+    local SELF_DEF = Arb and Arb.PRIORITY and Arb.PRIORITY.SELF_DEFENSE or 5
+    local pri = bot.attackTargetPriority or 0
+    if pri >= SELF_DEF then return false end
+
+    -- Target almost dead — finish them.
+    if IsValid(target) and target:IsPlayer() and target:Health() < 20 then return false end
+
+    -- Phase check: in LATE/OVERTIME with few players alive, must fight.
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+    local phase = ra and PHASE and ra:GetPhase() or nil
+    if phase and (phase == PHASE.OVERTIME or phase == PHASE.LATE) then
+        local aliveCount = #(TTTBots.Match.AlivePlayers or {})
+        if aliveCount <= 3 then return false end
+    end
+
+    -- ── Gather combat context ────────────────────────────────────────
+    local hp = bot:Health()
+    local botPos = bot:GetPos()
+
+    -- Count witnesses: non-allies who can see the bot, excluding the target.
+    local witnessCount = 0
+    local alivePlayers = TTTBots.Match.AlivePlayers or {}
+    for _, ply in ipairs(alivePlayers) do
+        if not IsValid(ply) then continue end
+        if ply == bot then continue end
+        if ply == target then continue end
+        if not TTTBots.Lib.IsPlayerAlive(ply) then continue end
+        if TTTBots.Roles and TTTBots.Roles.IsAllies(bot, ply) then continue end
+        if ply:VisibleVec(botPos) then
+            witnessCount = witnessCount + 1
+        end
+    end
+
+    -- Count target allies within 600u who have LoS to bot.
+    local targetAlliesLoS = 0
+    if IsValid(target) and target:IsPlayer() then
+        for _, ply in ipairs(alivePlayers) do
+            if not IsValid(ply) then continue end
+            if ply == bot or ply == target then continue end
+            if not TTTBots.Lib.IsPlayerAlive(ply) then continue end
+            -- Is this player an ally of the target (and therefore hostile to the bot)?
+            if TTTBots.Roles and TTTBots.Roles.IsAllies(bot, ply) then continue end
+            if ply:GetPos():Distance(target:GetPos()) <= 600 and ply:VisibleVec(botPos) then
+                targetAlliesLoS = targetAlliesLoS + 1
+            end
+        end
+    end
+
+    -- ── Disengage conditions ─────────────────────────────────────────
+    -- Low HP and too many witnesses — can't win and will be caught.
+    if hp < 30 and witnessCount >= 2 then return true end
+    -- Moderate HP but heavily exposed.
+    if hp < 50 and witnessCount >= 3 then return true end
+    -- Outnumbered: target has 2+ nearby allies with LoS to bot.
+    if targetAlliesLoS >= 2 then return true end
+    -- EARLY phase and already being watched by 2+ — too risky.
+    if phase and phase == PHASE.EARLY and witnessCount >= 2 then return true end
+
+    return false
+end
+
 --- Check whether the bot has enough ammo to take on its current attack target.
 --- If not, attempt a traitor deferred-buy, then flag a flee-from-target retreat.
 --- Returns true if ammo is sufficient (or the check is waived), false to abort.
@@ -174,6 +248,15 @@ function Attack.Validate(bot)
             return false
         end
     end
+    -- Disengage cooldown: after a tactical disengage, suppress attacking for
+    -- a short period so the bot doesn't immediately re-acquire and loop.
+    -- Exception: self-defense targets always override the cooldown.
+    if (bot.disengageUntil or 0) > CurTime() then
+        local pri = bot.attackTargetPriority or 0
+        if pri < (TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SELF_DEFENSE or 5) then
+            return false
+        end
+    end
     -- If the bot fled because it ran out of ammo, don't re-engage the same
     -- target until the cooldown expires or the bot has a ranged weapon again.
     -- Exception: high-priority targets (KOS list, self-defense) override the
@@ -211,6 +294,11 @@ end
 function Attack.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
     state.wasPathing = true -- set this to true here for the first tick, despite the name being misleading
+
+    -- Pre-aim warmup: give the bot a brief moment to orient toward the target
+    -- before firing. This prevents the "instant snap" feeling.
+    state.preAimUntil = CurTime() + 0.3
+
     return STATUS.RUNNING
 end
 
@@ -601,13 +689,23 @@ end
 
 function Attack.Engage(bot, targetPos)
     local target = bot.attackTarget
+    local loco = bot:BotLocomotor() ---@type CLocomotor
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
+
+    -- Pre-aim delay: bot is orienting toward target, not firing yet
+    if state.preAimUntil and CurTime() < state.preAimUntil then
+        -- Still look at target (so bot visually tracks them)
+        if IsValid(target) then
+            loco:LookAt(target:EyePos())
+        end
+        return STATUS.RUNNING
+    end
+
     local inv = bot.components.inventory ---@type CInventory
     local weapon = inv:GetHeldWeaponInfo()
     if not weapon then return end
     local usingMelee = not weapon.is_gun
-    local loco = bot:BotLocomotor() ---@type CLocomotor
     loco.stopLookingAround = true
-    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
 
     -- If we're forced to melee because all guns are empty, signal cover/retreat.
     -- (The actual abort happens in OnRunning's ammo check, but this gives an
@@ -707,17 +805,17 @@ function Attack.Engage(bot, targetPos)
     loco:LookAt(inaccuracyTarget)
 end
 
-local INACCURACY_BASE = 9  --- The higher this is, the more inaccurate the bots will be.
+local INACCURACY_BASE = 5  --- The higher this is, the more inaccurate the bots will be.
 local INACCURACY_SMOKE = 5 --- The inaccuracy modifier when the bot or its target is in smoke.
 
 --- Difficulty-based inaccuracy multipliers: applied ON TOP of the pressure/difficulty formula.
 --- Diff 1 bots are wildly inaccurate even without pressure; diff 5 bots are surgically precise.
 local DIFFICULTY_INACCURACY_MULT = {
     [1] = 3.5,   -- Very easy: 3.5x inaccuracy, bots spray everywhere
-    [2] = 1.6,   -- Easy: noticeably worse
-    [3] = 1.0,   -- Normal: baseline
-    [4] = 0.55,  -- Hard: much tighter groupings
-    [5] = 0.25,  -- Very hard: near-perfect aim, almost no random scatter
+    [2] = 1.35,  -- Easy: slightly better than before
+    [3] = 0.85,  -- Normal: noticeably better baseline
+    [4] = 0.45,  -- Hard: much tighter groupings
+    [5] = 0.20,  -- Very hard: near-perfect aim, almost no random scatter
 }
 
 --- Calculate the inaccuracy of agent 'bot' according to a) its personality and b) diff setts
@@ -760,7 +858,7 @@ function Attack.CalculateInaccuracy(bot, origin, target)
     end
 
     local targetMoveFactor = 1
-    local selfMoveFactor = bot:GetVelocity():LengthSqr() > 100 and 1.25 or 0.75
+    local selfMoveFactor = bot:GetVelocity():LengthSqr() > 100 and 1.10 or 0.80
     if not (IsValid(target) and target:IsPlayer()) then
         targetMoveFactor = 0.5
     else
@@ -778,6 +876,13 @@ function Attack.CalculateInaccuracy(bot, origin, target)
 
     local difficultyInaccuracyMult = DIFFICULTY_INACCURACY_MULT[difficulty] or 1.0
 
+    -- Adaptive difficulty: when traitors are on a losing streak, reduce their
+    -- inaccuracy so they can actually compete. Only applies to killer roles.
+    local adaptiveMult = 1
+    if IsKillerRole(bot) and TTTBots.AdaptiveDifficulty then
+        adaptiveMult = TTTBots.AdaptiveDifficulty.GetAccuracyMult()
+    end
+
     local inaccuracy_mod = (pressure / difficulty) -- The more pressure we have, the more inaccurate we are; decreased by difficulty
         * distFactor                               -- The further away we are, the more inaccurate we are
         * INACCURACY_BASE                          -- Obviously, multiply by a constant to make it more inaccurate
@@ -788,6 +893,7 @@ function Attack.CalculateInaccuracy(bot, origin, target)
         * targetMoveFactor                         -- Reduce aim difficulty if the target is immobile
         * selfMoveFactor                           -- Self-movement penalty (reduced for killer roles)
         * difficultyInaccuracyMult                 -- Extreme difficulty scaling: easy=wildly inaccurate, hard=surgical
+        * adaptiveMult                             -- Adaptive difficulty: reduces inaccuracy for struggling traitors
 
     if heldWeapon and heldWeapon.class == "m9k_minigun" then
         inaccuracy_mod = inaccuracy_mod * 0.55
@@ -1304,6 +1410,21 @@ function Attack.OnRunning(bot)
         end
     end
 
+    -- ── Periodic disengage evaluation ─────────────────────────────────
+    -- Every ~1 second during combat, check whether conditions have
+    -- deteriorated enough to warrant a tactical withdrawal.
+    local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
+    local now = CurTime()
+    if (state.lastDisengageCheck or 0) + 1.0 <= now then
+        state.lastDisengageCheck = now
+        if ShouldDisengage(bot, target) then
+            bot.disengageUntil = now + 5
+            bot:SetAttackTarget(nil, "DISENGAGE")
+            bot:BotLocomotor():StopAttack()
+            return STATUS.FAILURE
+        end
+    end
+
     local isNPC = target:IsNPC()
     local isPlayer = target:IsPlayer()
     if not isNPC and not isPlayer then
@@ -1342,7 +1463,7 @@ local FOCUS_DECAY = 0.02
 function Attack.UpdateFocus(bot)
     local state = TTTBots.Behaviors.GetState(bot, "AttackTarget")
     local factor = -FOCUS_DECAY
-    factor = factor * (bot.attackTarget ~= nil and -2.5 or 1)
+    factor = factor * (bot.attackTarget ~= nil and -3.5 or 1)
     factor = factor * (bot:GetTraitMult("focus") or 1)
     -- Killer roles gain focus faster (they're trained combatants).
     if IsKillerRole(bot) then

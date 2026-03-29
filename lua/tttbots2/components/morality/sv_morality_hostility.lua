@@ -13,6 +13,96 @@ local Arb = TTTBots.Morality  -- arbitration gateway
 local PRI = Arb.PRIORITY
 
 -- ===========================================================================
+-- Engagement favourability scoring
+-- ===========================================================================
+
+--- Composite favourability score for traitor engagement decisions.
+--- Returns a 0–100 score indicating how favourable it is for the bot to
+--- attack the given target right now. Replaces the old flat random chance
+--- so bots only commit to fights when conditions are genuinely good.
+---@param bot Bot
+---@param target Player
+---@return number score 0-100
+local function CalculateEngagementFavourability(bot, target)
+    if not (IsValid(bot) and IsValid(target)) then return 0 end
+    local score = 0
+
+    -- ── 1. Isolation (0-25 pts) ─────────────────────────────────────────
+    local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot)
+        or TTTBots.Roles.GetNonAllies(bot)
+    local nearbyCount = 0
+    for _, ply in pairs(nonAllies) do
+        if not IsValid(ply) then continue end
+        if ply == target or ply == bot then continue end
+        if not lib.IsPlayerAlive(ply) then continue end
+        if ply:GetPos():Distance(target:GetPos()) <= 800 then
+            nearbyCount = nearbyCount + 1
+        end
+    end
+    if nearbyCount == 0 then      score = score + 25
+    elseif nearbyCount == 1 then   score = score + 15
+    elseif nearbyCount == 2 then   score = score + 5
+    end -- 3+ = 0 pts
+
+    -- ── 2. HP advantage (0-20 pts) ─────────────────────────────────────
+    local botEHP  = bot:Health() + (bot:Armor() or 0)
+    local targEHP = target:Health() + (target.Armor and target:Armor() or 0)
+    if targEHP > 0 then
+        local ratio = botEHP / targEHP
+        if ratio > 1.5 then       score = score + 20
+        elseif ratio > 1.0 then   score = score + 12
+        elseif ratio > 0.7 then   score = score + 5
+        end -- below 0.7 = 0 pts
+    end
+
+    -- ── 3. Weapon quality (0-20 pts) ───────────────────────────────────
+    local inv = bot:BotInventory()
+    if inv then
+        local specialPrimary = inv:GetSpecialPrimary()
+        local primary = inv:GetPrimary()
+        if IsValid(specialPrimary) then
+            score = score + 20
+        elseif IsValid(primary) then
+            score = score + 12
+        else
+            score = score + 5 -- pistol / melee only
+        end
+    end
+
+    -- ── 4. Witness count (0-20 pts) ────────────────────────────────────
+    -- Count perceived non-allies who can see the bot (excluding target).
+    local witnessCount = 0
+    for _, ply in pairs(nonAllies) do
+        if not IsValid(ply) then continue end
+        if ply == target or ply == bot then continue end
+        if not lib.IsPlayerAlive(ply) then continue end
+        if ply:VisibleVec(bot:GetPos()) then
+            witnessCount = witnessCount + 1
+        end
+    end
+    if witnessCount == 0 then      score = score + 20
+    elseif witnessCount == 1 then  score = score + 10
+    elseif witnessCount == 2 then  score = score + 3
+    end -- 3+ = 0 pts
+
+    -- ── 5. Phase bonus (0-15 pts) ──────────────────────────────────────
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+    if ra and PHASE then
+        local phase = ra:GetPhase()
+        if phase == PHASE.MID then           score = score + 5
+        elseif phase == PHASE.LATE then      score = score + 10
+        elseif phase == PHASE.OVERTIME then  score = score + 15
+        end -- EARLY = 0 pts
+    end
+
+    -- ── Random jitter (±5 pts) to avoid deterministic behaviour ────────
+    score = score + math.random(-5, 5)
+
+    return math.Clamp(score, 0, 100)
+end
+
+-- ===========================================================================
 -- Attack policy functions
 -- ===========================================================================
 
@@ -29,22 +119,15 @@ local function continueMassacre(bot)
         local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot) or TTTBots.Roles.GetNonAllies(bot)
         local closest = TTTBots.Lib.GetClosest(nonAllies, bot:GetPos())
         if closest and closest ~= NULL then
-            -- Phase-aware gating: deceptive roles should flee after a kill, not chain-attack in crowds
+            -- KOS-by-all roles always chain-kill (they're already fully exposed)
             local isKOSedByAll = roleData.GetKOSedByAll and roleData:GetKOSedByAll()
             if not isKOSedByAll then
-                local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
-                local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
-                if ra and PHASE then
-                    local phase = ra:GetPhase()
-                    if phase == PHASE.EARLY or phase == PHASE.MID then
-                        -- Only continue the massacre if the next target is isolated
-                        local witnessesNearTarget = lib.GetAllWitnessesBasic(
-                            closest:GetPos(), nonAllies, bot
-                        )
-                        if table.Count(witnessesNearTarget) > 1 then
-                            return -- Disengage and flee rather than chain-kill in a crowd
-                        end
-                    end
+                -- Use favourability scoring: if conditions have deteriorated
+                -- after the last kill (score < 30), disengage instead of
+                -- chain-killing into a losing fight.
+                local favour = CalculateEngagementFavourability(bot, closest)
+                if favour < 30 then
+                    return -- Conditions unfavourable, disengage
                 end
             end
             Arb.RequestAttackTarget(bot, closest, "CONTINUE_MASSACRE", PRI.ROLE_HOSTILITY)
@@ -72,27 +155,6 @@ local function traitorOpportunisticAggression(bot)
     -- Respect the plans minimum delay as an attack delay for early aggression
     if not TTTBots.Match.PlansCanStart() then return end
 
-    -- Random roll gating: base 15% chance per tick (1s interval), scaling up
-    -- with the bot's aggression trait multiplier and round phase pressure.
-    local personality = bot.components and bot.components.personality
-    local aggrMult = personality and personality:GetTraitMult("aggression") or 1.0
-    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
-    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
-    local phase = (ra and PHASE) and ra:GetPhase() or nil
-
-    -- Phase pressure multiplier: more aggressive as round progresses
-    local phaseMult = 1.0
-    if phase then
-        if phase == PHASE.EARLY then phaseMult = 0.5
-        elseif phase == PHASE.MID then phaseMult = 1.0
-        elseif phase == PHASE.LATE then phaseMult = 2.0
-        elseif phase == PHASE.OVERTIME then phaseMult = 4.0
-        end
-    end
-
-    local chance = 0.15 * aggrMult * phaseMult
-    if math.random() > chance then return end
-
     -- Find visible non-allies
     local nonAllies = TTTBots.Perception and TTTBots.Perception.GetPerceivedNonAllies(bot)
         or TTTBots.Roles.GetNonAllies(bot)
@@ -100,19 +162,19 @@ local function traitorOpportunisticAggression(bot)
     local closest = lib.GetClosest(visible, bot:GetPos())
     if not (closest and closest ~= NULL and lib.IsPlayerAlive(closest)) then return end
 
-    -- Phase-aware witness gating (same logic as attackEnemies)
-    local isKOSedByAll = roleData.GetKOSedByAll and roleData:GetKOSedByAll()
-    if not isKOSedByAll and phase then
-        if phase == PHASE.EARLY or phase == PHASE.MID then
-            local witnessesNearTarget = lib.GetAllWitnessesBasic(
-                closest:GetPos(), nonAllies, bot
-            )
-            local maxWitnesses = (phase == PHASE.EARLY) and 0 or 1
-            if table.Count(witnessesNearTarget) > maxWitnesses then
-                return -- Too many witnesses, maintain cover
-            end
-        end
-    end
+    -- ── Composite favourability scoring ─────────────────────────────────
+    -- Instead of a flat random chance × phase multiplier, evaluate whether
+    -- conditions are genuinely favourable before committing to a fight.
+    local favour = CalculateEngagementFavourability(bot, closest)
+
+    -- Personality-based threshold: aggressive bots attack at lower scores.
+    -- personalityMod is 0-15 based on the aggression trait multiplier.
+    local personality = bot.components and bot.components.personality
+    local aggrMult = personality and personality:GetTraitMult("aggression") or 1.0
+    local personalityMod = math.Clamp(aggrMult * 10, 0, 15)
+    local threshold = 50 - personalityMod
+
+    if favour < threshold then return end -- Conditions not favourable enough
 
     -- Seed position into memory so AttackTarget.Seek can path immediately
     local mem = bot.components and bot.components.memory
@@ -258,6 +320,107 @@ local function attackNonAllies(bot)
                 end
             end
             Arb.RequestAttackTarget(bot, closest, "KOS_ALL", PRI.ROLE_HOSTILITY)
+        end
+    end
+end
+
+--- Attack any alive player whose role has been publicly confirmed by TTT2
+--- (e.g., body searched, resurrected with known role) and whose confirmed role
+--- makes them hostile to this bot. Uses TTT2's ply:RoleKnown() API.
+--- This ensures bots react to confirmed hostiles even without witnessing them
+--- commit any crimes — the game itself has revealed their role publicly.
+---
+--- Only fires for bots that use the suspicion system (innocent-team, detectives,
+--- etc.). Traitor-team bots already have omniscient alliance knowledge.
+---@param bot Bot
+local function attackConfirmedHostiles(bot)
+    -- Only for bots that rely on suspicion (innocent-side) — traitor bots
+    -- already know who is on their team via alliance tables.
+    local roleData = TTTBots.Roles.GetRoleFor(bot)
+    if not roleData:GetUsesSuspicion() then return end
+
+    local morality = bot:BotMorality()
+    if not morality then return end
+
+    -- Track which players we've already processed this round to avoid
+    -- re-applying the massive suspicion bump every tick.
+    morality._confirmedHostilesSeen = morality._confirmedHostilesSeen or {}
+
+    for _, ply in pairs(TTTBots.Match.AlivePlayers or {}) do
+        if not (IsValid(ply) and lib.IsPlayerAlive(ply)) then continue end
+        if ply == bot then continue end
+
+        -- TTT2 API: is this player's role publicly known?
+        if not (ply.RoleKnown and ply:RoleKnown()) then continue end
+
+        -- Skip if we already processed this player's confirmed role
+        if morality._confirmedHostilesSeen[ply] then continue end
+
+        -- Get the confirmed player's actual role and team
+        local targetRole = TTTBots.Roles.GetRoleFor(ply)
+        if not targetRole then continue end
+
+        -- Check if the confirmed player is an ally — if so, boost trust instead
+        local isAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, ply))
+            or TTTBots.Roles.IsAllies(bot, ply)
+
+        if isAlly then
+            -- Confirmed friendly role: boost trust via suspicion reduction
+            morality:ChangeSuspicion(ply, "RoleConfirmedAlly")
+            morality._confirmedHostilesSeen[ply] = true
+            continue
+        end
+
+        -- Check for neutral override — don't attack neutral confirmed roles
+        if targetRole:GetNeutralOverride() then
+            morality._confirmedHostilesSeen[ply] = true
+            continue
+        end
+
+        -- This player is confirmed and NOT an ally and NOT neutral — they are hostile.
+        -- Apply massive suspicion so the suspicion system also catches it.
+        morality:ChangeSuspicion(ply, "RoleConfirmedHostile")
+        morality._confirmedHostilesSeen[ply] = true
+
+        -- Feed evidence log
+        local evidence = bot:BotEvidence()
+        if evidence then
+            evidence:AddEvidence({
+                type    = "ROLE_CONFIRMED",
+                subject = ply,
+                detail  = string.format("role publicly confirmed as %s (team: %s)",
+                    targetRole:GetName() or "unknown",
+                    ply:GetTeam() or "unknown"),
+            })
+        end
+
+        -- Record in memory for LLM context
+        local mem = bot:BotMemory()
+        if mem and mem.AddWitnessEvent then
+            mem:AddWitnessEvent("confirmed", string.format(
+                "%s's role confirmed as %s — hostile!",
+                ply:Nick(),
+                targetRole:GetName() or "unknown"
+            ))
+        end
+
+        -- Announce KOS via chatter
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("CallKOS", { player = ply:Nick() })
+        end
+
+        -- If the bot can see this confirmed hostile right now, attack immediately
+        if bot:Visible(ply) then
+            -- Seed position for pathfinding
+            local mem2 = bot.components and bot.components.memory
+            if mem2 and mem2.UpdateKnownPositionFor then
+                mem2:UpdateKnownPositionFor(ply, ply:GetPos())
+            end
+            Arb.RequestAttackTarget(bot, ply, "CONFIRMED_HOSTILE", PRI.ROLE_HOSTILITY)
+        else
+            -- Not visible — call KOS so other bots know, and hunt
+            TTTBots.Match.CallKOS(bot, ply)
         end
     end
 end
@@ -712,6 +875,7 @@ local function runHostilityPolicy(bot)
     if not (bot.attackTarget ~= nil and bot.attackTarget:IsNPC() and not table.HasValue(TTTBots.Bots, bot.attackTarget)) then
         restlessRangedAggression(bot)
         attackKOSedByAll(bot)
+        attackConfirmedHostiles(bot)
         attackKOSListed(bot)
         attackNPCs(bot)
         attackEnemies(bot)
@@ -728,10 +892,11 @@ local function runHostilityPolicy(bot)
 end
 
 -- Export for the coordinator and per-tick callers
-TTTBots.Morality.RunHostilityPolicy       = runHostilityPolicy
-TTTBots.Morality.AttackKOSListed          = attackKOSListed
-TTTBots.Morality.AttackKOSedByAll         = attackKOSedByAll
-TTTBots.Morality.RestlessRangedAggression = restlessRangedAggression
+TTTBots.Morality.RunHostilityPolicy        = runHostilityPolicy
+TTTBots.Morality.AttackKOSListed           = attackKOSListed
+TTTBots.Morality.AttackKOSedByAll          = attackKOSedByAll
+TTTBots.Morality.RestlessRangedAggression  = restlessRangedAggression
+TTTBots.Morality.AttackConfirmedHostiles   = attackConfirmedHostiles
 
 -- ===========================================================================
 -- Anti-grief: Innocent-team bots should not damage friendly ankhs (G-9)

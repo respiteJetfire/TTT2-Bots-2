@@ -48,15 +48,15 @@ function FollowPlan.ShouldIgnorePlans(bot)
     if not FollowPlan.IsPlanFollowerRole(bot) then return true end
     if not FollowPlan.Debug and bot.components.personality:GetIgnoresOrders() then
         -- Instead of always ignoring, give a phase-scaled chance to comply.
-        -- EARLY: 10% comply, MID: 25%, LATE: 50%, OVERTIME: 85%
-        local complianceChance = 0.10
+        -- EARLY: 30% comply, MID: 50%, LATE: 70%, OVERTIME: 90%
+        local complianceChance = 0.30
         local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
         local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
         if ra and PHASE then
             local phase = ra:GetPhase()
-            if phase == PHASE.MID then complianceChance = 0.25
-            elseif phase == PHASE.LATE then complianceChance = 0.50
-            elseif phase == PHASE.OVERTIME then complianceChance = 0.85
+            if phase == PHASE.MID then complianceChance = 0.50
+            elseif phase == PHASE.LATE then complianceChance = 0.70
+            elseif phase == PHASE.OVERTIME then complianceChance = 0.90
             end
         end
         if math.random() > complianceChance then return true end
@@ -266,7 +266,10 @@ function FollowPlan.Validate(bot)
         if validate_debug then print(string.format("%s ignored plans", bot:Nick())) end
         return false
     end
-    if not TTTBots.Plans.SelectedPlan then
+    -- Check for a plan matching this bot's team (per-team system)
+    local botTeam = bot.GetTeam and bot:GetTeam()
+    local teamPlan = botTeam and TTTBots.Plans.GetPlanForTeam(botTeam)
+    if not teamPlan and not TTTBots.Plans.SelectedPlan then
         if validate_debug then print(string.format("%s no selected plan", bot:Nick())) end
         return false
     end
@@ -492,9 +495,11 @@ local ACT_RUNNING_HASH = {
                 and TTTBots.Roles.IsAllies(bot, ply)
         end)
         -- If we're the only allied coordinator, don't wait for anyone — attack solo.
+        local convergenceThreshold = 0.45
+        local minBotsReady = 2
         local requiredStaged = #aliveAlliedCoordinators <= 1
             and 1
-            or math.max(2, math.ceil(#aliveAlliedCoordinators * 0.6))
+            or math.max(2, math.ceil(#aliveAlliedCoordinators * convergenceThreshold))
 
         -- Count how many allied coordinators are already near the target.
         local stagedCount = 0
@@ -509,14 +514,22 @@ local ACT_RUNNING_HASH = {
         if not state.coordStagingStart then
             state.coordStagingStart = CurTime()
         end
+        -- Track when this bot first entered COORD_ATTACK for the hard timeout.
+        if not state.coordAttackStartTime then
+            state.coordAttackStartTime = CurTime()
+        end
 
         -- Staging timeout: after 75% of the job duration, attack regardless.
         local jobDuration = (job.MaxDuration or 30)
         local stagingDeadline = state.coordStagingStart + (jobDuration * 0.75)
         local timeExpired = CurTime() >= stagingDeadline
 
-        -- Enough traitors staged OR timer ran out → everyone attacks.
-        if stagedCount >= requiredStaged or timeExpired then
+        -- Hard timeout: force attack after 15s of staging regardless of convergence.
+        local hardTimeout = (CurTime() - state.coordAttackStartTime) > 15
+
+        -- Enough traitors staged (threshold OR minimum count) OR timer ran out → everyone attacks.
+        local enoughConverged = (stagedCount >= requiredStaged) or (stagedCount >= minBotsReady)
+        if enoughConverged or timeExpired or hardTimeout then
             -- Seed memory so AttackTarget.Seek has a last-known position.
             local memory = bot.components and bot.components.memory
             if memory and memory:GetLastSeenTime(target) == 0 then
@@ -528,6 +541,11 @@ local ACT_RUNNING_HASH = {
 
         -- Not enough traitors in position yet — keep approaching the target area.
         -- Stay just outside comfortable engagement range so we don't spook the victim.
+        -- Mark as non-interruptible during staging so low-priority behaviors
+        -- cannot preempt plan execution. Self-defense (priority 5) already
+        -- overrides non-interruptible behaviors in sv_tree.lua.
+        FollowPlan.Interruptible = false
+
         local approachPos = targetPos
         if distToTarget <= 400 then
             -- Close enough — hold position and look at target.
@@ -557,10 +575,15 @@ function FollowPlan.OnRunning(bot)
         state.shouldClear = true
         return STATUS.FAILURE
     end
+    -- Default to interruptible; the COORD_ATTACK handler will set it to false
+    -- when in staging phase. This ensures all other actions remain interruptible.
+    FollowPlan.Interruptible = true
+
     local status = ACT_RUNNING_HASH[state.Job.Action](bot, state.Job)
     if status == STATUS.RUNNING then
         botChatterWhenJobStart(bot, state.Job)
     elseif status == STATUS.FAILURE or status == STATUS.SUCCESS then
+        FollowPlan.Interruptible = true -- restore on completion
         state.shouldClear = true
     end
     -- printf("Running job %s for bot %s. Status is %s", state.Job.Action, bot:Nick(), tostring(status))
@@ -588,6 +611,8 @@ end
 --- FollowPlan→UseGrenade→Retreat thrashing loop.
 function FollowPlan.OnEnd(bot)
     local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    -- Always restore interruptibility when the behavior ends.
+    FollowPlan.Interruptible = true
     if state.shouldClear then
         TTTBots.Behaviors.ClearState(bot, "FollowPlan")
     else
@@ -596,7 +621,7 @@ function FollowPlan.OnEnd(bot)
         state.stallSampleTime = nil
         state.lastSetGoalPos = nil
         state.lastSetGoalTime = nil
-        -- Keep coordStagingStart so the staging timer survives interruptions.
+        -- Keep coordStagingStart and coordAttackStartTime so timers survive interruptions.
     end
 end
 

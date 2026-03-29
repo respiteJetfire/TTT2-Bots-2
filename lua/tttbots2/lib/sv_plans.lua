@@ -47,6 +47,8 @@ TTTBots.Plans = {
     BotStatuses = {},
     CurrentPlanState = "",
     SelectedPlan = nil,
+    --- Per-team plan state: { [teamName] = { SelectedPlan, CurrentPlanState, PlanStartTime, ... } }
+    TeamPlans = {},
 }
 include("tttbots2/data/sv_planpresets.lua") --- Load data into TTTBots.Plans.PRESETS
 
@@ -76,6 +78,7 @@ function TTTBots.Plans.Cleanup()
     TTTBots.Plans.LastCoordinatorCount = 0
     TTTBots.Plans.CachedLoadout = nil
     TTTBots.Plans.CachedEnemyDist = nil
+    TTTBots.Plans.TeamPlans = {} --- Reset per-team plan state
 end
 
 TTTBots.Plans.Cleanup() -- Call when this script is first executed
@@ -480,15 +483,25 @@ local conditionsHashedFuncs = {
         return data.Loadout and (data.Loadout.TotalCreditsRemaining or 0) >= conditions.MinTeamCredits
     end,
 }
-function TTTBots.Plans.AreConditionsValid(conditions)
+function TTTBots.Plans.AreConditionsValid(conditions, filterTeam)
     -- Coordinators: any role with GetCanCoordinate (traitors, necromancer, etc.)
+    -- When filterTeam is specified, only count coordinators on that team.
     local aliveCoordinators = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers,
-        function(ply) return TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate() end)
+        function(ply)
+            if not TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate() then return false end
+            if filterTeam then
+                local team = ply.GetTeam and ply:GetTeam()
+                return team == filterTeam
+            end
+            return true
+        end)
     -- Actual traitor-team players only (for MinTraitors/MaxTraitors conditions)
+    -- When filterTeam is specified, count members of THAT team instead.
+    local countTeam = filterTeam or TEAM_TRAITOR
     local aliveTraitors = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers,
         function(ply)
             local team = ply.GetTeam and ply:GetTeam()
-            return team == TEAM_TRAITOR
+            return team == countTeam
         end)
     -- Check if any police-type player exists
     local hasPolice = #TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
@@ -662,7 +675,8 @@ end
 --- priority ordering and weapon/situational synergy.  Valid presets from
 --- higher tiers still get priority, but within each tier the preset with
 --- the highest (Chance + SynergyScore) wins via weighted random selection.
-function TTTBots.Plans.GetFirstBestPreset()
+--- @param filterTeam string|nil  When provided, only presets tagged with this Team are considered.
+function TTTBots.Plans.GetFirstBestPreset(filterTeam)
     local PRESETS = TTTBots.Plans.PRESETS
     local Default = PRESETS.Default
 
@@ -679,19 +693,29 @@ function TTTBots.Plans.GetFirstBestPreset()
         local preset = PRESETS[name]
         if not preset then continue end
 
+        -- Team filter: skip presets not matching the requested team
+        if filterTeam and preset.Team and preset.Team ~= filterTeam then continue end
+        -- If no filterTeam, default to only TEAM_TRAITOR presets (backward compat)
+        if not filterTeam and preset.Team and preset.Team ~= TEAM_TRAITOR then continue end
+
         -- Test conditions WITHOUT the random Chance roll — we handle Chance as weight
         local baseChance = preset.Conditions.Chance or 100
         local condCopy = {}
         for k, v in pairs(preset.Conditions) do condCopy[k] = v end
         condCopy.Chance = 100  -- bypass random roll; use Chance as base weight
-        local valid = TTTBots.Plans.AreConditionsValid(condCopy)
+        local valid = TTTBots.Plans.AreConditionsValid(condCopy, filterTeam)
         if not valid then continue end
 
         -- Calculate effective weight: base chance + synergy bonus, clamped to [5, 200]
         local synergy = TTTBots.Plans.CalcSynergyScore(preset, loadout, enemyDist)
         -- Higher-tier presets (lower index) get a priority bonus
         local tierBonus = math.max(0, 20 - priority)
-        local weight = math.Clamp(baseChance + synergy + tierBonus, 5, 200)
+        -- Learning modifier: plans that historically win more get a boost
+        local learningBonus = 0
+        if TTTBots.PlanLearning then
+            learningBonus = TTTBots.PlanLearning.GetLearningModifier(name)
+        end
+        local weight = math.Clamp(baseChance + synergy + tierBonus + learningBonus, 5, 200)
 
         candidates[#candidates + 1] = { preset = preset, weight = weight }
         totalWeight = totalWeight + weight
@@ -702,14 +726,23 @@ function TTTBots.Plans.GetFirstBestPreset()
     for _, name in ipairs(TTTBots.Plans.PresetPriority) do prioritySet[name] = true end
     for name, preset in pairs(PRESETS) do
         if name ~= "Default" and not prioritySet[name] then
+            -- Team filter: skip presets not matching the requested team
+            if filterTeam and preset.Team and preset.Team ~= filterTeam then continue end
+            if not filterTeam and preset.Team and preset.Team ~= TEAM_TRAITOR then continue end
+
             local baseChance = preset.Conditions.Chance or 100
             local condCopy = {}
             for k, v in pairs(preset.Conditions) do condCopy[k] = v end
             condCopy.Chance = 100
-            local valid = TTTBots.Plans.AreConditionsValid(condCopy)
+            local valid = TTTBots.Plans.AreConditionsValid(condCopy, filterTeam)
             if valid then
                 local synergy = TTTBots.Plans.CalcSynergyScore(preset, loadout, enemyDist)
-                local weight = math.Clamp(baseChance + synergy, 5, 200)
+                -- Learning modifier for custom/add-on presets too
+                local learningBonus = 0
+                if TTTBots.PlanLearning then
+                    learningBonus = TTTBots.PlanLearning.GetLearningModifier(name)
+                end
+                local weight = math.Clamp(baseChance + synergy + learningBonus, 5, 200)
                 candidates[#candidates + 1] = { preset = preset, weight = weight }
                 totalWeight = totalWeight + weight
             end
@@ -735,6 +768,67 @@ end
 TTTBots.Plans.LastReEvalTime = 0
 TTTBots.Plans.LastCoordinatorCount = 0
 TTTBots.Plans.ReEvalCooldown = 10 -- seconds between re-evaluation checks
+
+---------------------------------------------------------------------------
+-- Per-Team Plan Helpers
+--
+-- Returns all non-innocent teams that currently have alive coordinators.
+-- Each team gets its own plan selection and state tracking.
+---------------------------------------------------------------------------
+
+--- Get all teams that have at least one alive coordinator bot.
+--- @return table teams  list of team name strings (e.g. {"traitors", "jackals"})
+function TTTBots.Plans.GetActiveCoordinatorTeams()
+    local teamSet = {}
+    for _, ply in ipairs(TTTBots.Match.AlivePlayers or {}) do
+        if not IsValid(ply) then continue end
+        local role = TTTBots.Roles.GetRoleFor(ply)
+        if not role or not role:GetCanCoordinate() then continue end
+        local team = ply.GetTeam and ply:GetTeam()
+        if team and team ~= TEAM_INNOCENT and team ~= TEAM_NONE then
+            teamSet[team] = true
+        end
+    end
+    local result = {}
+    for team in pairs(teamSet) do
+        result[#result + 1] = team
+    end
+    return result
+end
+
+--- Get or create the per-team plan state table.
+--- @param team string  team name
+--- @return table state  per-team plan state
+function TTTBots.Plans.GetTeamPlanState(team)
+    if not TTTBots.Plans.TeamPlans[team] then
+        TTTBots.Plans.TeamPlans[team] = {
+            SelectedPlan = nil,
+            CurrentPlanState = TTTBots.Plans.PLANSTATES.WAITING,
+            PlanStartTime = 0,
+            SharedTargetCache = {},
+            LastReEvalTime = 0,
+            LastCoordinatorCount = 0,
+            BotStatuses = {},
+        }
+    end
+    return TTTBots.Plans.TeamPlans[team]
+end
+
+--- Get the active plan for a specific team (used by FollowPlan behavior).
+--- Falls back to the legacy SelectedPlan for TEAM_TRAITOR backward compat.
+--- @param team string  team name
+--- @return table|nil plan  the selected plan or nil
+function TTTBots.Plans.GetPlanForTeam(team)
+    local state = TTTBots.Plans.TeamPlans[team]
+    if state and state.SelectedPlan then
+        return state.SelectedPlan
+    end
+    -- Backward compat: legacy SelectedPlan is always for TEAM_TRAITOR
+    if team == TEAM_TRAITOR then
+        return TTTBots.Plans.SelectedPlan
+    end
+    return nil
+end
 
 --- Check whether the current plan should be swapped for a better one.
 --- Triggers when the coordinator team loses members (ally death) and a
@@ -822,36 +916,79 @@ function TTTBots.Plans.Tick()
         TTTBots.Plans.Cleanup()
         return
     end
+
+    -- Legacy TEAM_TRAITOR plan selection (backward compatible)
     if not TTTBots.Plans.SelectedPlan then
         TTTBots.Plans.InvalidateAnalysisCache()
-        TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset())
+        TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset(TEAM_TRAITOR))
         TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
         TTTBots.Plans.PlanStartTime = CurTime()
         TTTBots.Plans.LastCoordinatorCount = 0  -- reset for re-eval tracking
-        return
+        -- Notify plan learning system of the selected plan
+        if TTTBots.PlanLearning and TTTBots.Plans.SelectedPlan then
+            TTTBots.PlanLearning.OnPlanSelected(TTTBots.Plans.SelectedPlan.Name)
+        end
+        -- Mirror into per-team state
+        local tState = TTTBots.Plans.GetTeamPlanState(TEAM_TRAITOR)
+        tState.SelectedPlan = TTTBots.Plans.SelectedPlan
+        tState.CurrentPlanState = TTTBots.Plans.CurrentPlanState
+        tState.PlanStartTime = TTTBots.Plans.PlanStartTime
     end
 
-    -- Mid-round re-evaluation: if the team lost members, conditions changed,
-    -- or a better loadout-synergy plan is now available, swap to it.
+    -- Mid-round re-evaluation for traitor team
     if TTTBots.Plans.CurrentPlanState == TTTBots.Plans.PLANSTATES.RUNNING then
         if TTTBots.Plans.ShouldReEvaluatePlan() then
-            -- Swap to the new best preset, clearing all bot job assignments.
             TTTBots.Plans.BotStatuses = {}
             TTTBots.Plans.SharedTargetCache = {}
             TTTBots.Plans.InvalidateAnalysisCache()
-            TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset())
+            TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset(TEAM_TRAITOR))
             TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
             TTTBots.Plans.PlanStartTime = CurTime()
+            if TTTBots.PlanLearning and TTTBots.Plans.SelectedPlan then
+                TTTBots.PlanLearning.OnPlanSelected(TTTBots.Plans.SelectedPlan.Name)
+            end
+            -- Mirror into per-team state
+            local tState = TTTBots.Plans.GetTeamPlanState(TEAM_TRAITOR)
+            tState.SelectedPlan = TTTBots.Plans.SelectedPlan
+            tState.CurrentPlanState = TTTBots.Plans.CurrentPlanState
+            tState.PlanStartTime = TTTBots.Plans.PlanStartTime
             return
         end
     end
 
-    -- Transition out of START once the round has had a short warmup window.
-    -- This prevents the plan FSM from appearing permanently stuck in "Starting".
+    -- Transition out of START for traitor plan
     if TTTBots.Plans.CurrentPlanState == TTTBots.Plans.PLANSTATES.START then
         local startedAt = TTTBots.Plans.PlanStartTime or CurTime()
         if (CurTime() - startedAt) >= 1 then
             TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.RUNNING
+            local tState = TTTBots.Plans.GetTeamPlanState(TEAM_TRAITOR)
+            tState.CurrentPlanState = TTTBots.Plans.PLANSTATES.RUNNING
+        end
+    end
+
+    -- Per-team plan selection for non-traitor coordinator teams
+    local activeTeams = TTTBots.Plans.GetActiveCoordinatorTeams()
+    for _, team in ipairs(activeTeams) do
+        if team == TEAM_TRAITOR then continue end -- already handled above
+        local state = TTTBots.Plans.GetTeamPlanState(team)
+
+        if not state.SelectedPlan then
+            TTTBots.Plans.InvalidateAnalysisCache()
+            local preset = TTTBots.Plans.GetFirstBestPreset(team)
+            if preset then
+                state.SelectedPlan = TTTBots.Lib.DeepCopy(preset)
+                state.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
+                state.PlanStartTime = CurTime()
+                state.LastCoordinatorCount = 0
+            end
+        end
+
+        -- Transition out of START
+        if state.CurrentPlanState == TTTBots.Plans.PLANSTATES.START then
+            local startedAt = state.PlanStartTime or CurTime()
+            if (CurTime() - startedAt) >= 1 then
+                state.CurrentPlanState = TTTBots.Plans.PLANSTATES.RUNNING
+            end
         end
     end
 end

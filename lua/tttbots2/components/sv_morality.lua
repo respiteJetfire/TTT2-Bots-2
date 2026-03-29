@@ -241,6 +241,7 @@ function BotMorality:ResetRoundState()
     self.roleGuesses = {}
     self.roleGuessTimestamps = {}
     self.testedClean = nil
+    self._confirmedHostilesSeen = nil
 
     local bot = self.bot
     if not IsValid(bot) then return end
@@ -343,6 +344,12 @@ function BotMorality:Think()
     -- any visible non-ally immediately.
     if TTTBots.Morality.RestlessRangedAggression then
         TTTBots.Morality.RestlessRangedAggression(self.bot)
+    end
+
+    -- Per-tick confirmed hostiles: react immediately when a player's hostile
+    -- role has been publicly confirmed by TTT2 (body searched, resurrected, etc.)
+    if TTTBots.Morality.AttackConfirmedHostiles then
+        TTTBots.Morality.AttackConfirmedHostiles(self.bot)
     end
 end
 

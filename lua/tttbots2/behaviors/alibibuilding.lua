@@ -91,11 +91,28 @@ function AlibiBuilding.Validate(bot)
         if aliveAllyCount == 0 then return false end
     end
 
-    -- Only active in the EARLY phase
+    -- Active in EARLY and MID phases (with personality gating for MID)
     local ra = bot:BotRoundAwareness()
     if not ra then return false end
     local PHASE = TTTBots.Components.RoundAwareness.PHASE
-    if ra:GetPhase() ~= PHASE.EARLY then return false end
+    local phase = ra:GetPhase()
+
+    if phase ~= PHASE.EARLY and phase ~= PHASE.MID then return false end
+
+    -- Personality gate: aggressive bots skip deception in MID phase
+    if phase == PHASE.MID then
+        local personality = bot:BotPersonality()
+        if personality then
+            if personality:GetTraitBool("hothead") or personality:GetTraitBool("aggressive") then
+                return false
+            end
+            -- Cautious/strategic bots always alibi build in MID
+            if not (personality:GetTraitBool("cautious") or personality:GetTraitBool("strategic")) then
+                -- Other bots: 50% chance
+                if math.random(1, 100) > 50 then return false end
+            end
+        end
+    end
 
     -- Don't run if we already have a fresh alibi target set and we're close to them
     local state = TTTBots.Behaviors.GetState(bot, "AlibiBuilding")
@@ -143,11 +160,12 @@ function AlibiBuilding.OnRunning(bot)
         return STATUS.FAILURE
     end
 
-    -- Re-validate phase
+    -- Re-validate phase (allow EARLY and MID)
     local ra = bot:BotRoundAwareness()
     if ra then
         local PHASE = TTTBots.Components.RoundAwareness.PHASE
-        if ra:GetPhase() ~= PHASE.EARLY then
+        local phase = ra:GetPhase()
+        if phase ~= PHASE.EARLY and phase ~= PHASE.MID then
             return STATUS.SUCCESS
         end
     end

@@ -77,8 +77,13 @@ local function GetSelectionWeight(bot, option)
     local className = option.Class or ""
     local isDeagle = string.find(className, "deagle", 1, true) ~= nil
 
+    -- Determine the bot's current round phase for phase-conditional logic
+    local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+    local phase = ra and ra:GetPhase() or "EARLY"
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+
     if option.PrimaryWeapon then
-        weight = weight + 2
+        weight = weight + 3
     end
 
     if option.TTT2 then
@@ -86,15 +91,42 @@ local function GetSelectionWeight(bot, option)
     end
 
     if option.PrimaryWeapon and not isDeagle then
-        weight = weight * 1.35
+        weight = weight * 1.5
     end
 
+    -- Phase-conditional penalty for deagle:
+    -- EARLY: strong penalty (0.45x), MID: moderate (0.70x), LATE/OVERTIME: no penalty
     if isDeagle then
-        weight = weight * 0.45
+        if PHASE and (phase == PHASE.LATE or phase == PHASE.OVERTIME) then
+            -- No penalty in late game
+        elseif PHASE and phase == PHASE.MID then
+            weight = weight * 0.70
+        else
+            weight = weight * 0.45
+        end
     end
 
+    -- Phase-conditional penalty for jihad bomb:
+    -- EARLY: strong penalty (0.35x), MID: moderate (0.55x), LATE/OVERTIME: no penalty
     if className == "weapon_ttt_defector_jihad" then
-        weight = weight * 0.35
+        if PHASE and (phase == PHASE.LATE or phase == PHASE.OVERTIME) then
+            -- No penalty in late game
+        elseif PHASE and phase == PHASE.MID then
+            weight = weight * 0.55
+        else
+            weight = weight * 0.35
+        end
+    end
+
+    -- Early-game priority: if the bot has no primary weapon yet, double the
+    -- weight for PrimaryWeapon buyables so the first credit goes to a
+    -- combat-capable weapon.
+    if option.PrimaryWeapon then
+        local inv = bot.BotInventory and bot:BotInventory()
+        local hasPrimary = inv and (inv:GetPrimary() or inv:GetSpecialPrimary())
+        if not hasPrimary then
+            weight = weight * 2.0
+        end
     end
 
     return math.max(weight, 0.1)

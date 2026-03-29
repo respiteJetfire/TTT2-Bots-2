@@ -16,7 +16,7 @@ FalseKOS.Interruptible = true
 local STATUS = TTTBots.STATUS
 
 -- Minimum time between false KOS calls (per bot)
-local COOLDOWN_SECS    = 90
+local COOLDOWN_SECS    = 60
 -- Only trigger if there are at least this many unknowns still alive
 local MIN_ALIVE_FOR_KOS = 4
 
@@ -91,7 +91,27 @@ function FalseKOS.Validate(bot)
     if (CurTime() - (bot.lastFalseKOSTime or 0)) < COOLDOWN_SECS then return false end
 
     -- Low probability gate — only trigger occasionally
-    if not lib.TestPercent(8) then return false end
+    local triggerChance = 15
+
+    -- Personality modifier
+    local personality = bot:BotPersonality()
+    if personality then
+        if personality:GetTraitBool("cautious") or personality:GetTraitBool("strategic") then
+            triggerChance = triggerChance + 10
+        elseif personality:GetTraitBool("hothead") then
+            triggerChance = triggerChance - 5
+        end
+    end
+
+    -- Phase bonus: LATE phase gets extra +10% (more desperate)
+    if ra then
+        local phase = ra:GetPhase()
+        if phase == PHASE.LATE then
+            triggerChance = triggerChance + 10
+        end
+    end
+
+    if not lib.TestPercent(triggerChance) then return false end
 
     local state  = TTTBots.Behaviors.GetState(bot, "FalseKOS")
     local target = pickFalseKOSTarget(bot)

@@ -17,7 +17,7 @@ PlausibleIgnorance.Interruptible = true
 local STATUS = TTTBots.STATUS
 
 -- How close to a danger zone (recent kill) we must be to trigger
-local DANGER_PROXIMITY = 450
+local DANGER_PROXIMITY = 550
 -- Cooldown between excuses
 local EXCUSE_COOLDOWN  = 30
 -- Minimum time after the kill before we bother excusing (don't be first to say something)
@@ -96,8 +96,17 @@ function PlausibleIgnorance.Validate(bot)
     local timeSinceKill = CurTime() - (bot.lastKillTime or 0)
     if timeSinceKill < KILL_EXCUSE_DELAY then return false end
 
-    -- 50% chance per validation to keep behavior less predictable
-    if not lib.TestPercent(50) then return false end
+    -- Personality-adjusted chance per validation to keep behavior less predictable
+    local excuseChance = 65
+    local personality = bot:BotPersonality()
+    if personality then
+        if personality:GetTraitBool("cautious") then
+            excuseChance = 80  -- cautious bots are great at excuses
+        elseif personality:GetTraitBool("hothead") then
+            excuseChance = 40  -- hothead bots are poor at subtlety
+        end
+    end
+    if not lib.TestPercent(excuseChance) then return false end
 
     local state = TTTBots.Behaviors.GetState(bot, "PlausibleIgnorance")
     state.killPos = killPos

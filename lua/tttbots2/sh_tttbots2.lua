@@ -51,6 +51,7 @@ local function includeServer()
     include("tttbots2/lib/sv_spots.lua")
     include("tttbots2/lib/sv_tickscaler.lua")
     include("tttbots2/lib/sv_plancoordinator.lua")
+    include("tttbots2/lib/sv_planlearning.lua")
     include("tttbots2/lib/sv_innocentcoordinator.lua")
     include("tttbots2/lib/sv_infectedcoordinator.lua")
     include("tttbots2/lib/sv_necrocoordinator.lua")
@@ -59,9 +60,13 @@ local function includeServer()
     include("tttbots2/lib/sv_amnesiaccoordinator.lua")
     include("tttbots2/lib/sv_pharaohcoordinator.lua")
     include("tttbots2/commands/sv_chatcommands.lua")
+    include("tttbots2/lib/sv_headless.lua")
+    include("tttbots2/lib/sv_planstats_network.lua")
+    include("tttbots2/lib/sv_customplans.lua")
     include("tttbots2/lib/sv_dialog.lua")
     include("tttbots2/lib/sv_tree.lua")
     include("tttbots2/lib/sv_buyables.lua")
+    include("tttbots2/lib/sv_adaptive_difficulty.lua")
     include("tttbots2/lib/sv_roles.lua")
 end
 
@@ -76,6 +81,8 @@ local function includeClient()
     includeClientFile("tttbots2/client/cl_debugui.lua")
     includeClientFile("tttbots2/client/cl_scoreboard.lua")
     includeClientFile("tttbots2/client/cl_botmenu.lua")
+    includeClientFile("tttbots2/client/cl_planstats.lua")
+    includeClientFile("tttbots2/client/cl_customplans.lua")
     includeClientFile("tttbots2/client/cl_TTS.lua")
 end
 
@@ -114,6 +121,13 @@ util.AddNetworkString("TTTBots_RequestData")
 util.AddNetworkString("TTTBots_SyncAvatarNumbers")
 util.AddNetworkString("TTTBots_RequestConCommand")
 util.AddNetworkString("TTTBots_RequestCvarUpdate")
+util.AddNetworkString("TTTBots_RequestPlanStats")
+util.AddNetworkString("TTTBots_PlanStatsData")
+util.AddNetworkString("TTTBots_CustomPlan_Create")
+util.AddNetworkString("TTTBots_CustomPlan_Delete")
+util.AddNetworkString("TTTBots_CustomPlan_Update")
+util.AddNetworkString("TTTBots_CustomPlan_Sync")
+util.AddNetworkString("TTTBots_CustomPlan_RequestSync")
 util.AddNetworkString("SayTTSEL")
 util.AddNetworkString("SayTTSBad")
 -- Cupid role compatibility: bot-side lover linking sends these messages directly.
@@ -122,6 +136,140 @@ util.AddNetworkString("betrayedTraitor")
 
 local hasNavmesh = function() return navmesh.GetNavAreaCount() > 0 end
 local alreadyAddedResources = false
+--- Maximum seconds to wait for init checks before forcing init.
+local HEADLESS_INIT_TIMEOUT = 30
+
+---------------------------------------------------------------------------
+-- HEADLESS / BOT-ONLY SERVER BOOT SYSTEM
+--
+-- Problem chain (discovered over many iterations):
+--   1. sv_hibernate_when_empty does NOT exist as a real engine ConVar on
+--      this srcds build.  "Unknown command" in cfg. GetConVar returns nil.
+--   2. CreateConVar() creates a Lua-side ConVar but the engine's C++
+--      hibernation code ignores it — the server STILL hibernates.
+--   3. With 0 human players the engine hibernates, killing ALL Lua:
+--      timers (Simple + Create), Think hooks — everything stops.
+--   4. player.CreateNextBot() creates a bot but NextBots don't prevent
+--      hibernation — only real client connections do.
+--   5. RealTime() returns 0.0 at InitPostEntity. CurTime() returns 1.0.
+--      Neither advances until the engine enters its main game loop.
+--   6. Everything from InitPostEntity through navmesh, cfg exec, Steam
+--      init happens in a single non-interactive sequence. No hooks fire.
+--
+-- Solution (two-part):
+--   PART 1 (entrypoint.sh): A background keepalive process monitors
+--   console.log for "VAC secure mode" then sends the "bot" command to
+--   srcds via a named pipe (FIFO). The engine's "bot" command creates a
+--   real fake-client connection (unlike CreateNextBot), which the engine
+--   counts as a connected player, preventing re-hibernation.
+--
+--   PART 2 (this file): A Think hook registered at autorun time waits
+--   for the server to wake up. Once the FIFO-injected bot connects and
+--   the engine starts ticking, Think fires and we begin the init loop.
+--   After HEADLESS_INIT_TIMEOUT seconds, init is forced regardless of
+--   navmesh status.
+---------------------------------------------------------------------------
+
+local _initStarted = false
+local _initDone = false
+local _lastAttemptTime = -999
+local _attemptCount = 0
+
+--- Core initialization function. Called repeatedly from Think hook.
+local function tryInitialize()
+    if _initDone then return end
+
+    _attemptCount = _attemptCount + 1
+
+    -- Read headless cvar (should have cfg value by now since server is awake)
+    local headlessCvar = GetConVar("ttt_bot_headless")
+    local isHeadless = headlessCvar and headlessCvar:GetBool() or false
+    local navAreas = navmesh.GetNavAreaCount()
+
+    print(string.format("[TTT Bots 2] Init attempt #%d (headless=%s, navmesh_areas=%d, players=%d, CurTime=%.1f, RealTime=%.1f)",
+        _attemptCount, tostring(isHeadless), navAreas, #player.GetAll(), CurTime(), RealTime()))
+
+    -- Check if navmesh is available
+    local navOk = navAreas > 0
+
+    -- Force init after timeout
+    local forceInit = _attemptCount >= HEADLESS_INIT_TIMEOUT
+
+    if navOk then
+        print("[TTT Bots 2] Init check 'hasNavmesh' PASSED.")
+    elseif forceInit then
+        print(string.format("[TTT Bots 2] WARNING: hasNavmesh still FAILED after %d attempts — forcing init.", _attemptCount))
+    else
+        print(string.format("[TTT Bots 2] Init check 'hasNavmesh' FAILED — will retry (attempt %d/%d)...",
+            _attemptCount, HEADLESS_INIT_TIMEOUT))
+        return
+    end
+
+    -- SUCCESS: Initialize the bot system
+    _initDone = true
+    hook.Remove("Think", "TTTBots_InitRetryThink")
+    hook.Remove("PlayerInitialSpawn", "TTTBots_WakeUpTrigger")
+    print("[TTT Bots 2] ========================================")
+    print("[TTT Bots 2] All init checks passed — Initializing TTT Bots...")
+    print(string.format("[TTT Bots 2] headless=%s, navmesh_areas=%d, forced=%s",
+        tostring(isHeadless), navAreas, tostring(forceInit)))
+
+    local ok, err = pcall(TTTBots.Reload)
+    if ok then
+        print("[TTT Bots 2] TTTBots.Reload() completed successfully.")
+        hook.Run("TTTBotsInitialized", TTTBots)
+        print("[TTT Bots 2] TTTBotsInitialized hook fired. Bot system is LIVE.")
+    else
+        print("[TTT Bots 2] ERROR: TTTBots.Reload() failed: " .. tostring(err))
+        ErrorNoHaltWithStack(err)
+    end
+end
+
+-- THINK HOOK: fires every frame once the server is awake.
+-- While hibernating this never runs. The moment a human connects
+-- (or the engine otherwise wakes), this starts firing immediately.
+hook.Add("Think", "TTTBots_InitRetryThink", function()
+    if _initDone then return end
+
+    -- First Think frame ever: log wake-up
+    if not _initStarted then
+        _initStarted = true
+        _lastAttemptTime = RealTime()
+        print("[TTT Bots 2] ========================================")
+        print(string.format("[TTT Bots 2] Think hook ALIVE! Server is awake. (CurTime=%.1f, RealTime=%.1f, players=%d)",
+            CurTime(), RealTime(), #player.GetAll()))
+        print("[TTT Bots 2] Starting init retry loop (1 attempt/second)...")
+        print("[TTT Bots 2] ========================================")
+        -- Run first attempt immediately
+        tryInitialize()
+        return
+    end
+
+    -- Throttle: one attempt per second using RealTime
+    local now = RealTime()
+    if now - _lastAttemptTime < 1.0 then return end
+    _lastAttemptTime = now
+
+    tryInitialize()
+end)
+
+-- BELT-AND-SUSPENDERS: PlayerInitialSpawn fires when any player
+-- (human or bot) first joins. If Think somehow hasn't started yet,
+-- this gives us another chance.
+hook.Add("PlayerInitialSpawn", "TTTBots_WakeUpTrigger", function(ply)
+    if _initDone then return end
+    if _initStarted then return end -- Think is already handling it
+
+    print(string.format("[TTT Bots 2] PlayerInitialSpawn trigger: %s (bot=%s). Starting init...",
+        tostring(ply), tostring(ply:IsBot())))
+
+    _initStarted = true
+    _lastAttemptTime = RealTime()
+    tryInitialize()
+end)
+
+print("[TTT Bots 2] Autorun: Think + PlayerInitialSpawn hooks registered for deferred init.")
+print("[TTT Bots 2] Server will initialize bots when first player connects (or when Think starts).")
 
 ---Load all of the mod's depdenencies and initialize the mod
 function TTTBots.Reload()
@@ -134,8 +282,15 @@ function TTTBots.Reload()
     local Lib = TTTBots.Lib
     local PathManager = TTTBots.PathManager
 
-    TTTBots.Spots.CacheAllSpots() -- Cache all navmesh spots (cover, exposed, sniper spots, etc.)
-    TTTBots.Lib.GetNavRegions()   -- Caches all nav regions
+    -- Cache navmesh data (safe even if no navmesh exists — will just be empty)
+    local ok, err = pcall(function()
+        TTTBots.Spots.CacheAllSpots()
+        TTTBots.Lib.GetNavRegions()
+    end)
+    if not ok then
+        print("[TTT Bots 2] WARNING: Failed to cache navmesh spots: " .. tostring(err))
+        print("[TTT Bots 2] Bots will have limited navigation capabilities.")
+    end
 
     -- Bot behavior
     timer.Create("TTTBots_Tick", 1 / TTTBots.Tickrate, 0, function()
@@ -278,49 +433,6 @@ function TTTBots.Reload()
     end
 end
 
-local initChecks = {}
-
-local function addInitCheck(data)
-    initChecks[data.name] = data
-    initChecks[data.name].notifiedPlayers = {}
-    initChecks[data.name].dontChat = data.dontChat or false
-end
-
-addInitCheck({
-    name = "hasNavmesh",
-    callback = hasNavmesh,
-    adminsOnly = true,
-    msg = TTTBots.Locale.GetLocalizedString("no.navmesh")
-})
-
-local function chatCheck(check)
-    local msg = check.msg
-    for i, v in pairs(player.GetHumans()) do
-        if (check.adminsOnly and not v:IsSuperAdmin()) then continue end
-        if check.notifiedPlayers[v] then continue end
-        if not check.dontChat then
-            v:ChatPrint("TTT Bots: " .. msg)
-        else
-            print("TTT Bots: " .. check.msg)
-        end
-        check.notifiedPlayers[v] = true
-    end
-end
-
--- Initialization
-local function initializeIfChecksPassed()
-    for i, check in pairs(initChecks) do
-        local passed = check.callback()
-        if (not passed) then
-            chatCheck(check)
-            timer.Simple(1, initializeIfChecksPassed)
-            return
-        end
-    end
-
-    print("[TTT Bots 2] Initializing TTT Bots...")
-    TTTBots.Reload()
-    hook.Run("TTTBotsInitialized", TTTBots)
-end
-
-initializeIfChecksPassed()
+-- Init checks are now handled by the InitPostEntity → Think hook chain above.
+-- The old initializeIfChecksPassed() / timer.Simple retry loop has been removed
+-- because timer.Simple is killed by engine hibernation.

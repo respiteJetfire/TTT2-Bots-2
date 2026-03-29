@@ -50,6 +50,15 @@ function CLGAMEMODESUBMENU:Populate(parent)
     -- Traitor Behavior
     local form2 = vgui.CreateTTT2Form(parent, "header_tttbots_gameplay_traitor")
 
+    form2:MakeCheckBox({
+        serverConvar = "ttt_bot_adaptive_difficulty",
+        label = "label_tttbots_adaptive_difficulty",
+    })
+
+    form2:MakeHelp({
+        label = "help_tttbots_adaptive_difficulty",
+    })
+
     form2:MakeSlider({
         serverConvar = "ttt_bot_attack_delay",
         label = "label_tttbots_attack_delay",

@@ -55,6 +55,29 @@ local function getOwnUndiscoveredCorpse(bot)
     return nil
 end
 
+--- Returns any undiscovered corpse within range that the bot did NOT kill.
+--- Used as a fallback so traitors can investigate others' kills to blend in.
+---@param bot Bot
+---@param range number
+---@return Entity? corpse
+local function getAnyNearbyUndiscoveredCorpse(bot, range)
+    local corpses = TTTBots.Match.Corpses
+    if not corpses then return nil end
+    local candidates = {}
+    for _, corpse in pairs(corpses) do
+        if not IsValid(corpse) then continue end
+        if CORPSE.GetFound(corpse, false) then continue end
+        -- Skip own kills — we want OTHER corpses for the fallback
+        local killerEnt = corpse.tttbots_killedBy
+        if IsValid(killerEnt) and killerEnt == bot then continue end
+        if bot:GetPos():Distance(corpse:GetPos()) <= range then
+            table.insert(candidates, corpse)
+        end
+    end
+    if #candidates == 0 then return nil end
+    return candidates[math.random(1, #candidates)]
+end
+
 ---------------------------------------------------------------------------
 -- Behavior Interface
 ---------------------------------------------------------------------------
@@ -80,10 +103,26 @@ function FakeInvestigate.Validate(bot)
         return true
     end
 
-    -- Random chance gate (don't do this on every eligible kill)
-    if not lib.TestPercent(VISIT_CHANCE_PCT) then return false end
+    -- Personality gate: hothead bots are less likely to fake investigate
+    local visitChance = VISIT_CHANCE_PCT
+    local personality = bot:BotPersonality()
+    if personality and personality:GetTraitBool("hothead") then
+        visitChance = 20  -- hothead bots would rather fight
+    end
 
-    local corpse = getOwnUndiscoveredCorpse(bot)
+    -- Primary: try own kills first
+    local corpse = nil
+    if lib.TestPercent(visitChance) then
+        corpse = getOwnUndiscoveredCorpse(bot)
+    end
+
+    -- Fallback: if no own kill or chance failed, look for ANY nearby undiscovered corpse
+    if not corpse then
+        if lib.TestPercent(30) then
+            corpse = getAnyNearbyUndiscoveredCorpse(bot, 1500)
+        end
+    end
+
     if not corpse then return false end
 
     state.corpse = corpse

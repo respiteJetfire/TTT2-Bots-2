@@ -47,6 +47,7 @@ Arb.REASON_LABELS = {
     ANKH_CONVERSION_WITNESS  = "Witnessed ankh conversion — hostile act",
 
     -- Priority 3 — Role/team hostility policy
+    CONFIRMED_HOSTILE       = "Target's hostile role publicly confirmed by TTT2 (body search, resurrection, etc.)",
     RESTLESS_AGGRESSION     = "Restless armed with ranged weapon — attacking on sight",
     ROLE_ENEMY              = "Target is a declared role enemy",
     KOS_ALL                 = "Role KOS-all non-allies",

@@ -121,6 +121,8 @@ bot_sh_cvar("flicking", "1",
     "Can the bots flick around when they get shot from the rear? Effectively makes bots harder and seem smarter.")
 bot_sh_cvar("difficulty", "3",
     "A difficulty integer between 1-5; higher = harder. This affects trait selection and aim speed, reaction speed, and KOS callout chances.")
+bot_sh_cvar("adaptive_difficulty", "1",
+    "Dynamically boosts traitor accuracy and credits when traitors are losing. Tracks a 5-round rolling win-rate; boosts increase below 40% win-rate and decrease above 50%. Set to 0 to disable.")
 bot_sh_cvar("kos_limit", "2",
     "The upper bound of KOS calls an individual, bot or player, can make per round. Before the bots ignore them, at least. Used to deter trolls.")
 bot_sh_cvar("reaction_speed", "0.8",
@@ -266,6 +268,8 @@ bot_sh_cvar("radar_chance", "100",
     "Chance that a traitor bot will simulate having radar as a traitor (internally they must be an 'evil' role).")
 bot_sh_cvar("coordinator", "1",
     "Enables the Evil Coordinator module. Evil bots will not coordinate with other traitors with this set to 0. WARNING: This will make traitor bots far less effective & responsive.")
+bot_sh_cvar("headless", "0",
+    "Enables headless (bots-only) mode. When set to 1, the server will start and continue rounds with only bots connected — no human players required. Useful for dedicated bot servers, testing, or stat collection.")
 
 
 --- Voice Cvars
@@ -373,6 +377,8 @@ bot_sh_cvar("personality_evolution", "1",
     "Enables dynamic personality evolution: mood shifts from pressure and deaths, social accusation feedback, and confidence modulating aggression.")
 bot_sh_cvar("crossround_memory", "0",
     "Enables cross-round traitor memory. Bots will remember who was a traitor in previous rounds, simulating metagame knowledge. Disabled by default.")
+bot_sh_cvar("plan_learning", "1",
+    "Enables persistent plan learning. Traitor bots track which plans lead to victories and adapt future plan selection to favour historically successful strategies. Data persists across server restarts.")
 bot_sh_cvar("semantic_animations", "1",
     "Enables contextual semantic animations during interactions: CrouchPeek near danger, LookAway near kill zones, weapon holstering, and flashlight management.")
 bot_sh_cvar("emotional_chatter", "1",

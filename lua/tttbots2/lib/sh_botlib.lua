@@ -1344,9 +1344,15 @@ function TTTBots.Lib.TestPlayerSlots()
     return true
 end
 
---- Test if there are any players in the server to prevent issue #34
+--- Test if there are any players in the server to prevent issue #34.
+--- In headless mode, bots count as active players so the server is always considered active.
 ---@return boolean
 function TTTBots.Lib.TestServerActive()
+    -- Headless mode: server is always "active" even with 0 humans
+    if TTTBots.Headless and TTTBots.Headless.IsEnabled and TTTBots.Headless.IsEnabled() then
+        return true
+    end
+
     local numHumans = table.Count(player.GetHumans())
 
     return numHumans > 0

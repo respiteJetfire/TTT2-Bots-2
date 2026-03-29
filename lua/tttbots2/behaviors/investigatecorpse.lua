@@ -163,6 +163,7 @@ function InvestigateCorpse.OnRunning(bot)
             local killerEnt = corpse.tttbots_killedBy
             local victimEnt = CORPSE.GetPlayer(corpse)
             local weaponClass = corpse.dmgwep or "unknown weapon"
+            -- Prevent self-reporting: don't announce evidence naming yourself as the killer
             if IsValid(killerEnt) and killerEnt:IsPlayer() and killerEnt ~= bot then
                 evidence:AddEvidence({
                     type   = "WITNESSED_KILL",

@@ -230,10 +230,10 @@ function BotLocomotor:OnNewTarget(target)
     local REACTION_SPEED_BASE = lib.GetConVarFloat("reaction_speed")
     local DIFFICULTY = lib.GetConVarInt("difficulty")
     local DIFFICULTY_MULTIPLIERS = {
-        [1] = 5.0,  -- Very easy: 4+ second reaction time, practically AFK
-        [2] = 2.5,  -- Easy: noticeable delay
-        [3] = 1.0,  -- Normal: baseline
-        [4] = 0.4,  -- Hard: fast reactions
+        [1] = 4.0,  -- Very easy: slower reaction time, but not AFK
+        [2] = 2.0,  -- Easy: noticeable delay
+        [3] = 0.7,  -- Normal: baseline (faster than before)
+        [4] = 0.3,  -- Hard: fast reactions
         [5] = 0,    -- Very hard: instant snap-on, zero reaction time
     }
     local TRAITORS_REACT_QUICKER = lib.GetConVarBool("cheat_traitor_reactionspd")
@@ -241,7 +241,12 @@ function BotLocomotor:OnNewTarget(target)
         REACTION_SPEED_BASE = REACTION_SPEED_BASE * 0.5
     end
     local DIFFICULTY_MULT = DIFFICULTY_MULTIPLIERS[DIFFICULTY] or 1
-    local reactionSpeed = REACTION_SPEED_BASE * DIFFICULTY_MULT
+    -- Adaptive difficulty: struggling traitors react faster (lower reaction delay).
+    local adaptiveMult = 1
+    if TTTBots.AdaptiveDifficulty and self.bot:GetTeam() == TEAM_TRAITOR then
+        adaptiveMult = TTTBots.AdaptiveDifficulty.GetAccuracyMult()
+    end
+    local reactionSpeed = REACTION_SPEED_BASE * DIFFICULTY_MULT * adaptiveMult
     self.reactionDelay = CurTime() + reactionSpeed
 
     -- Simulate a 'flick'
@@ -258,7 +263,7 @@ function BotLocomotor:RotateEyeAnglesTo(targetPos)
     local speedMult = self:DecayLookSpeedMultiplier()
     -- Settings for easier tweaking
     local RPS = 360 -- Max rotation speed per second (degrees)
-    local MIN_ROTATION_SPEED = 0.15
+    local MIN_ROTATION_SPEED = 0.25
     local MAX_ROTATION_SPEED = 1 * speedMult
 
     -- Calculate dependent variables
