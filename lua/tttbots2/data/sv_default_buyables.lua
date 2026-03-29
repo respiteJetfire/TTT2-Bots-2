@@ -1792,3 +1792,98 @@ hook.Add("PostPlayerDeath", "TTTBots_DeferredBuy_AllyDied", function(victim)
 		end
 	end)
 end)
+
+-- ── New Deferred Buy Event Hooks ────────────────────────────────────────
+
+-- Solo Traitor: when all other traitor allies are dead, trigger solo_traitor
+-- deferred buys for survivability (radar, body armor).
+hook.Add("PostPlayerDeath", "TTTBots_DeferredBuy_SoloTraitor", function(victim)
+	if not (IsValid(victim) and victim:IsPlayer()) then return end
+	timer.Simple(1.5, function()
+		if not TTTBots.Match or not TTTBots.Match.IsRoundActive() then return end
+		for _, bot in pairs(TTTBots.Bots) do
+			if not (IsValid(bot) and bot.components) then continue end
+			if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+			if not TTTBots.Roles.IsAllies(bot, victim) then continue end
+			-- Check if this bot is now alone on their team
+			local aliveAllies = 0
+			for _, ply in ipairs(player.GetAll()) do
+				if not IsValid(ply) or not ply:Alive() or ply == bot then continue end
+				if TTTBots.Roles.IsAllies(bot, ply) then aliveAllies = aliveAllies + 1 end
+			end
+			if aliveAllies == 0 then
+				TTTBots.Buyables.TryDeferredBuy(bot, "solo_traitor")
+			end
+		end
+	end)
+end)
+
+-- Equipment Spotted: periodically check if enemy equipment (health stations,
+-- etc.) exists near traitor bots, and trigger deferred EMP purchase.
+timer.Create("TTTBots.Buyables.DeferredBuyEquipment", 5.0, 0, function()
+	if not TTTBots.Match or not TTTBots.Match.IsRoundActive() then return end
+	-- Only check after early round phase
+	for _, bot in pairs(TTTBots.Bots) do
+		if not (IsValid(bot) and bot.components) then continue end
+		if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+		-- Only for traitor-team bots
+		local team = bot.GetTeam and bot:GetTeam()
+		if team ~= TEAM_TRAITOR then continue end
+		-- Check if any enemy equipment is nearby
+		local hasNearbyEquipment = false
+		for _, ent in ipairs(ents.FindByClass("ttt_health_station")) do
+			if IsValid(ent) and bot:GetPos():Distance(ent:GetPos()) < 2000 then
+				hasNearbyEquipment = true
+				break
+			end
+		end
+		if hasNearbyEquipment then
+			TTTBots.Buyables.TryDeferredBuy(bot, "equipment_spotted")
+		end
+	end
+end)
+
+-- Many Corpses: periodically check if there are multiple revivable corpses
+-- and trigger deferred defib/role-defib purchase for traitor bots.
+timer.Create("TTTBots.Buyables.DeferredBuyCorpses", 8.0, 0, function()
+	if not TTTBots.Match or not TTTBots.Match.IsRoundActive() then return end
+	local corpses = TTTBots.Lib.GetRevivableCorpses and TTTBots.Lib.GetRevivableCorpses() or {}
+	if #corpses < 2 then return end
+	for _, bot in pairs(TTTBots.Bots) do
+		if not (IsValid(bot) and bot.components) then continue end
+		if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+		local team = bot.GetTeam and bot:GetTeam()
+		if team ~= TEAM_TRAITOR then continue end
+		-- Only buy if we don't already have revival capability
+		if bot:HasWeapon("weapon_ttt_defibrillator") then continue end
+		if bot:HasWeapon("weapon_ttt_defib_traitor") then continue end
+		TTTBots.Buyables.TryDeferredBuy(bot, "many_corpses")
+	end
+end)
+
+-- Team Advantage: when the coordinating team has a numbers advantage,
+-- trigger deferred buy for aggression boosters (smart bullets).
+timer.Create("TTTBots.Buyables.DeferredBuyAdvantage", 6.0, 0, function()
+	if not TTTBots.Match or not TTTBots.Match.IsRoundActive() then return end
+	for _, bot in pairs(TTTBots.Bots) do
+		if not (IsValid(bot) and bot.components) then continue end
+		if not TTTBots.Lib.IsPlayerAlive(bot) then continue end
+		local team = bot.GetTeam and bot:GetTeam()
+		if team ~= TEAM_TRAITOR then continue end
+		-- Count allies vs enemies
+		local aliveAllies = 0
+		local aliveEnemies = 0
+		for _, ply in ipairs(player.GetAll()) do
+			if not IsValid(ply) or not ply:Alive() or ply == bot then continue end
+			if TTTBots.Roles.IsAllies(bot, ply) then
+				aliveAllies = aliveAllies + 1
+			else
+				aliveEnemies = aliveEnemies + 1
+			end
+		end
+		-- Only trigger when team has numbers advantage
+		if aliveAllies >= aliveEnemies and aliveEnemies > 0 then
+			TTTBots.Buyables.TryDeferredBuy(bot, "team_advantage")
+		end
+	end
+end)

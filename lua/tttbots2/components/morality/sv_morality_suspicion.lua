@@ -18,12 +18,12 @@ local PRI = Arb.PRIORITY
 --- A scale of suspicious events to apply to a player's suspicion value. Scale is normally -10 to 10.
 BotMorality.SUSPICIONVALUES = {
     -- Killing another player
-    Kill = 5,                -- This player killed someone in front of us
+    Kill = 4,                -- This player killed someone in front of us
     KillTrusted = 10,        -- This player killed a Trusted in front of us
     KillMedic = 15,          -- This player killed a medic in front of us
     KillTraitor = -15,       -- This player killed a traitor in front of us
-    Hurt = 3,                -- This player hurt someone in front of us
-    HurtMe = 9,              -- This player hurt us
+    Hurt = 2,                -- This player hurt someone in front of us
+    HurtMe = 6,              -- This player hurt us
     HurtTrusted = 6,         -- This player hurt a Trusted in front of us
     HurtByTrusted = 2,       -- This player was hurt by a Trusted
     HurtByEvil = -5,         -- This player was hurt by a traitor
@@ -226,7 +226,7 @@ function BotMorality:GuessRole(target)
     if chance <= 15 then
         self.roleGuesses[target] = TTTBots.Roles.GetRoleFor(target)
         print(self.bot:Nick() .. " has guessed " .. target:Nick() .. "'s role as " .. self.roleGuesses[target]:GetName())
-    elseif chance <= 45 then
+    elseif chance <= 35 then
         self.roleGuesses[target] = TTTBots.Roles.GetRandomRole()
         print(self.bot:Nick() .. " has INCORRECTLY guessed " .. target:Nick() .. "'s role as " .. self.roleGuesses[target]:GetName())
     end
@@ -237,7 +237,11 @@ function BotMorality:GuessRole(target)
                 chatter:On("RoleGuess", { player = target:Nick(), playerEnt = target, role = self.roleGuesses[target]:GetName() })
             end
         end
-        if math.random(1, 100) > 25 then
+        -- Only attack on role guess if suspicion is actually at KOS level.
+        -- A mere guess at SUSPICION_THRESHOLD caused too many innocent-on-innocent
+        -- TDM chains from incorrect guesses. Now the guess must be backed by
+        -- actual high suspicion before triggering an attack.
+        if sus >= self.Thresholds.KOS and math.random(1, 100) > 40 then
             Arb.RequestAttackTarget(self.bot, target, "SUS_ROLE_GUESS", PRI.SUSPICION_THRESHOLD)
         end
     end
@@ -331,19 +335,21 @@ function BotMorality:OnWitnessHurtIfAlly(victim, attacker, healthRemaining, dama
         or TTTBots.Roles.IsAllies(self.bot, attacker)
     if attackerIsAlly then return end
 
-    -- Defend our ally: use PLAYER_REQUEST priority so the bot actively engages
-    -- the threat. We don't use SELF_DEFENSE here because the ally-protection
-    -- system now clears ally targets at SELF_DEFENSE priority, and we want
-    -- SetAttackTarget's ally gate to correctly block if the attacker somehow
-    -- turns out to be an ally (should be caught above, but belt-and-suspenders).
+    -- Defend our ally: only engage if the attacker has enough built-up suspicion
+    -- to be considered hostile. This prevents innocent-on-innocent TDM chains
+    -- from single hits, crossfire, or accidental damage. The suspicion system
+    -- ensures the bot needs EVIDENCE before attacking in defense of allies.
+    -- Use SUSPICION_THRESHOLD priority so higher-priority events can override.
+    local morality = self.bot.components and self.bot.components.morality
+    local attackerSus = morality and morality:GetSuspicion(attacker) or 0
     local currentPri = self.bot.attackTargetPriority or 0
-    if currentPri < PRI.PLAYER_REQUEST then
+    if currentPri < PRI.SUSPICION_THRESHOLD and attackerSus >= BotMorality.Thresholds.Sus then
         -- Seed attacker position so AttackTarget can path toward them immediately
         local mem = self.bot.components and self.bot.components.memory
         if mem and mem.UpdateKnownPositionFor and IsValid(attacker) then
             mem:UpdateKnownPositionFor(attacker, attacker:GetPos())
         end
-        Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.PLAYER_REQUEST)
+        Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.SUSPICION_THRESHOLD)
     end
 end
 
@@ -527,24 +533,47 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
         if mem and mem.UpdateKnownPositionFor and IsValid(attacker) then
             mem:UpdateKnownPositionFor(attacker, attacker:GetPos())
         end
-        -- Force-clear any stale lower-priority target so self-defense can take
-        -- over immediately. Without this, the bot may be locked on a nil or
-        -- low-priority target that prevents the SELF_DEFENSE request from
-        -- succeeding (SetAttackTarget's "same target" early-return guard).
-        local currentTarget = self.bot.attackTarget
-        local currentPri    = self.bot.attackTargetPriority or 0
-        if currentTarget ~= attacker and currentPri < PRI.SELF_DEFENSE then
-            self.bot.attackTarget         = nil
-            self.bot.attackTargetPriority = 0
-            self.bot.attackTargetReason   = nil
+
+        -- Graduated self-defense response: chip damage (<=5 HP) only raises
+        -- suspicion without triggering a full SELF_DEFENSE attack. This prevents
+        -- TDM chains from stray bullets, splash damage, or accidental hits.
+        -- Moderate damage (6-20 HP) uses SUSPICION_THRESHOLD priority so the
+        -- bot investigates but doesn't override stronger combat priorities.
+        -- Heavy damage (>20 HP) or repeated attacks (high suspicion) use full
+        -- SELF_DEFENSE priority for immediate retaliation.
+        local selfDefPriority = PRI.SELF_DEFENSE
+        local existingSus = self:GetSuspicion(attacker)
+        if damageTaken <= 5 and existingSus < BotMorality.Thresholds.Sus then
+            -- Chip damage from an unsuspected player: just raise suspicion, don't attack
+            selfDefPriority = nil
+        elseif damageTaken <= 20 and existingSus < BotMorality.Thresholds.Sus then
+            -- Moderate damage from an unsuspected player: investigate, not full retaliation
+            selfDefPriority = PRI.SUSPICION_THRESHOLD
         end
-        local accepted = Arb.RequestAttackTarget(self.bot, attacker, "SELF_DEFENSE", PRI.SELF_DEFENSE)
-        if not accepted and lib.GetConVarBool("debug_attack") then
-            print(string.format("[TTTBots][SELF_DEFENSE] %s: RequestAttackTarget REJECTED for attacker %s (currentTarget=%s, currentPri=%d)",
+
+        local accepted = false
+        if selfDefPriority then
+            -- Force-clear any stale lower-priority target so self-defense can take
+            -- over immediately. Without this, the bot may be locked on a nil or
+            -- low-priority target that prevents the SELF_DEFENSE request from
+            -- succeeding (SetAttackTarget's "same target" early-return guard).
+            local currentTarget = self.bot.attackTarget
+            local currentPri    = self.bot.attackTargetPriority or 0
+            if currentTarget ~= attacker and currentPri < selfDefPriority then
+                self.bot.attackTarget         = nil
+                self.bot.attackTargetPriority = 0
+                self.bot.attackTargetReason   = nil
+            end
+            accepted = Arb.RequestAttackTarget(self.bot, attacker, "SELF_DEFENSE", selfDefPriority)
+        end
+        if not accepted and selfDefPriority and lib.GetConVarBool("debug_attack") then
+            local ct = self.bot.attackTarget
+            local cp = self.bot.attackTargetPriority or 0
+            print(string.format("[TTTBots][SELF_DEFENSE] %s: RequestAttackTarget REJECTED for attacker %s (currentTarget=%s, currentPri=%d, requestedPri=%d)",
                 self.bot:Nick(),
                 IsValid(attacker) and attacker:Nick() or "invalid",
-                IsValid(currentTarget) and currentTarget:Nick() or "nil",
-                currentPri))
+                IsValid(ct) and ct:Nick() or "nil",
+                cp, selfDefPriority or 0))
         end
         self:ChangeSuspicion(attacker, "HurtMe")
         local personality = self.bot:BotPersonality()
@@ -592,24 +621,28 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
         end
     end
 
-    local impact = (damageTaken / victim:GetMaxHealth()) * 3
+    local impact = math.min((damageTaken / victim:GetMaxHealth()) * 3, 1.5)
     local victimIsPolice = TTTBots.Roles.GetRoleFor(victim):GetAppearsPolice()
     local attackerIsPolice = TTTBots.Roles.GetRoleFor(attacker):GetAppearsPolice()
     local attackerSus = self:GetSuspicion(attacker)
     local victimSus = self:GetSuspicion(victim)
     if victimIsPolice or victimSus < BotMorality.Thresholds.Trust then
         self:ChangeSuspicion(attacker, "HurtTrusted", impact * attackerSusMod)
-        -- Immediately defend a trusted/police ally being attacked — don't wait
-        -- for suspicion to reach KOS threshold. Use SELF_DEFENSE priority so the
-        -- bot actually engages instead of just chattering about it.
+        -- Defend a trusted/police ally being attacked, but only if the damage
+        -- is significant (>10 HP) and the attacker already has some suspicion.
+        -- This prevents innocent-on-innocent TDM chains from chip damage,
+        -- crossfire, or single stray bullets. Use PLAYER_REQUEST (4) priority
+        -- instead of SELF_DEFENSE (5) so that prevent-ally clears can override.
+        local attackerCurrentSus = self:GetSuspicion(attacker)
         local currentPri = self.bot.attackTargetPriority or 0
-        if currentPri < PRI.SELF_DEFENSE then
+        if currentPri < PRI.PLAYER_REQUEST and damageTaken > 10
+            and attackerCurrentSus >= BotMorality.Thresholds.Sus then
             -- Seed attacker position into memory for immediate pathfinding
             local mem = self.bot.components and self.bot.components.memory
             if mem and mem.UpdateKnownPositionFor and IsValid(attacker) then
                 mem:UpdateKnownPositionFor(attacker, attacker:GetPos())
             end
-            Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.SELF_DEFENSE)
+            Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.PLAYER_REQUEST)
         end
         -- Verbally accuse the attacker for shooting a trusted ally (rate-limited per attacker to 10s)
         local now = CurTime()

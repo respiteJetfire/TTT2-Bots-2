@@ -55,6 +55,7 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.CreateDefector,
         _bh.CreateMedic,
         _bh.CreateDoctor,
+        _bh.PriestConvert,
         _bh.CreateCursed,
         _bh.CreateDeputy,
         _bh.CreateSidekick,
@@ -69,6 +70,11 @@ TTTBots.Behaviors.PriorityNodes = {
     --- Lock doors after kills to trap bodies
     TrapPlayer = {
         _bh.TrapPlayer,
+    },
+
+    --- Knife-stalk: silent melee kills on isolated targets (200dmg knife mod)
+    KnifeStalk = {
+        _bh.KnifeStalk,
     },
 
     --- Restore values, like health, ammo, etc.
@@ -171,6 +177,7 @@ TTTBots.Behaviors.DefaultTrees = {
         _prior.Convert,
         _prior.TacticalEquipment,
         _prior.TrapPlayer,
+        _prior.KnifeStalk,
         _prior.Support,
         _bh.Roledefib,
         _bh.PlantBomb,

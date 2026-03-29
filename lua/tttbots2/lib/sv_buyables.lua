@@ -340,3 +340,171 @@ TTTBots.Buyables.RegisterBuyable({
     end,
 })
 -- ── End LOW_AMMO deferred buyables ───────────────────────────────────────
+
+-- ── New Deferred Buyables: Situational Mid-Round Purchases ───────────────
+-- These deferred events cover gaps identified in the codebase analysis:
+--   • solo_traitor      — last traitor alive, buy survivability
+--   • equipment_spotted — enemy health station/equipment seen, buy EMP
+--   • many_corpses      — multiple revivable corpses exist, buy defib
+--   • team_advantage    — team has numbers advantage, buy aggression tools
+
+-- Solo Traitor: Radar — when alone, knowing where everyone is becomes critical
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "SoloRadar",
+    Class           = "item_ttt_radar",
+    Price           = 1,
+    Priority        = 0,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "solo_traitor",
+    TTT2            = true,
+    CanBuy = function(bot)
+        -- Only if we don't already have radar
+        local weps = bot:GetWeapons()
+        for _, w in ipairs(weps) do
+            if IsValid(w) and w:GetClass() == "item_ttt_radar" then return false end
+        end
+        -- Check NWBool for radar (TTT2 items use networked vars)
+        if bot.GetNWBool and bot:GetNWBool("HasRadar", false) then return false end
+        return TTTBots.Lib.WepClassExists("item_ttt_radar")
+    end,
+    SituationalScore = function(bot)
+        -- High priority when alone
+        local aliveAllies = 0
+        for _, ply in ipairs(player.GetAll()) do
+            if not IsValid(ply) or not ply:Alive() or ply == bot then continue end
+            if TTTBots.Roles.IsAllies(bot, ply) then aliveAllies = aliveAllies + 1 end
+        end
+        if aliveAllies > 0 then return 0 end
+        return 12
+    end,
+})
+
+-- Solo Traitor: Body Armor — survivability is critical when alone
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "SoloArmor",
+    Class           = "item_ttt_armor",
+    Price           = 1,
+    Priority        = 0,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "solo_traitor",
+    TTT2            = true,
+    CanBuy = function(bot)
+        -- Only if armor is depleted
+        return bot:Armor() < 30
+    end,
+    SituationalScore = function(bot)
+        local armor = bot:Armor()
+        if armor >= 50 then return 0 end
+        return math.max(10 - (armor / 5), 2)
+    end,
+})
+
+-- Equipment Spotted: EMP Grenade — disable enemy equipment
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "ReactiveEMP",
+    Class           = "weapon_ttt2_emp_grenade",
+    Price           = 1,
+    Priority        = 0,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "equipment_spotted",
+    CanBuy = function(bot)
+        if bot:HasWeapon("weapon_ttt2_emp_grenade") then return false end
+        return TTTBots.Lib.WepClassExists("weapon_ttt2_emp_grenade")
+    end,
+    SituationalScore = function(bot)
+        -- Check if health stations or detective equipment is nearby
+        local base = 5
+        for _, ent in ipairs(ents.FindByClass("ttt_health_station")) do
+            if IsValid(ent) and bot:GetPos():Distance(ent:GetPos()) < 2500 then
+                base = base + 8
+                break
+            end
+        end
+        return base
+    end,
+})
+
+-- Many Corpses: Defibrillator — reactive purchase when corpses are available
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "CorpseDefib",
+    Class           = "weapon_ttt_defibrillator",
+    Price           = 1,
+    Priority        = 0,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "many_corpses",
+    CanBuy = function(bot)
+        if bot:HasWeapon("weapon_ttt_defibrillator") then return false end
+        if bot:HasWeapon("weapon_ttt_defib_traitor") then return false end
+        return TTTBots.Lib.WepClassExists("weapon_ttt_defibrillator")
+    end,
+    SituationalScore = function(bot)
+        local corpses = TTTBots.Lib.GetRevivableCorpses and TTTBots.Lib.GetRevivableCorpses() or {}
+        if #corpses < 2 then return 0 end
+        return 5 + math.min(#corpses * 3, 12)
+    end,
+})
+
+-- Many Corpses: Role Defibrillator — convert corpses to traitor team
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "CorpseRoleDefib",
+    Class           = "weapon_ttt_defib_traitor",
+    Price           = 1,
+    Priority        = 0,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "many_corpses",
+    CanBuy = function(bot)
+        if bot:HasWeapon("weapon_ttt_defib_traitor") then return false end
+        if bot:HasWeapon("weapon_ttt_defibrillator") then return false end
+        return TTTBots.Lib.WepClassExists("weapon_ttt_defib_traitor")
+    end,
+    SituationalScore = function(bot)
+        local corpses = TTTBots.Lib.GetRevivableCorpses and TTTBots.Lib.GetRevivableCorpses() or {}
+        if #corpses < 2 then return 0 end
+        -- Role defib is more valuable than regular defib (converts to team)
+        return 7 + math.min(#corpses * 4, 15)
+    end,
+})
+
+-- Team Advantage: Smart Bullets — when the team has numbers, amplify DPS
+TTTBots.Buyables.RegisterBuyable({
+    Name            = "AdvantageSmartBullets",
+    Class           = "weapon_ttt2_smart_bullets",
+    Price           = 1,
+    Priority        = 0,
+    Roles           = { "traitor" },
+    PrimaryWeapon   = false,
+    ShouldAnnounce  = false,
+    DeferredEvent   = "team_advantage",
+    CanBuy = function(bot)
+        if bot.ttt2_smart_bullets_active then return false end
+        if bot:HasWeapon("weapon_ttt2_smart_bullets") then return false end
+        return TTTBots.Lib.WepClassExists("weapon_ttt2_smart_bullets")
+    end,
+    SituationalScore = function(bot)
+        local aliveAllies = 0
+        local aliveEnemies = 0
+        for _, ply in ipairs(player.GetAll()) do
+            if not IsValid(ply) or not ply:Alive() or ply == bot then continue end
+            if TTTBots.Roles.IsAllies(bot, ply) then
+                aliveAllies = aliveAllies + 1
+            else
+                aliveEnemies = aliveEnemies + 1
+            end
+        end
+        -- Only valuable when we have a numbers advantage
+        if aliveAllies < aliveEnemies then return 0 end
+        return 6 + math.min((aliveAllies - aliveEnemies) * 3, 9)
+    end,
+})
+
+-- ── End new deferred buyables ────────────────────────────────────────────

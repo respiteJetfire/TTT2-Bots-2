@@ -38,6 +38,12 @@ local chancesOf100 = {
     CreatingSidekick           = 80,
     CreatingDeputy             = 80,
     CreatingSlave              = 60,
+    PriestConverting           = 70,
+    PriestConvertSuccess       = 80,
+    PriestBrotherDied          = 85,
+    PriestDetectiveShot        = 60,
+    PriestEvilKill             = 90,
+    PriestBrotherhoodStrong    = 50,
     CeaseFireStart             = 60,
     CeaseFireRefuse            = 60,
     CeaseFireEnd               = 60,
@@ -638,6 +644,42 @@ hook.Add("PlayerDeath", "TTTBots.Chatter.DeathCallout", function(victim, weapon,
     end
 
     chatter:On("DeathCallout", { player = namedKiller:Nick(), playerEnt = namedKiller }, false, 0)
+end)
+
+-- ---------------------------------------------------------------------------
+-- PriestBrotherDied — bot priest/brothers react when a brother dies
+-- ---------------------------------------------------------------------------
+
+local function IsPriestBrother(ply)
+    if not (IsValid(ply) and ply:IsPlayer()) then return false end
+    if not (PRIEST_DATA and PRIEST_DATA.IsBrother) then return false end
+    return PRIEST_DATA:IsBrother(ply) == true
+end
+
+hook.Add("PlayerDeath", "TTTBots.Chatter.PriestBrotherDied", function(victim)
+    if not TTTBots.Match.RoundActive then return end
+    if not (IsValid(victim) and victim:IsPlayer()) then return end
+    if not IsPriestBrother(victim) then return end
+
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not (IsValid(bot) and bot:IsBot() and lib.IsPlayerAlive(bot)) then continue end
+
+        local isPriest = ROLE_PRIEST and bot.GetSubRole and bot:GetSubRole() == ROLE_PRIEST
+        if not isPriest and not IsPriestBrother(bot) then continue end
+
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("PriestBrotherDied", { player = victim:Nick(), playerEnt = victim }, true, 0)
+        end
+    end
+end)
+
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetPriestBrotherhoodStrong", function()
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if IsValid(bot) then
+            bot._priestBrotherhoodStrongFired = nil
+        end
+    end
 end)
 
 -- ---------------------------------------------------------------------------

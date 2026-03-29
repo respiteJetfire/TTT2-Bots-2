@@ -178,9 +178,18 @@ function IC.SelectStrategy()
         return S.TESTER_QUEUE
     end
 
+    -- 200-damage knife mod awareness: when installed, innocents should spread
+    -- out and patrol aggressively.  Grouped-up innocents are easy knife targets
+    -- (one stab kills).  Prefer patrol over buddy system at lower thresholds.
+    local knifeModActive = TTTBots.Behaviors and TTTBots.Behaviors.KnifeStalk
+        and TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled
+        and TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled()
+
     -- Patrol Routes: primary active strategy — keeps bots moving around the map.
-    -- Used whenever there are enough participants to spread out (3+).
-    if nParticipants >= 3 then
+    -- With knife mod: patrol even with just 2 participants (spread out is safer).
+    -- Without knife mod: patrol with 3+ participants.
+    local patrolThreshold = knifeModActive and 2 or 3
+    if nParticipants >= patrolThreshold then
         return S.PATROL_ROUTES
     end
 
@@ -307,11 +316,20 @@ IC._patrolZones = {}  -- [bot] = { center = Vector, radius = number }
 
 --- Divide the map into N zones and assign one to each bot.
 --- Maximizes distance between assigned zones so bots spread across the map.
+--- When the 200-damage knife mod is detected, the zone radius is expanded and
+--- more candidate nav areas are considered for wider spread.
 ---@param bots table<Bot>
 function IC._AssignPatrolZones(bots)
     IC._patrolZones = {}
     local n = #bots
     if n == 0 then return end
+
+    -- 200-damage knife mod: wider patrol radius to avoid clustering
+    local knifeModActive = TTTBots.Behaviors and TTTBots.Behaviors.KnifeStalk
+        and TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled
+        and TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled()
+    local zoneRadius = knifeModActive and 1200 or 800
+    local candidateCount = knifeModActive and 80 or 60
 
     -- Build a large pool of candidate nav centres from the whole nav mesh.
     -- Mix popular (high-traffic) and random navs for good coverage.
@@ -324,7 +342,7 @@ function IC._AssignPatrolZones(bots)
 
     -- Pad with random nav areas spread across the map
     local allNavs = navmesh.GetAllNavAreas and navmesh.GetAllNavAreas() or {}
-    for i = 1, math.min(#allNavs, 60) do
+    for i = 1, math.min(#allNavs, candidateCount) do
         local nav = allNavs[math.random(#allNavs)]
         if nav then table.insert(centres, nav:GetCenter()) end
     end
@@ -358,7 +376,7 @@ function IC._AssignPatrolZones(bots)
         local centre = best and centres[best] or bot:GetPos()
         if best then used[best] = true end
         table.insert(assignedCentres, centre)
-        IC._patrolZones[bot] = { center = centre, radius = 800 }
+        IC._patrolZones[bot] = { center = centre, radius = zoneRadius }
     end
 end
 
@@ -615,11 +633,22 @@ function IC._MakePatrolJob(bot, now)
     IC._AssignPatrolZones({ bot })
     local zone  = IC._patrolZones[bot]
     local center = zone and zone.center or bot:GetPos()
+
+    -- 200-damage knife mod awareness: shorter patrol windows so innocents keep
+    -- moving (stationary targets are easy knife kills) and wider wander radii
+    -- to cover more map area and spot threats earlier.
+    local knifeModActive = TTTBots.Behaviors and TTTBots.Behaviors.KnifeStalk
+        and TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled
+        and TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled()
+
+    local minDuration = knifeModActive and 6 or 10
+    local maxDuration = knifeModActive and 14 or 20
+
     return {
         Action     = IC.ACTIONS.PATROL_ZONE,
         TargetObj  = center,
         AssignTime = now,
-        ExpiryTime = now + math.random(10, 20), -- Short window so bots keep moving to new areas
+        ExpiryTime = now + math.random(minDuration, maxDuration),
         State      = IC.BOTSTATES.IDLE,
         _wanderPos = nil,
     }

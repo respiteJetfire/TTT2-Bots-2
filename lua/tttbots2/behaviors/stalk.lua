@@ -163,7 +163,11 @@ function Stalk.Validate(bot)
                 -- to create zombie minions, which is their primary win condition
                 local isNecroMaster = TTTBots.Roles.IsNecroMaster
                     and TTTBots.Roles.IsNecroMaster(bot)
-                if isInfectedHost or isSerialKiller or isNecroMaster then
+                -- Hidden in stalker mode is exempt — stalking + knife kills IS their core mechanic
+                -- Only applies post-transformation; pre-transform Hidden should behave like innocents
+                local isHiddenStalker = TTTBots.Roles.IsHiddenStalker
+                    and TTTBots.Roles.IsHiddenStalker(bot)
+                if isInfectedHost or isSerialKiller or isNecroMaster or isHiddenStalker then
                     -- Allow stalking to continue for these roles at all phases
                 elseif not ra:IsOvertake() then
                     -- In overtime with overtake advantage, allow stalking to continue (assassinate stragglers)

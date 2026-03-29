@@ -389,6 +389,38 @@ function TTTBots.Roles.ValidateAllRoles()
         end
     end
 
+    -- Priest-specific cross-reference: verify ally symmetry against innocent-side roles.
+    local priestRole = roles["priest"]
+    if priestRole then
+        local priestAlliedRoles = priestRole:GetAlliedRoles() or {}
+        local priestAlliedTeams = priestRole:GetAlliedTeams() or {}
+
+        for roleName, role in pairs(roles) do
+            if roleName == "priest" then continue end
+            if role:GetTeam() ~= TEAM_INNOCENT then continue end
+
+            local priestSeesRole =
+                (priestAlliedRoles[roleName] == true)
+                or (priestAlliedTeams[role:GetTeam()] == true)
+
+            local roleAlliedRoles = role:GetAlliedRoles() or {}
+            local roleAlliedTeams = role:GetAlliedTeams() or {}
+            local roleSeesPriest =
+                (roleAlliedRoles["priest"] == true)
+                or (roleAlliedTeams[priestRole:GetTeam()] == true)
+
+            if priestSeesRole ~= roleSeesPriest then
+                warn(string.format(
+                    "Priest alliance asymmetry: priest->%s=%s, %s->priest=%s.",
+                    roleName,
+                    tostring(priestSeesRole),
+                    roleName,
+                    tostring(roleSeesPriest)
+                ))
+            end
+        end
+    end
+
     -- Compatibility report (debug mode only)
     if debugMode then
         print("[TTT Bots 2] === Role Compatibility Report ===")

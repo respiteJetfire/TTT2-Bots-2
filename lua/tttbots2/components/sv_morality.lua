@@ -214,6 +214,18 @@ function BotMorality:TickIfLastAlive()
     local isCloaked = TTTBots.Match.IsPlayerCloaked(otherPlayer)
     if isCloaked then return end
 
+    -- Don't force innocent bots to attack perceived allies. Only attack if
+    -- the other player is NOT an ally or if the bot has significant suspicion.
+    local isAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(self.bot, otherPlayer))
+        or TTTBots.Roles.IsAllies(self.bot, otherPlayer)
+    if isAlly then
+        local morality = self.bot.components and self.bot.components.morality
+        local sus = morality and morality:GetSuspicion(otherPlayer) or 0
+        if sus < (TTTBots.Components.Morality.Thresholds and TTTBots.Components.Morality.Thresholds.Sus or 3) then
+            return -- Don't attack an ally we don't suspect
+        end
+    end
+
     Arb.RequestAttackTarget(self.bot, otherPlayer, "LAST_ALIVE", PRI.OPPORTUNISTIC)
 end
 

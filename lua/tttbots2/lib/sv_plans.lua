@@ -74,9 +74,292 @@ function TTTBots.Plans.Cleanup()
     TTTBots.Plans.SharedTargetCache = {} --- Reset per-job shared targets each round
     TTTBots.Plans.LastReEvalTime = 0
     TTTBots.Plans.LastCoordinatorCount = 0
+    TTTBots.Plans.CachedLoadout = nil
+    TTTBots.Plans.CachedEnemyDist = nil
 end
 
 TTTBots.Plans.Cleanup() -- Call when this script is first executed
+
+---------------------------------------------------------------------------
+-- Team Loadout Analysis
+--
+-- Inspects what weapons/items the coordinating team actually bought so that
+-- plan selection can factor in the team's ACTUAL combat capabilities rather
+-- than just player counts and role flags.
+---------------------------------------------------------------------------
+
+--- Weapon categories for loadout analysis. Each entry maps weapon classnames
+--- to a capability tag. A coordinator having ANY weapon in the list sets that tag.
+TTTBots.Plans.WeaponCategories = {
+    HeavyFirepower = {
+        "m9k_minigun", "weapon_ttt2_arsonthrower", "weapon_ttt_peacekeeper",
+        "melonlauncher", "swep_orbitalfriendshipbeam",
+    },
+    StealthWeapons = {
+        "weapon_ttt2_poison_dart", "weapon_ttt_deadringer",
+    },
+    SmartWeapons = {
+        "ttt_smart_pistol", "weapon_ttt2_smart_bullets",
+    },
+    Explosives = {
+        "weapon_ttt_c4", "weapon_ttt_jihad_bomb", "weapon_holyhand_grenade",
+        "weapon_ttt_beenade", "weapon_ttt_banana", "weapon_ttt_artillerymarker",
+        "weapon_ttt_ttt2_minethrower",
+    },
+    AreaDenial = {
+        "weapon_ttt_turret", "weapon_ttt2_gravity_mine", "weapon_ttt_c4",
+        "weapon_ttt_killersnail", "ttt_weeping_angel",
+    },
+    RevivalWeapons = {
+        "weapon_ttt_defib_traitor", "weapon_ttt_mesdefi", "weapon_ttt2_markerdefi",
+        "weapon_ttth_necrodefi", "weapon_ttt_defibrillator", "weapon_ttt2_medic_defibrillator",
+    },
+    ConversionWeapons = {
+        "weapon_ttt2_sidekick_deagle", "weapon_ttt2_medic_deagle",
+        "weapon_ttt2_doctor_deagle", "weapon_ttt2_cursed_deagle",
+        "weapon_ttt_defector_jihad",
+    },
+    GrenadeWeapons = {
+        "weapon_ttt2_emp_grenade", "weapon_ttt2_gravity_mine",
+        "weapon_ttt_reveal_nade", "weapon_ttt_beenade",
+        "weapon_holyhand_grenade", "weapon_ttt_banana",
+        "weapon_ttt_ttt2_minethrower",
+    },
+    DisruptionWeapons = {
+        "weapon_ttt2_emp_grenade", "weapon_ttt_timestop",
+        "weapon_ttt_dancegun", "weapon_ttt2_hologram_decoy",
+    },
+    SurvivalItems = {
+        "item_ttt_armor", "item_ttt_disguiser", "item_ttt_infinishoot",
+    },
+    HealingWeapons = {
+        "weapon_ttt_medigun", "weapon_ttt_health_station",
+    },
+}
+
+--- Analyze the loadout of all alive coordinators and return a structured
+--- report of team capabilities, credit reserves, and weapon synergies.
+--- @return table loadout analysis data
+function TTTBots.Plans.AnalyzeTeamLoadout()
+    local cats = TTTBots.Plans.WeaponCategories
+    local aliveCoordinators = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+        return TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate()
+    end)
+
+    local loadout = {
+        --- Boolean flags: does ANY coordinator carry a weapon in this category?
+        HasHeavyFirepower   = false,
+        HasStealthWeapons   = false,
+        HasSmartWeapons     = false,
+        HasExplosives       = false,
+        HasAreaDenial       = false,
+        HasRevivalWeapons   = false,
+        HasConversionWeapons = false,
+        HasGrenades         = false,
+        HasDisruption       = false,
+        HasSurvivalItems    = false,
+        HasHealing          = false,
+        --- Counts: how many coordinators carry weapons in each category
+        HeavyFirepowerCount   = 0,
+        StealthWeaponsCount   = 0,
+        SmartWeaponsCount     = 0,
+        ExplosivesCount       = 0,
+        AreaDenialCount       = 0,
+        RevivalWeaponsCount   = 0,
+        ConversionWeaponsCount = 0,
+        GrenadeCount          = 0,
+        DisruptionCount       = 0,
+        SurvivalItemsCount    = 0,
+        HealingCount          = 0,
+        --- Team resource stats
+        TotalCreditsRemaining = 0,
+        CoordinatorsWithCredits = 0,
+        TotalCoordinators     = #aliveCoordinators,
+        --- Aggregated combat strength estimate (0-100)
+        TeamFirepowerScore    = 0,
+        TeamStealthScore      = 0,
+        TeamUtilityScore      = 0,
+    }
+
+    local firepowerScore = 0
+    local stealthScore = 0
+    local utilityScore = 0
+
+    for _, coord in ipairs(aliveCoordinators) do
+        if not IsValid(coord) then continue end
+
+        -- Credit tracking
+        local credits = coord.GetCredits and coord:GetCredits() or 0
+        loadout.TotalCreditsRemaining = loadout.TotalCreditsRemaining + credits
+        if credits > 0 then
+            loadout.CoordinatorsWithCredits = loadout.CoordinatorsWithCredits + 1
+        end
+
+        -- Check each weapon category
+        local function checkCategory(catName, flagName, countName)
+            local classes = cats[catName]
+            if not classes then return end
+            for _, cls in ipairs(classes) do
+                if coord:HasWeapon(cls) then
+                    loadout[flagName] = true
+                    loadout[countName] = loadout[countName] + 1
+                    return -- one match per coordinator per category
+                end
+            end
+        end
+
+        checkCategory("HeavyFirepower",     "HasHeavyFirepower",    "HeavyFirepowerCount")
+        checkCategory("StealthWeapons",     "HasStealthWeapons",    "StealthWeaponsCount")
+        checkCategory("SmartWeapons",       "HasSmartWeapons",      "SmartWeaponsCount")
+        checkCategory("Explosives",         "HasExplosives",        "ExplosivesCount")
+        checkCategory("AreaDenial",         "HasAreaDenial",        "AreaDenialCount")
+        checkCategory("RevivalWeapons",     "HasRevivalWeapons",    "RevivalWeaponsCount")
+        checkCategory("ConversionWeapons",  "HasConversionWeapons", "ConversionWeaponsCount")
+        checkCategory("GrenadeWeapons",     "HasGrenades",          "GrenadeCount")
+        checkCategory("DisruptionWeapons",  "HasDisruption",        "DisruptionCount")
+        checkCategory("SurvivalItems",      "HasSurvivalItems",     "SurvivalItemsCount")
+        checkCategory("HealingWeapons",     "HasHealing",           "HealingCount")
+
+        -- Per-coordinator combat scoring
+        local weps = coord:GetWeapons()
+        for _, wep in ipairs(weps) do
+            if not IsValid(wep) then continue end
+            local cls = wep:GetClass()
+            -- Heavy weapons contribute raw firepower
+            if table.HasValue(cats.HeavyFirepower, cls) then
+                firepowerScore = firepowerScore + 20
+            elseif table.HasValue(cats.SmartWeapons, cls) then
+                firepowerScore = firepowerScore + 15
+            end
+            -- Stealth weapons contribute stealth
+            if table.HasValue(cats.StealthWeapons, cls) then
+                stealthScore = stealthScore + 18
+            end
+            -- Utility
+            if table.HasValue(cats.AreaDenial, cls) then
+                utilityScore = utilityScore + 12
+            end
+            if table.HasValue(cats.DisruptionWeapons, cls) then
+                utilityScore = utilityScore + 10
+            end
+            if table.HasValue(cats.RevivalWeapons, cls) then
+                utilityScore = utilityScore + 15
+            end
+            if table.HasValue(cats.ConversionWeapons, cls) then
+                utilityScore = utilityScore + 15
+            end
+            if table.HasValue(cats.GrenadeWeapons, cls) then
+                utilityScore = utilityScore + 8
+            end
+        end
+    end
+
+    -- Normalize scores to 0-100 range based on team size
+    local divisor = math.max(#aliveCoordinators, 1)
+    loadout.TeamFirepowerScore = math.Clamp(firepowerScore / divisor * 3, 0, 100)
+    loadout.TeamStealthScore   = math.Clamp(stealthScore / divisor * 3, 0, 100)
+    loadout.TeamUtilityScore   = math.Clamp(utilityScore / divisor * 2, 0, 100)
+
+    return loadout
+end
+
+--- Enemy distribution analysis: how spread out or grouped are the enemies?
+--- Returns a table with isolation stats useful for choosing between ambush
+--- and direct-assault plans.
+--- @return table enemy distribution data
+function TTTBots.Plans.AnalyzeEnemyDistribution()
+    local aliveCoordinators = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+        return TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate()
+    end)
+    local enemies = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+        for _, coord in ipairs(aliveCoordinators) do
+            if TTTBots.Roles.IsAllies(coord, ply) then return false end
+        end
+        return true
+    end)
+
+    local result = {
+        TotalEnemies     = #enemies,
+        IsolatedEnemies  = 0,   -- enemies with no other enemy within 1200u
+        ClusteredEnemies = 0,   -- enemies with 2+ others within 800u
+        AvgEnemyGroupSize = 1,
+        HasPoliceCluster = false, -- are police grouped with others?
+    }
+
+    if #enemies == 0 then return result end
+
+    local clusterThreshold = 800
+    local isolationThreshold = 1200
+    local totalNearby = 0
+
+    for _, enemy in ipairs(enemies) do
+        if not IsValid(enemy) then continue end
+        local nearbyCount = 0
+        local ePos = enemy:GetPos()
+        for _, other in ipairs(enemies) do
+            if other == enemy or not IsValid(other) then continue end
+            local dist = ePos:Distance(other:GetPos())
+            if dist <= clusterThreshold then
+                nearbyCount = nearbyCount + 1
+            end
+        end
+        totalNearby = totalNearby + nearbyCount
+
+        if nearbyCount == 0 then
+            -- Check full isolation range
+            local isolated = true
+            for _, other in ipairs(enemies) do
+                if other == enemy or not IsValid(other) then continue end
+                if ePos:Distance(other:GetPos()) <= isolationThreshold then
+                    isolated = false
+                    break
+                end
+            end
+            if isolated then
+                result.IsolatedEnemies = result.IsolatedEnemies + 1
+            end
+        elseif nearbyCount >= 2 then
+            result.ClusteredEnemies = result.ClusteredEnemies + 1
+        end
+
+        -- Check if this is a police player in a cluster
+        if nearbyCount >= 1 then
+            local isPolice = false
+            if enemy:GetRoleStringRaw() == "detective" then isPolice = true end
+            if enemy.GetSubRoleData then
+                local rd = enemy:GetSubRoleData()
+                if rd and rd.isPolicingRole then isPolice = true end
+            end
+            if isPolice then result.HasPoliceCluster = true end
+        end
+    end
+
+    result.AvgEnemyGroupSize = 1 + (totalNearby / math.max(#enemies, 1))
+
+    return result
+end
+
+--- Cache for loadout/distribution analysis — refreshed once per plan selection.
+TTTBots.Plans.CachedLoadout = nil
+TTTBots.Plans.CachedEnemyDist = nil
+
+--- Build (or return cached) analysis data for the current round state.
+function TTTBots.Plans.GetAnalysisData()
+    -- Only recompute if cache is nil (cleared on plan selection or round reset)
+    if not TTTBots.Plans.CachedLoadout then
+        TTTBots.Plans.CachedLoadout = TTTBots.Plans.AnalyzeTeamLoadout()
+    end
+    if not TTTBots.Plans.CachedEnemyDist then
+        TTTBots.Plans.CachedEnemyDist = TTTBots.Plans.AnalyzeEnemyDistribution()
+    end
+    return TTTBots.Plans.CachedLoadout, TTTBots.Plans.CachedEnemyDist
+end
+
+--- Invalidate cached analysis (called on plan changes/round reset).
+function TTTBots.Plans.InvalidateAnalysisCache()
+    TTTBots.Plans.CachedLoadout = nil
+    TTTBots.Plans.CachedEnemyDist = nil
+end
 
 local conditionsHashedFuncs = {
     PlyMin = function(conditions, data)
@@ -130,6 +413,71 @@ local conditionsHashedFuncs = {
     RequiresReviveOrConvert = function(conditions, data)
         if not conditions.RequiresReviveOrConvert then return true end
         return data.HasReviveCapability or data.HasConvertCapability
+    end,
+    --- Require the 200-damage knife mod to be installed
+    KnifeModInstalled = function(conditions, data)
+        if not conditions.KnifeModInstalled then return true end
+        return data.KnifeModInstalled
+    end,
+    --- Require team to have heavy firepower weapons (minigun, arson thrower, etc.)
+    RequiresHeavyFirepower = function(conditions, data)
+        if not conditions.RequiresHeavyFirepower then return true end
+        return data.Loadout and data.Loadout.HasHeavyFirepower
+    end,
+    --- Require team to have stealth weapons (poison dart, dead ringer, etc.)
+    RequiresStealthWeapons = function(conditions, data)
+        if not conditions.RequiresStealthWeapons then return true end
+        return data.Loadout and data.Loadout.HasStealthWeapons
+    end,
+    --- Require team to have smart weapons (smart pistol, smart bullets)
+    RequiresSmartWeapons = function(conditions, data)
+        if not conditions.RequiresSmartWeapons then return true end
+        return data.Loadout and data.Loadout.HasSmartWeapons
+    end,
+    --- Require team to have explosive weapons (C4, jihad, grenades, etc.)
+    RequiresExplosives = function(conditions, data)
+        if not conditions.RequiresExplosives then return true end
+        return data.Loadout and data.Loadout.HasExplosives
+    end,
+    --- Require team to have area denial capabilities (turret, mines, C4, etc.)
+    RequiresAreaDenial = function(conditions, data)
+        if not conditions.RequiresAreaDenial then return true end
+        return data.Loadout and data.Loadout.HasAreaDenial
+    end,
+    --- Require team to have disruption weapons (EMP, timestop, dance gun, etc.)
+    RequiresDisruption = function(conditions, data)
+        if not conditions.RequiresDisruption then return true end
+        return data.Loadout and data.Loadout.HasDisruption
+    end,
+    --- Require a minimum number of coordinators with heavy firepower
+    MinHeavyFirepower = function(conditions, data)
+        if not conditions.MinHeavyFirepower then return true end
+        return data.Loadout and (data.Loadout.HeavyFirepowerCount or 0) >= conditions.MinHeavyFirepower
+    end,
+    --- Require a minimum team firepower score (0-100)
+    MinFirepowerScore = function(conditions, data)
+        if not conditions.MinFirepowerScore then return true end
+        return data.Loadout and (data.Loadout.TeamFirepowerScore or 0) >= conditions.MinFirepowerScore
+    end,
+    --- Require a minimum team stealth score (0-100)
+    MinStealthScore = function(conditions, data)
+        if not conditions.MinStealthScore then return true end
+        return data.Loadout and (data.Loadout.TeamStealthScore or 0) >= conditions.MinStealthScore
+    end,
+    --- Require there to be isolated enemies available
+    MinIsolatedEnemies = function(conditions, data)
+        if not conditions.MinIsolatedEnemies then return true end
+        return data.EnemyDist and (data.EnemyDist.IsolatedEnemies or 0) >= conditions.MinIsolatedEnemies
+    end,
+    --- Require enemies to be clustered (for AoE/area-denial plans)
+    MinClusteredEnemies = function(conditions, data)
+        if not conditions.MinClusteredEnemies then return true end
+        return data.EnemyDist and (data.EnemyDist.ClusteredEnemies or 0) >= conditions.MinClusteredEnemies
+    end,
+    --- Require the team to still have unspent credits (for deferred-buy plans)
+    MinTeamCredits = function(conditions, data)
+        if not conditions.MinTeamCredits then return true end
+        return data.Loadout and (data.Loadout.TotalCreditsRemaining or 0) >= conditions.MinTeamCredits
     end,
 }
 function TTTBots.Plans.AreConditionsValid(conditions)
@@ -204,6 +552,15 @@ function TTTBots.Plans.AreConditionsValid(conditions)
     local corpses = TTTBots.Lib.GetRevivableCorpses and TTTBots.Lib.GetRevivableCorpses() or {}
     numCorpses = #corpses
 
+    -- Check if the 200-damage knife mod is installed
+    local knifeModInstalled = false
+    if TTTBots.Behaviors and TTTBots.Behaviors.KnifeStalk and TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled then
+        knifeModInstalled = TTTBots.Behaviors.KnifeStalk.IsKnifeModInstalled()
+    end
+
+    -- Fetch loadout and enemy-distribution analysis (cached per plan-selection cycle)
+    local loadout, enemyDist = TTTBots.Plans.GetAnalysisData()
+
     local Data = {
         NumPlysA = #TTTBots.Match.AlivePlayers,
         NumTraitorsA = #aliveTraitors,
@@ -214,6 +571,10 @@ function TTTBots.Plans.AreConditionsValid(conditions)
         HasReviveCapability = hasReviveCapability,
         HasConvertCapability = hasConvertCapability,
         NumCorpses = numCorpses,
+        KnifeModInstalled = knifeModInstalled,
+        -- Loadout and enemy distribution data for dynamic plan conditions
+        Loadout = loadout,
+        EnemyDist = enemyDist,
     }
     for key, value in pairs(conditions) do
         if key == nil or value == nil then continue end
@@ -250,41 +611,122 @@ TTTBots.Plans.PresetPriority = {
     "MediumPlayer_RevivalRecovery",
     "LargePlayer_RevivalRecovery",
     "ConversionRecovery",
-    -- Tier 2: Coordinated group attacks
+    -- Tier 1.5: Knife-stalk plans (200dmg knife mod — silent elimination)
+    "KnifeHunter_LowPlayer",
+    "KnifeHunter_MediumPlayer",
+    "KnifeHunter_LargePlayer",
+    -- Tier 2: Loadout-aware dynamic plans (weapon synergy)
+    "Loadout_FirepowerBlitz",
+    "Loadout_StealthAssassination",
+    "Loadout_SmartWeaponsStrike",
+    "Loadout_AreaDenialLockdown",
+    "Loadout_ExplosiveChaos",
+    "Loadout_DisruptAndStrike",
+    "Loadout_RevivalSnowball",
+    "Loadout_MixedAdaptive",
+    "Loadout_CreditReserveAdaptive",
+    "Loadout_IsolationHunters",
+    -- Tier 3: Coordinated group attacks
     "MediumPlayerCount_DetectiveHunt",
     "AveragePlayerCount_CoordinatedBlitz",
     "MediumPlayerCount_HitSquad",
     "LowPlayerCount_WolfPack",
-    -- Tier 3: Standard plans (broadest conditions, catch-all)
+    -- Tier 4: Standard plans (broadest conditions, catch-all)
     "LowPlayerCount_Standard",
     "MediumPlayerCount_Standard",
     "AveragePlayerCount_Standard",
 }
 
---- Returns the first best preset in TTTBots.Plans.PRESETS, according to the conditions.
---- Uses the deterministic priority order defined in PresetPriority, then falls back
---- to any remaining presets not in the list, and finally the Default preset.
+---------------------------------------------------------------------------
+-- Loadout Synergy Scoring
+--
+-- Each preset can declare a SynergyScore function that receives the team
+-- loadout and enemy distribution data. It returns a bonus (positive) or
+-- penalty (negative) that is added to the preset's base Chance to produce
+-- a final selection weight.  Presets without SynergyScore use Chance as-is.
+---------------------------------------------------------------------------
+
+--- Calculate a synergy score for a preset given the current team state.
+--- @param preset table the plan preset
+--- @param loadout table result from AnalyzeTeamLoadout
+--- @param enemyDist table result from AnalyzeEnemyDistribution
+--- @return number synergy bonus (can be negative)
+function TTTBots.Plans.CalcSynergyScore(preset, loadout, enemyDist)
+    if preset.SynergyScore then
+        return preset.SynergyScore(loadout, enemyDist)
+    end
+    return 0
+end
+
+--- Returns the best preset using weighted scoring that factors in both
+--- priority ordering and weapon/situational synergy.  Valid presets from
+--- higher tiers still get priority, but within each tier the preset with
+--- the highest (Chance + SynergyScore) wins via weighted random selection.
 function TTTBots.Plans.GetFirstBestPreset()
     local PRESETS = TTTBots.Plans.PRESETS
     local Default = PRESETS.Default
 
-    -- Walk the explicit priority list first (deterministic order)
-    for _, name in ipairs(TTTBots.Plans.PresetPriority) do
+    -- Ensure analysis cache is fresh for this selection cycle
+    TTTBots.Plans.InvalidateAnalysisCache()
+    local loadout, enemyDist = TTTBots.Plans.GetAnalysisData()
+
+    -- Collect all valid presets with their effective weights
+    local candidates = {}
+    local totalWeight = 0
+
+    -- Walk the explicit priority list first
+    for priority, name in ipairs(TTTBots.Plans.PresetPriority) do
         local preset = PRESETS[name]
-        if preset then
-            local valid, reason = TTTBots.Plans.AreConditionsValid(preset.Conditions)
-            if valid then return preset end
-        end
+        if not preset then continue end
+
+        -- Test conditions WITHOUT the random Chance roll — we handle Chance as weight
+        local baseChance = preset.Conditions.Chance or 100
+        local condCopy = {}
+        for k, v in pairs(preset.Conditions) do condCopy[k] = v end
+        condCopy.Chance = 100  -- bypass random roll; use Chance as base weight
+        local valid = TTTBots.Plans.AreConditionsValid(condCopy)
+        if not valid then continue end
+
+        -- Calculate effective weight: base chance + synergy bonus, clamped to [5, 200]
+        local synergy = TTTBots.Plans.CalcSynergyScore(preset, loadout, enemyDist)
+        -- Higher-tier presets (lower index) get a priority bonus
+        local tierBonus = math.max(0, 20 - priority)
+        local weight = math.Clamp(baseChance + synergy + tierBonus, 5, 200)
+
+        candidates[#candidates + 1] = { preset = preset, weight = weight }
+        totalWeight = totalWeight + weight
     end
 
-    -- Fallback: iterate any presets NOT in the priority list (custom / add-on presets)
+    -- Fallback: check any presets NOT in the priority list (custom / add-on presets)
     local prioritySet = {}
     for _, name in ipairs(TTTBots.Plans.PresetPriority) do prioritySet[name] = true end
     for name, preset in pairs(PRESETS) do
         if name ~= "Default" and not prioritySet[name] then
-            local valid, reason = TTTBots.Plans.AreConditionsValid(preset.Conditions)
-            if valid then return preset end
+            local baseChance = preset.Conditions.Chance or 100
+            local condCopy = {}
+            for k, v in pairs(preset.Conditions) do condCopy[k] = v end
+            condCopy.Chance = 100
+            local valid = TTTBots.Plans.AreConditionsValid(condCopy)
+            if valid then
+                local synergy = TTTBots.Plans.CalcSynergyScore(preset, loadout, enemyDist)
+                local weight = math.Clamp(baseChance + synergy, 5, 200)
+                candidates[#candidates + 1] = { preset = preset, weight = weight }
+                totalWeight = totalWeight + weight
+            end
         end
+    end
+
+    -- Weighted random selection from valid candidates
+    if #candidates > 0 and totalWeight > 0 then
+        local roll = math.Rand(0, totalWeight)
+        local running = 0
+        for _, entry in ipairs(candidates) do
+            running = running + entry.weight
+            if roll <= running then
+                return entry.preset
+            end
+        end
+        return candidates[#candidates].preset
     end
 
     return Default
@@ -323,12 +765,11 @@ function TTTBots.Plans.ShouldReEvaluatePlan()
 
     TTTBots.Plans.LastCoordinatorCount = currentCount
 
-    -- A coordinator died — check if a revival/recovery plan is now available
-    -- that wasn't selected initially.
+    -- A coordinator died — check if a different plan would now be better.
     local currentPlan = TTTBots.Plans.SelectedPlan
     if not currentPlan then return false end
 
-    -- Only re-evaluate if the current plan is NOT already a revival/recovery plan.
+    -- Revival/recovery plan names that take priority when conditions shift
     local revivalPlanNames = {
         CorpseHarvest = true,
         LowPlayer_RevivalRecovery = true,
@@ -336,12 +777,41 @@ function TTTBots.Plans.ShouldReEvaluatePlan()
         LargePlayer_RevivalRecovery = true,
         ConversionRecovery = true,
     }
-    if revivalPlanNames[currentPlan.Name] then return false end
 
-    -- See if a revival plan would now be valid
+    -- If already on a revival plan, only re-evaluate if we're no longer outnumbered
+    -- (team recovered via successful revives) — switch to an attack plan.
+    if revivalPlanNames[currentPlan.Name] then
+        local aliveCoords = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+            return TTTBots.Roles.GetRoleFor(ply):GetCanCoordinate()
+        end)
+        local aliveEnemies = TTTBots.Lib.FilterTable(TTTBots.Match.AlivePlayers, function(ply)
+            for _, coord in ipairs(aliveCoords) do
+                if TTTBots.Roles.IsAllies(coord, ply) then return false end
+            end
+            return true
+        end)
+        -- If we're no longer significantly outnumbered, switch to offense
+        if #aliveEnemies > 0 and (#aliveCoords / #aliveEnemies) > 0.8 then
+            return true
+        end
+        return false
+    end
+
+    -- Invalidate the analysis cache so we get fresh data
+    TTTBots.Plans.InvalidateAnalysisCache()
+
+    -- See if a different plan would now be valid with better synergy
     local bestPreset = TTTBots.Plans.GetFirstBestPreset()
-    if bestPreset and revivalPlanNames[bestPreset.Name] then
-        return true
+    if bestPreset and bestPreset.Name ~= currentPlan.Name then
+        -- Only swap if the new preset is meaningfully different (revival plan,
+        -- or a loadout-specific plan that now matches better)
+        if revivalPlanNames[bestPreset.Name] then return true end
+        if bestPreset.Conditions.RequiresHeavyFirepower
+            or bestPreset.Conditions.RequiresStealthWeapons
+            or bestPreset.Conditions.RequiresSmartWeapons
+            or bestPreset.Conditions.RequiresAreaDenial then
+            return true
+        end
     end
 
     return false
@@ -353,6 +823,7 @@ function TTTBots.Plans.Tick()
         return
     end
     if not TTTBots.Plans.SelectedPlan then
+        TTTBots.Plans.InvalidateAnalysisCache()
         TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset())
         TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
         TTTBots.Plans.PlanStartTime = CurTime()
@@ -360,13 +831,14 @@ function TTTBots.Plans.Tick()
         return
     end
 
-    -- Mid-round re-evaluation: if the team lost members and a revival plan
-    -- is now available, swap to it so bots start reviving instead of fighting.
+    -- Mid-round re-evaluation: if the team lost members, conditions changed,
+    -- or a better loadout-synergy plan is now available, swap to it.
     if TTTBots.Plans.CurrentPlanState == TTTBots.Plans.PLANSTATES.RUNNING then
         if TTTBots.Plans.ShouldReEvaluatePlan() then
             -- Swap to the new best preset, clearing all bot job assignments.
             TTTBots.Plans.BotStatuses = {}
             TTTBots.Plans.SharedTargetCache = {}
+            TTTBots.Plans.InvalidateAnalysisCache()
             TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset())
             TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
             TTTBots.Plans.PlanStartTime = CurTime()
