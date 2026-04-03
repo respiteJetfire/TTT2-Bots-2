@@ -226,6 +226,8 @@ function TTTBots.Cupid_CreateLovers(cupidBot, lover1, lover2)
             if GetRoundState() ~= ROUND_ACTIVE then return end
             if ply.inLove then
                 if not m_bApplyingDamage then
+                    -- Guard against NULL lover entities (may have been killed/removed by NPCs)
+                    if not IsValid(lovedones[1]) or not IsValid(lovedones[2]) then return end
                     m_bApplyingDamage = true
                     dmginfo:SetDamage(dmginfo:GetDamage() / 2)
                     lovedones[1]:TakeDamageInfo(dmginfo)

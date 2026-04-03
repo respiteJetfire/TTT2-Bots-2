@@ -125,7 +125,8 @@ end)
 
 hook.Add("PlayerDeath", "TTTBots_SmartBulletsKillChatter", function(victim, weapon, attacker)
     if not TTTBots.Match.RoundActive then return end
-    if not (IsValid(attacker) and attacker:IsBot()) then return end
+    -- Guard against non-player attackers (NPCs from headcrab/NPC launchers don't have IsBot)
+    if not (IsValid(attacker) and attacker:IsPlayer() and attacker:IsBot()) then return end
     if not lib.IsPlayerAlive(attacker) then return end
     if not attacker.ttt2_smart_bullets_active then return end
 
@@ -190,7 +191,7 @@ timer.Create("TTTBots_SmartBulletsExpiryMonitor", 0.5, 0, function()
         if wasActive and not isActive then
             -- This player's buff expired — check if any bot was their lock target
             local lockTarget = ply.ttt2_smart_bullets_lock_target
-            if IsValid(lockTarget) and lockTarget:IsBot() and lib.IsPlayerAlive(lockTarget) then
+            if IsValid(lockTarget) and lockTarget:IsPlayer() and lockTarget:IsBot() and lib.IsPlayerAlive(lockTarget) then
                 local chatter = lockTarget:BotChatter()
                 if chatter and chatter.On then
                     chatter:On("SmartBulletsSurvived", {

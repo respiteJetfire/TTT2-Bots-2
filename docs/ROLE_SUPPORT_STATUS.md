@@ -1,6 +1,6 @@
 # TTT2 Bots — Role Support Status
 
-> Last updated: April 2, 2026
+> Last updated: April 3, 2026
 
 ---
 
@@ -29,6 +29,10 @@ These roles have their own `.lua` file in `lua/tttbots2/roles/` with full custom
 | **Clairvoyant** | Full custom tree: `ClairvoyantIntel`, `ClairvoyantJesterHunt` (conditional), `ClairvoyantWicked` |
 | **Spy** | Full custom tree: `SpyBlend`, `SpyReport`, `SpyFakeBuy`, `SpyEavesdrop`, `SpyDeadRinger`; traitor detection timers; personality modifiers; cover-blown hooks |
 | **Priest** | Full custom tree with `PriestConvert`; brotherhood trust/evidence syncing; cascade threat awareness; coordination timers |
+| **Beacon** | Custom tree with heavy corpse investigation focus for buff accumulation; `unknownTeam` awareness; demotion-safe (avoids innocent kills) |
+| **Announcer** | `DetectiveLike` builder; public policing role with purchase broadcast support |
+| **Chef** | Custom innocent tree with `unknownTeam` awareness; cooking is server-driven (automatic healing); no coordination; uses suspicion |
+| **Hurricane** | `DetectiveLike` builder; detective subrole with "flagging" first-shot mechanic (reduces target HP, mutes); public policing role |
 
 ### 🔴 Traitor Team
 
@@ -42,6 +46,13 @@ These roles have their own `.lua` file in `lua/tttbots2/roles/` with full custom
 | **Defector** | Full custom tree: `DefectorApproach` + `Jihad` suicide bomb; deception/blend behaviors; mid-round conversion hook |
 | **Wicked** | Full custom tree: `ClairvoyantWicked`, `Jihad`, `PlantBomb`, traitor coordination |
 | **Graverobber** | Full custom tree: `CaptureAnkh`, `DestroyAnkh`, `HuntAnkh`, `PostRevival`; spawned when Pharaoh places Ankh |
+| **Accomplice** | Custom traitor tree with `unknownTeam` awareness — uses suspicion system, no coordination, corpse radar emphasis |
+| **Ajin** | Two-phase traitor: dormant (standard traitor) → transformed (solo aggressive); `GetTreeFor` override swaps tree on `AjinTransformed` NWBool |
+| **Ambusher** | `TraitorLike` builder with camping emphasis — `CanSnipe`/`CanHide` enabled for ambush positions; damage buff from standing still |
+| **Arsonist** | `TraitorLike` builder optimized for close-range — prefers flamethrower engagements; no sniping |
+| **Blight** | `TraitorLike` builder; isOmniscientRole; infects killer on death with DoT (server-driven) |
+| **Blocker** | `TraitorLike` builder; isOmniscientRole; prevents corpse identification while alive (server-driven) |
+| **Cyclone** | `TraitorLike` builder; traitor subrole with "flagging" first-shot mechanic (reduces target HP, mutes) |
 
 ### 🟡 Neutral / Independent Teams
 
@@ -66,6 +77,8 @@ These roles have their own `.lua` file in `lua/tttbots2/roles/` with full custom
 | **Undecided** | Basic neutral non-aggressive tree |
 | **Revenant** | Team-based killer with `Convert` and `Stalk` |
 | **Restless** | Team-based killer with `Convert`, `Stalk`, and life-state knowledge |
+| **Alien** | Full custom tree: `AlienProbe` behavior seeks isolated targets for melee-range probing; non-violent; tracks probed players; auto-revives; suspicion reduction hook |
+| **Baker / Famine** | Full two-phase tree: Baker distributes bread via `BakerBake` → Famine hunts aggressively; `GetTreeFor` override for phase switching; force-famine SecondaryAttack support; suspicion hook |
 | **Gun Dealer** | Full neutral supply tree: `GunDealerDeliver`, consignment manifest; self-defense only; `NeutralOverride` set |
 | **Marker** | Jester-team role with `CreateMarker` behavior |
 | **Jester** | Jester-team role with suspicion hook (`cheat_know_jester` convar) |
@@ -73,6 +86,10 @@ These roles have their own `.lua` file in `lua/tttbots2/roles/` with full custom
 | **Anonymous** | Traitor-like team role with `Convert`, radar, no suspicion |
 | **Pirate** | Full team role: `FollowMaster`; cooperative fire hooks with captain; contract-based team allegiance switching |
 | **Pirate Captain** | Full team role: `Convert`, `FollowMaster`; cooperative hooks with pirates; contract-based team switching |
+| **Beggar** | Full custom tree with `BeggarSeek` behavior; jester-team role that follows players seeking dropped shop weapons; team conversion on pickup; suspicion hook |
+| **Collusionist** | Full custom tree with `BeggarSeek` behavior; jester-team role that swaps roles with shop item donors; suspicion hook |
+| **Cult Leader** | Full custom tree with `CultTomeConvert` behavior; melee tome converts players to Cultists and heals existing Cultists; custom TEAM_CULTIST; traitor-shop access |
+| **Cultist** | Custom aggressive tree; converted sub-role on TEAM_CULTIST; coordinates with Cult Leader; isOmniscientRole |
 
 ### 🟣 Gang Roles *(requires gang role addon)*
 
@@ -114,21 +131,6 @@ These roles exist in the installed TTT2 Roles collection but have **no correspon
 
 | Role | Notes |
 |------|-------|
-| **Accomplice** | No support |
-| **Ajin** | No support |
-| **Alien** | No support |
-| **Ambusher** | No support |
-| **Announcer** | No support |
-| **Arsonist** | No fire/arson logic |
-| **Baker / Famine** | No support |
-| **Beacon** | No support |
-| **Beggar** | No support |
-| **Blight** | No support |
-| **Blocker** | No support |
-| **Chef** | No support |
-| **Collusionist** | No support |
-| **Cult Leader / Cultists** | No support |
-| **Cyclone / Hurricane** | No support |
 | **Defective** | No support |
 | **Duelist** | No duel acceptance or challenge logic |
 | **Dunce** | No support |
@@ -196,8 +198,8 @@ These roles exist in the installed TTT2 Roles collection but have **no correspon
 
 | Category | Count |
 |----------|-------|
-| ✅ Fully Supported | ~46 roles (including sub-roles and gang variants) |
+| ✅ Fully Supported | ~65 roles (including sub-roles, gang variants, and new behavior files) |
 | ⚠️ Partially Supported | ~11 roles |
-| ❌ No Support | ~62 roles |
+| ❌ No Support | ~47 roles |
 
 > **Key insight:** The bots mod has deep integration for the core TTT2 roles, all roles from the major bundled role packs (Jackal, Spy, Infected, Necromancer, Serial Killer, Hidden, Doomguy, Pharaoh/Graverobber, Cupid, Priest), and niche roles the mod developer has added themselves. The vast majority of community workshop roles in the collection have no bot AI whatsoever and are prime candidates for new role integrations.

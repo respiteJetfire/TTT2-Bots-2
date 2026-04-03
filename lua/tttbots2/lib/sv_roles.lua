@@ -133,6 +133,9 @@ end
 ---@return boolean
 function TTTBots.Roles.IsAllies(ply1, ply2)
     if not (IsValid(ply1) and IsValid(ply2)) then return false end
+    -- Guard against non-player entities (NPCs from headcrab/NPC launchers)
+    if not ply1.IsPlayer or not ply1:IsPlayer() then return false end
+    if not ply2.IsPlayer or not ply2:IsPlayer() then return false end
     local role1 = TTTBots.Roles.GetRoleFor(ply1)
     local role2 = TTTBots.Roles.GetRoleFor(ply2)
     if not role1 or not role2 then return false end
@@ -171,6 +174,9 @@ end
 ---@return boolean
 function TTTBots.Roles.IsEnemies(ply1, ply2)
     if not (IsValid(ply1) and IsValid(ply2)) then return false end
+    -- Guard against non-player entities (NPCs from headcrab/NPC launchers)
+    if not ply1.IsPlayer or not ply1:IsPlayer() then return false end
+    if not ply2.IsPlayer or not ply2:IsPlayer() then return false end
     local role1 = TTTBots.Roles.GetRoleFor(ply1)
     local role2 = TTTBots.Roles.GetRoleFor(ply2)
     if not role1 or not role2 then return false end
@@ -249,6 +255,8 @@ end
 ---@param ply Player
 ---@return boolean
 function TTTBots.Roles.IsInnocent(ply)
+    if not IsValid(ply) or not ply.IsPlayer or not ply:IsPlayer() then return false end
+    if not ply.GetTeam then return false end
     return ply:GetTeam() == TEAM_INNOCENT
 end
 
@@ -280,6 +288,8 @@ end
 ---@param bot any
 ---@return boolean
 function TTTBots.Roles.IsTraitor(bot)
+    if not IsValid(bot) or not bot.IsPlayer or not bot:IsPlayer() then return false end
+    if not bot.GetTeam then return false end
     return bot:GetTeam() == TEAM_TRAITOR
 end
 
