@@ -402,7 +402,8 @@ end
 function Memory:UpdateKnownPositions()
     local AlivePlayers = lib.GetAlivePlayers()
     local RoundActive = TTTBots.Match.RoundActive
-    if not RoundActive then
+    local PostRoundDM = TTTBots.Match.IsPostRoundDM()
+    if not RoundActive and not PostRoundDM then
         self.playerKnownPositions = {}
         return false
     end
@@ -444,10 +445,11 @@ function Memory:UpdatePlayerLifeStates()
     local CurrentlyAlive = lib.GetAlivePlayers()
     local ConfirmedDead = TTTBots.Match.ConfirmedDead
     local RoundActive = TTTBots.Match.RoundActive
+    local PostRoundDM = TTTBots.Match.IsPostRoundDM()
     local isOmniscient = TTTBots.Roles.GetRoleFor(self.bot):GetKnowsLifeStates()
     local bot = self.bot
 
-    if not RoundActive then
+    if not RoundActive and not PostRoundDM then
         self.PlayerLifeStates = {}
         self:SetupPlayerLifeStates()
         return

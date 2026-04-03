@@ -241,7 +241,18 @@ local chancesOf100 = {
     GunDealerRequestAmmo           = 75,  -- Bot is requesting ammo from the Gun Dealer
     GunDealerRequestThanks         = 60,  -- Bot thanks the Gun Dealer for supplies
     GunDealerUnderAttack           = 90,  -- Gun Dealer bot is being attacked
+    -- -----------------------------------------------------------------------
+    -- Post-Round phase events
+    -- -----------------------------------------------------------------------
+    PostRoundRoleReveal            = 55,  -- Bot reacts to role reveal at round end
+    PostRoundKillBrag              = 65,  -- Bot brags about a kill they made this round
+    PostRoundWitnessEvent          = 45,  -- Bot mentions something notable they witnessed
+    PostRoundDMStarted             = 85,  -- Bot reacts to post-round FFA starting
+    PostRoundDMKill                = 50,  -- Bot comments on a kill in post-round DM
 }
+
+--- Export event names so the precache system can discover them.
+TTTBots.ChatterEventChances = chancesOf100
 
 -- ---------------------------------------------------------------------------
 -- Casual event classification helpers
@@ -297,10 +308,11 @@ local function buildCasualPrompt(bot, event_name, args, teamOnly)
         -- Cloud providers (ChatGPT / Gemini / DeepSeek / OpenRouter / mixed)
         local cloudPrompt = TTTBots.PromptContext and TTTBots.PromptContext.GetCasualCloudPrompt(bot, triggerReason)
         if cloudPrompt then
-            prompt = cloudPrompt
+            prompt = cloudPrompt.prompt or cloudPrompt  -- backward compat
             sendOpts = {
                 teamOnly      = teamOnly,
                 wasVoice      = false,
+                systemPrompt  = cloudPrompt.system,  -- system role message for cloud providers
                 triggerReason = triggerReason,
                 eventName     = event_name,
                 eventArgs     = args,
@@ -443,10 +455,12 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     -- -----------------------------------------------------------------------
     local chatGPTChance = lib.GetConVarFloat("chatter_gpt_chance") or 0.25
 
-    local prompt = TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description)
+    local promptData = TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, self.bot, args, teamOnly, true, description)
+    local prompt = promptData.prompt or promptData  -- backward compat: accept string or table
     local sendOpts = {
         teamOnly = teamOnly,
         wasVoice = false,
+        systemPrompt = promptData.system,  -- system role message for cloud providers
         -- Extra context for adapters that build their own prompts (e.g. Ollama/llama)
         eventName   = event_name,
         eventArgs   = args,
@@ -1288,6 +1302,265 @@ hook.Add("TTTEndRound", "TTTBots.Chatter.TraitorVictory", function(result)
                 if not IsValid(bot) then return end
                 chatter:On("TraitorVictory", {}, true, 0)  -- team-only
             end)
+        end
+    end
+end)
+
+-- ===========================================================================
+-- Post-Round Phase Chatter
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- PostRoundDMStarted — bots react when post-round FFA begins
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.PostRoundDM", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    -- Slight delay: let the match state settle so IsPostRoundDM() is accurate
+    timer.Simple(0.5, function()
+        if not TTTBots.Match.IsPostRoundDM() then return end
+
+        local allBots = TTTBots.Bots
+        if not allBots or #allBots == 0 then return end
+
+        -- Pick 1-2 bots to announce the FFA
+        local speakers = math.random(1, math.min(2, #allBots))
+        local shuffled = table.Copy(allBots)
+        for i = #shuffled, 2, -1 do
+            local j = math.random(1, i)
+            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+        end
+
+        for i = 1, speakers do
+            local bot = shuffled[i]
+            if not (IsValid(bot) and bot.components) then continue end
+            local chatter = bot:BotChatter()
+            if not chatter then continue end
+            -- Reset rate limit so it always fires once per round end
+            if chatter.rateLimitTbl then
+                chatter.rateLimitTbl["PostRoundDMStarted"] = nil
+            end
+            local delay = (i - 1) * math.random(1, 3)
+            timer.Simple(delay, function()
+                if not IsValid(bot) then return end
+                chatter:On("PostRoundDMStarted", {}, false, 0)
+            end)
+        end
+    end)
+end)
+
+-- Post-round DM kill chatter
+hook.Add("PlayerDeath", "TTTBots.Chatter.PostRoundDMKill", function(victim, weapon, attacker)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not TTTBots.Match.IsPostRoundDM() then return end
+    if not (IsValid(attacker) and attacker:IsBot()) then return end
+    if not (IsValid(victim) and victim:IsPlayer()) then return end
+    if victim == attacker then return end
+
+    -- Rate-limit: once per 8s per bot
+    if (CurTime() - (attacker._lastPostRoundDMKillChat or 0)) < 8 then return end
+    attacker._lastPostRoundDMKillChat = CurTime()
+
+    local chatter = attacker:BotChatter()
+    if not chatter then return end
+
+    if math.random(1, 2) == 1 then
+        chatter:On("PostRoundDMKill", {
+            victim = victim:Nick(),
+            victimEnt = victim,
+        }, false, math.random(1, 2))
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- PostRoundRoleReveal — bots react to role reveal (non-DM ending)
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.PostRoundRoleReveal", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    -- Don't fire when post-round DM is active — PostRoundDMStarted handles that
+    timer.Simple(0.5, function()
+        if TTTBots.Match.IsPostRoundDM() then return end
+
+        local allBots = TTTBots.Bots
+        if not allBots or #allBots == 0 then return end
+
+        -- 2-4 second delay for realism (scoreboard appears first)
+        local shuffled = table.Copy(allBots)
+        for i = #shuffled, 2, -1 do
+            local j = math.random(1, i)
+            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+        end
+
+        -- Pick 1-3 bots to react to the reveal
+        local speakers = math.random(1, math.min(3, #shuffled))
+        for i = 1, speakers do
+            local bot = shuffled[i]
+            if not (IsValid(bot) and bot.components) then continue end
+            local chatter = bot:BotChatter()
+            if not chatter then continue end
+
+            if chatter.rateLimitTbl then
+                chatter.rateLimitTbl["PostRoundRoleReveal"] = nil
+            end
+
+            -- Pick a "notable" player to mention: someone who surprised the bot
+            -- (enemy team member), falling back to a random alive player
+            local notablePlayer = nil
+            local allPlayers = player.GetAll()
+            for _, ply in ipairs(allPlayers) do
+                if not (IsValid(ply) and ply ~= bot) then continue end
+                -- Prefer someone on the opposing team that the bot didn't know about
+                local plyRole = TTTBots.Roles.GetRoleFor(ply)
+                local botRole = TTTBots.Roles.GetRoleFor(bot)
+                if plyRole and botRole and plyRole:GetTeam() ~= botRole:GetTeam() then
+                    notablePlayer = ply
+                    break
+                end
+            end
+            -- Fallback: pick any other player
+            if not IsValid(notablePlayer) then
+                for _, ply in ipairs(allPlayers) do
+                    if IsValid(ply) and ply ~= bot then
+                        notablePlayer = ply
+                        break
+                    end
+                end
+            end
+
+            local delay = math.random(2, 6) + (i - 1) * math.random(1, 3)
+            timer.Simple(delay, function()
+                if not IsValid(bot) then return end
+                chatter:On("PostRoundRoleReveal", {
+                    player    = notablePlayer and IsValid(notablePlayer) and notablePlayer:Nick() or "someone",
+                    playerEnt = notablePlayer,
+                }, false, 0)
+            end)
+        end
+    end)
+end)
+
+-- ---------------------------------------------------------------------------
+-- PostRoundKillBrag — bots mention a kill they made this round
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.PostRoundKillBrag", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    timer.Simple(1, function()
+        local allBots = TTTBots.Bots
+        if not allBots or #allBots == 0 then return end
+
+        for _, bot in ipairs(allBots) do
+            if not (IsValid(bot) and bot.components) then continue end
+
+            -- Only brag if the bot actually made a kill this round
+            local kills = TTTBots.Match.BotRoundKills[bot]
+            if not kills or #kills == 0 then continue end
+
+            -- Pick their "best" kill (just the last one for simplicity)
+            local bestKill = kills[#kills]
+
+            -- Random chance: not every bot brags every round
+            if math.random(1, 3) ~= 1 then continue end
+
+            local chatter = bot:BotChatter()
+            if not chatter then continue end
+
+            if chatter.rateLimitTbl then
+                chatter.rateLimitTbl["PostRoundKillBrag"] = nil
+            end
+
+            local delay = math.random(4, 10)
+            timer.Simple(delay, function()
+                if not IsValid(bot) then return end
+                chatter:On("PostRoundKillBrag", {
+                    victim    = bestKill.victimName or "someone",
+                    victimEnt = IsValid(bestKill.victim) and bestKill.victim or nil,
+                    kills     = #kills,
+                }, false, 0)
+            end)
+
+            break  -- one braggart per round end to avoid spam
+        end
+    end)
+end)
+
+-- ---------------------------------------------------------------------------
+-- PostRoundWitnessEvent — bots mention something notable they saw
+-- (fires alongside PostRoundRoleReveal if there's a notable kill witness)
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTEndRound", "TTTBots.Chatter.PostRoundWitnessEvent", function(result)
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    timer.Simple(1.5, function()
+        if TTTBots.Match.IsPostRoundDM() then return end  -- DM path handled separately
+
+        local allBots = TTTBots.Bots
+        if not allBots or #allBots == 0 then return end
+
+        local shuffled = table.Copy(allBots)
+        for i = #shuffled, 2, -1 do
+            local j = math.random(1, i)
+            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+        end
+
+        -- One bot shares a witness observation
+        for _, bot in ipairs(shuffled) do
+            if not (IsValid(bot) and bot.components) then continue end
+
+            -- Only fire for bots that witnessed a kill during the round
+            local witnessLog = TTTBots.Match.BotWitnessLog[bot]
+            if not witnessLog or #witnessLog == 0 then continue end
+
+            local notable = witnessLog[math.random(1, #witnessLog)]
+            if not notable or not IsValid(notable.subject) then continue end
+
+            if math.random(1, 4) ~= 1 then continue end
+
+            local chatter = bot:BotChatter()
+            if not chatter then continue end
+
+            if chatter.rateLimitTbl then
+                chatter.rateLimitTbl["PostRoundWitnessEvent"] = nil
+            end
+
+            local delay = math.random(5, 12)
+            timer.Simple(delay, function()
+                if not IsValid(bot) then return end
+                chatter:On("PostRoundWitnessEvent", {
+                    player    = notable.subject:Nick(),
+                    playerEnt = notable.subject,
+                }, false, 0)
+            end)
+            break  -- one speaker per round end
+        end
+    end)
+end)
+
+-- Post-round witness tracker — record when a bot witnesses a kill mid-round
+hook.Add("TTTBots.WitnessKill", "TTTBots.Chatter.RecordWitnessForPostRound", function(witness, killer, victim)
+    if not (IsValid(witness) and witness:IsBot()) then return end
+    if not (IsValid(killer) and IsValid(victim)) then return end
+    if not TTTBots.Match.RoundActive then return end
+
+    TTTBots.Match.BotWitnessLog[witness] = TTTBots.Match.BotWitnessLog[witness] or {}
+    table.insert(TTTBots.Match.BotWitnessLog[witness], {
+        type    = "kill_witnessed",
+        subject = killer,   -- the killer is the "notable" person to mention
+        victim  = victim,
+        time    = CurTime(),
+    })
+end)
+
+-- Post-round: reset per-bot flags
+hook.Add("TTTBeginRound", "TTTBots.Chatter.ResetPostRoundFlags", function()
+    for _, bot in ipairs(TTTBots.Bots) do
+        if IsValid(bot) then
+            bot._lastPostRoundDMKillChat = nil
         end
     end
 end)

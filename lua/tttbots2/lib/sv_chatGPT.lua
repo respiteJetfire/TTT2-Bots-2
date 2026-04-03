@@ -29,13 +29,31 @@ function TTTBots.ChatGPT.SendText(prompt, bot, opts, callback)
         return
     end
 
-    -- Char-by-char JSON escaping of the prompt
-    local escapedText = string.gsub(prompt, '[%c"%\\]', function(c)
-        return string.format('\\u%04x', string.byte(c))
-    end)
+    -- Char-by-char JSON escaping helper
+    local function jsonEscape(s)
+        return string.gsub(s, '[%c"%\\]', function(c)
+            return string.format('\\u%04x', string.byte(c))
+        end)
+    end
+
+    -- Build messages array: optional system prompt + user prompt
+    local systemPrompt = opts.systemPrompt
+    local messagesJson
+    if systemPrompt and systemPrompt ~= "" then
+        messagesJson = string.format(
+            '[{"role":"system","content":"%s"},{"role":"user","content":"%s"}]',
+            jsonEscape(systemPrompt), jsonEscape(prompt)
+        )
+    else
+        messagesJson = string.format(
+            '[{"role":"user","content":"%s"}]',
+            jsonEscape(prompt)
+        )
+    end
+
     local requestBody = string.format(
-        '{"model":"%s","messages":[{"role":"user","content":"%s"}],"max_tokens":500,"temperature":%.1f}',
-        model, escapedText, temperature
+        '{"model":"%s","messages":%s,"max_tokens":500,"temperature":%.1f}',
+        model, messagesJson, temperature
     )
 
     HTTP({
@@ -66,8 +84,10 @@ function TTTBots.ChatGPT.SendText(prompt, bot, opts, callback)
             if response.choices and response.choices[1] and response.choices[1].message and response.choices[1].message.content then
                 local text = response.choices[1].message.content
                 text = TTTBots.Providers.SanitizeText(text)
+                -- Extract token usage for cost tracking
+                local totalTokens = response.usage and response.usage.total_tokens or nil
                 if callback then
-                    callback(TTTBots.Providers.MakeOk("ChatGPT", text))
+                    callback(TTTBots.Providers.MakeOk("ChatGPT", text, totalTokens))
                 end
             else
                 if callback then

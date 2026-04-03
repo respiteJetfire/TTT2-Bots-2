@@ -205,6 +205,16 @@ function KnifeThrow.OnRunning(bot)
         return STATUS.RUNNING
 
     elseif phase == "aim" then
+        -- Re-validate target is still throwable before committing
+        if not (IsValid(throwTarget) and lib.IsPlayerAlive(throwTarget)) then
+            return STATUS.FAILURE
+        end
+        local aimDist = bot:GetPos():Distance(throwTarget:GetPos())
+        if aimDist < THROW_MIN_DIST or aimDist > THROW_MAX_DIST or not bot:Visible(throwTarget) then
+            -- Target moved out of range or behind cover — abort to save the throw
+            return STATUS.FAILURE
+        end
+
         -- Aim at target — aim slightly above center mass to compensate for projectile arc
         local targetPos = throwTarget:GetPos() + Vector(0, 0, 40)
         loco:LookAt(targetPos)

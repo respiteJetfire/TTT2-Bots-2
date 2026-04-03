@@ -379,11 +379,13 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
         if handleKeywordEventsAttack(keywordeventsCallMedic,   handleMedic,    ply, fulltxt, bot, teamOnly, bots, targets) then return end
 
         -- Fall through to LLM conversational reply
-        local chatter  = bot:BotChatter()
-        local prompt   = TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
+        local chatter    = bot:BotChatter()
+        local promptData = TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, ply)
+        local prompt     = promptData.prompt or promptData  -- backward compat: accept string or table
         local sendOpts = {
             teamOnly = teamOnly,
             wasVoice = wasVoice,
+            systemPrompt = promptData.system,  -- system role message for cloud providers
             -- Extra context for adapters that build their own prompts (e.g. Ollama/llama)
             replyText = text,
             replyPly  = ply,

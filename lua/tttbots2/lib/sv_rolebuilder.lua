@@ -88,6 +88,7 @@ function TTTBots.RoleBuilder.NeutralKiller(name, team)
     TEAM_JESTER = TEAM_JESTER or "jesters"
     local defaultBTree = {
         _prior.FightBack,
+        _prior.SelfDefense,
         _prior.Requests,
         _bh.Roledefib,
         _prior.Restore,
@@ -122,6 +123,7 @@ function TTTBots.RoleBuilder.GangRole(name, team, enemyTeamsTbl, bTree)
     local defaultBTree = bTree or {
         _prior.Chatter,
         _prior.FightBack,
+        _prior.SelfDefense,
         _prior.Requests,
         _bh.Roledefib,
         _prior.AttackTarget,

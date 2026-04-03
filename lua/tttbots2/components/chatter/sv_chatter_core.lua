@@ -17,6 +17,7 @@ include("tttbots2/components/chatter/sv_chatter_parser.lua")
 include("tttbots2/components/chatter/sv_chatter_commands.lua")
 include("tttbots2/components/chatter/sv_chatter_dispatch.lua")
 include("tttbots2/components/chatter/sv_chatter_events.lua")
+include("tttbots2/components/chatter/sv_chatter_precache.lua")  -- LLM locale precaching
 include("tttbots2/components/chatter/sv_chatter_stt_evidence.lua") -- Tier 8: STT evidence extraction (9.4)
 include("tttbots2/components/chatter/sv_chatter_stt.lua")
 

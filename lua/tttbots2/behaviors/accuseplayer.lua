@@ -218,8 +218,9 @@ function AccusePlayer.OnStart(bot)
                 prompt = promptData.prompt
                 opts   = { system = promptData.system, replyText = nil, accusation = true }
             else
-                prompt = TTTBots.PromptContext.GetAccusationPrompt(bot, suspect, evidenceSummary, strengthLabel)
-                opts   = { accusation = true }
+                local promptData = TTTBots.PromptContext.GetAccusationPrompt(bot, suspect, evidenceSummary, strengthLabel)
+                prompt = promptData.prompt or promptData  -- backward compat
+                opts   = { accusation = true, systemPrompt = promptData.system }
             end
 
             -- Send with a 4-second timeout; fall back to locale on failure

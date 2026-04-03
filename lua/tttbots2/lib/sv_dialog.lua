@@ -166,8 +166,10 @@ function Dialog.ExecuteDialog(dialog)
             sendOpts = {
                 teamOnly = false,
                 wasVoice = false,
+                systemPrompt = prompt and prompt.system or nil,
                 triggerReason = triggerReason,
             }
+            prompt = prompt and prompt.prompt or prompt  -- extract user prompt from table
         end
 
         dialog.waiting = true

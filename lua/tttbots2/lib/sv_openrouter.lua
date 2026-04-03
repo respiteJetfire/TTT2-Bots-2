@@ -35,14 +35,31 @@ function TTTBots.OpenRouter.SendText(prompt, bot, opts, callback)
         return
     end
 
-    -- Escape the prompt for JSON string embedding
-    local escapedPrompt = string.gsub(prompt, '[%c"%\\]', function(c)
-        return string.format('\\u%04x', string.byte(c))
-    end)
+    -- JSON escaping helper
+    local function jsonEscape(s)
+        return string.gsub(s, '[%c"%\\]', function(c)
+            return string.format('\\u%04x', string.byte(c))
+        end)
+    end
+
+    -- Build messages array: optional system prompt + user prompt
+    local systemPrompt = opts.systemPrompt
+    local messagesJson
+    if systemPrompt and systemPrompt ~= "" then
+        messagesJson = string.format(
+            '[{"role":"system","content":"%s"},{"role":"user","content":"%s"}]',
+            jsonEscape(systemPrompt), jsonEscape(prompt)
+        )
+    else
+        messagesJson = string.format(
+            '[{"role":"user","content":"%s"}]',
+            jsonEscape(prompt)
+        )
+    end
 
     local requestBody = string.format(
-        '{"model":"%s","messages":[{"role":"user","content":"%s"}],"max_tokens":500,"temperature":%.2f}',
-        model, escapedPrompt, temperature
+        '{"model":"%s","messages":%s,"max_tokens":500,"temperature":%.2f}',
+        model, messagesJson, temperature
     )
 
     -- Build request headers
@@ -101,8 +118,10 @@ function TTTBots.OpenRouter.SendText(prompt, bot, opts, callback)
                     return
                 end
 
+                -- Extract token usage for cost tracking
+                local totalTokens = response.usage and response.usage.total_tokens or nil
                 if callback then
-                    callback(TTTBots.Providers.MakeOk("OpenRouter", text))
+                    callback(TTTBots.Providers.MakeOk("OpenRouter", text, totalTokens))
                 end
             else
                 if callback then

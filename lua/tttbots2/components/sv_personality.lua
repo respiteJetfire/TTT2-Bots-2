@@ -1408,5 +1408,5 @@ end)
 ---@return CPersonality
 function plyMeta:BotPersonality()
     ---@cast self Bot
-    return self.components.personality
+    return self.components and self.components.personality or nil
 end

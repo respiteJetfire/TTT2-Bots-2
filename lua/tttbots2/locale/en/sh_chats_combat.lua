@@ -23,7 +23,9 @@
               DialogAccusationVerdict,
               DialogDefenseProtest, DialogDefenseConfront, DialogDefenseDeny,
               DialogStandoffObserve, DialogStandoffDeny, DialogStandoffDrop, DialogStandoffCounter,
-              DialogPostRoundWinner, DialogPostRoundLoser, DialogPostRoundExplain
+              DialogPostRoundWinner, DialogPostRoundLoser, DialogPostRoundExplain,
+              PostRoundRoleReveal, PostRoundKillBrag, PostRoundWitnessEvent,
+              PostRoundDMStarted, PostRoundDMKill
     Split from sh_chats.lua for modularity.
 ]]
 
@@ -1425,6 +1427,89 @@ local LoadCombatChats = function()
     Line("The weapon was a giveaway. Nobody else had it.", A.Default)
     Line("You kept separating from the group at the worst times.", A.Default)
     Line("honestly you were just being super sus the whole time lol", A.Casual)
+
+    -- -----------------------------------------------------------------------
+    -- Post-Round Phase — role reveal reactions
+    -- -----------------------------------------------------------------------
+
+    RegisterCategory("PostRoundRoleReveal", P.IMPORTANT,
+        "When the round ends and roles are revealed — bot reacts to what they saw this round.")
+    Line("Well, now we know who everyone was. Makes sense in hindsight.", A.Default)
+    Line("Didn't expect {{player}} to be on that side, honestly.", A.Default)
+    Line("Looking back, the signs were all there.", A.Default)
+    Line("And that's how it ends. Round over.", A.Default)
+    Line("Huh. {{player}} had me fooled the entire time.", A.Default)
+    Line("ok wait {{player}} was THAT all along?? no way", A.Casual)
+    Line("lol i didn't even suspect {{player}}", A.Casual)
+    Line("makes sense i guess. gg", A.Casual)
+    Line("Round results speak for themselves.", A.Stoic)
+    Line("Data confirmed. Round complete.", A.Stoic)
+    Line("I KNEW IT. I CALLED {{player}} FROM THE START!", A.Hothead)
+    Line("TOLD YOU ALL. NOT LISTENING ISN'T AN OPTION!", A.Hothead)
+    Line("Wait... {{player}} was what?! I helped them...", A.Dumb)
+    Line("I don't get it. Why was {{player}} bad?", A.Dumb)
+
+    RegisterCategory("PostRoundKillBrag", P.NORMAL,
+        "When a bot killed someone during the round and brags about it post-round.")
+    Line("Got {{victim}} at just the right moment. Clean shot.", A.Default)
+    Line("Taking out {{victim}} was the highlight of that round.", A.Default)
+    Line("{{victim}} didn't see it coming. That's how it goes.", A.Default)
+    Line("Nobody suspected a thing until {{victim}} was already gone.", A.Default)
+    Line("i got {{victim}} and honestly that was my best play all round", A.Casual)
+    Line("the {{victim}} kill was so clean lol", A.Casual)
+    Line("rip {{victim}} honestly tho", A.Casual)
+    Line("{{victim}} - executed.", A.Stoic)
+    Line("Neutralised {{victim}}. As intended.", A.Stoic)
+    Line("I GOT {{victim}}! DID YOU SEE THAT?! ABSOLUTE PLAY!", A.Hothead)
+    Line("{{victim}} never stood a chance against me!", A.Hothead)
+    Line("I... I got {{victim}}? I think? Sorry {{victim}}...", A.Dumb)
+
+    RegisterCategory("PostRoundWitnessEvent", P.NORMAL,
+        "When a bot witnessed something notable during the round and mentions it post-round.")
+    Line("I saw {{player}} pull that off — still can't believe it.", A.Default)
+    Line("Watching {{player}} change everything mid-round was wild.", A.Default)
+    Line("The moment {{player}} made their move... that was it.", A.Default)
+    Line("That play by {{player}} sealed the whole round.", A.Default)
+    Line("bro {{player}}'s timing was actually insane", A.Casual)
+    Line("i was right there when {{player}} did that wtf", A.Casual)
+    Line("{{player}} said nothing and just... did that. respect.", A.Casual)
+    Line("I witnessed {{player}}'s action. It was decisive.", A.Stoic)
+    Line("{{player}}'s move was the turning point.", A.Stoic)
+    Line("THAT PLAY BY {{player}} WAS INSANE! STILL SHAKING!", A.Hothead)
+    Line("Why did {{player}} do that?? I was so confused!", A.Dumb)
+
+    RegisterCategory("PostRoundDMStarted", P.IMPORTANT,
+        "When post-round deathmatch begins — bot reacts to the FFA starting.")
+    Line("Round's over. Now it's a free-for-all. Watch yourself.", A.Default)
+    Line("Post-round deathmatch. Roles don't matter anymore.", A.Default)
+    Line("No more sides. Everyone's a target now.", A.Default)
+    Line("The round is done — now it's just about survival.", A.Default)
+    Line("Scores are settled. New game: everyone vs everyone.", A.Default)
+    Line("oh we're doing post-round DM?? let's go", A.Casual)
+    Line("FFA time!! i'm going for everyone", A.Casual)
+    Line("round's over, no more teams. good luck lol", A.Casual)
+    Line("free for all. finally.", A.Casual)
+    Line("Post-round deathmatch initiated.", A.Stoic)
+    Line("No alliances. Engaging.", A.Stoic)
+    Line("EVERYONE IS MY ENEMY NOW! BRING IT ON!", A.Hothead)
+    Line("IT'S CHAOS TIME! YES!", A.Hothead)
+    Line("Wait, we're still playing? Okay! ...Who do I shoot?", A.Dumb)
+    Line("So I can shoot anyone now? Including my friends?", A.Dumb)
+
+    RegisterCategory("PostRoundDMKill", P.NORMAL,
+        "When a bot kills someone during post-round deathmatch.")
+    Line("Got one in the FFA.", A.Default)
+    Line("Down. Who's next?", A.Default)
+    Line("Post-round kill. Not bad.", A.Default)
+    Line("One down in the free-for-all.", A.Default)
+    Line("lmao post round kill lets go", A.Casual)
+    Line("got one!! who's next?", A.Casual)
+    Line("ez", A.Casual)
+    Line("Eliminated. Continuing.", A.Stoic)
+    Line("Target neutralised. Next.", A.Stoic)
+    Line("POST ROUND KILL! WOOO!", A.Hothead)
+    Line("ANOTHER ONE DOWN! I'M ON FIRE!", A.Hothead)
+    Line("Oh! I got someone! Is that good?", A.Dumb)
 
 end
 

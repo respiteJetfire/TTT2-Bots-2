@@ -1781,12 +1781,16 @@ function BotLocomotor:StartCommand(cmd) -- aka StartCmd
     cmd:ClearButtons()
     cmd:ClearMovement()
     if self.dontmove then
-        -- Even when halted, we still need crouch + attack buttons (e.g. defibbing)
+        -- Even when halted, we still need crouch + attack + reload buttons (e.g. defibbing, Hidden transform)
         if lib.IsPlayerAlive(self.bot) then
             local haltBtns = 0
             if self:IsTryingCrouch() then haltBtns = haltBtns + IN_DUCK end
             if self.attack then haltBtns = haltBtns + IN_ATTACK end
             if self.attack2 then haltBtns = haltBtns + IN_ATTACK2 end
+            if self.reload then
+                haltBtns = haltBtns + IN_RELOAD
+                self.reload = false
+            end
             if haltBtns > 0 then cmd:SetButtons(haltBtns) end
             self:UpdateEyeAnglesFinal()
         end
@@ -2086,7 +2090,8 @@ function plyMeta:SetAttackTarget(target, reason, priority)
     -- Uses perception-aware check to handle disguised roles (Spy, etc.).
     -- Self-defense is no longer an override here — the self-defense trigger
     -- in sv_morality_suspicion.lua already checks alliance before requesting.
-    if IsValid(target) and target:IsPlayer() then
+    -- During post-round deathmatch, alliances are dissolved — it's FFA.
+    if IsValid(target) and target:IsPlayer() and not TTTBots.Match.IsPostRoundDM() then
         local isAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(self, target))
             or TTTBots.Roles.IsAllies(self, target)
         if isAlly then

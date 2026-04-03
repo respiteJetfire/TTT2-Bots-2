@@ -16,6 +16,12 @@ end)
 local Match = TTTBots.Match
 
 Match.RoundActive = Match.RoundActive or false
+Match.PostRoundDM = Match.PostRoundDM or false --- True when the round has ended but ttt_postround_dm is enabled
+--- Per-bot kill records for the current round. Key = bot Player, value = table of {victim, time}.
+--- Reset at TTTBeginRound. Used for post-round chatter to reference who/what the bot killed.
+Match.BotRoundKills = Match.BotRoundKills or {}
+--- Per-bot witness records: events the bot saw this round. Key = bot, value = table of {type, subject, time}.
+Match.BotWitnessLog = Match.BotWitnessLog or {}
 --- This is not a table of ragdolls but a table of corpse data.
 Match.Corpses = Match.Corpses or {}
 --- List of players in the round. Does not tell you if they are alive or not.
@@ -155,6 +161,14 @@ function Match.IsRoundActive()
     return Match.RoundActive
 end
 
+--- Returns true when the round has ended but post-round deathmatch is active.
+--- Bots should treat this as a free-for-all combat phase.
+---@return boolean
+---@realm shared
+function Match.IsPostRoundDM()
+    return Match.PostRoundDM
+end
+
 ---@realm shared
 function Match.CleanupNullCorpses()
     for i, v in pairs(Match.Corpses) do
@@ -167,6 +181,7 @@ end
 ---@realm shared
 function Match.ResetStats(roundActive)
     Match.RoundActive = roundActive or false
+    Match.PostRoundDM = false
     Match.Corpses = {}
     Match.ConfirmedDead = {}
     Match.PlayersInRound = {}
@@ -185,6 +200,8 @@ function Match.ResetStats(roundActive)
     Match.MarkedForDefib = {}
     Match.MarkedPlayers = {}
     Match.InitialTraitorCount = 0  -- Set in TTTBeginRound hook after roles are assigned
+    Match.BotRoundKills = {}
+    Match.BotWitnessLog = {}
 
     if SERVER then
         for i, v in pairs(TTTBots.Bots) do
@@ -310,6 +327,7 @@ function Match.IsPlyNearSmoke(ply)
 end
 
 timer.Create("TTTBots.Match.UpdateAlivePlayers", 0.34, 0, function()
+    if not Match.RoundActive and not Match.PostRoundDM then return end
     Match.UpdateAlivePlayers()
 end)
 
@@ -339,10 +357,34 @@ hook.Add("TTTBeginRound", "TTTBots.Match.BeginRound", function()
 end)
 
 hook.Add("TTTEndRound", "TTTBots.Match.EndRound", function()
-    Match.ResetStats(false)
+    -- Check if post-round deathmatch is enabled before wiping state
+    local postRoundDM = GetConVar("ttt_postround_dm")
+    if postRoundDM and postRoundDM:GetBool() then
+        -- Post-round DM: keep bots active in FFA mode.
+        -- Clear role-based state but preserve AlivePlayers and combat ability.
+        Match.RoundActive = false
+        Match.PostRoundDM = true
+        Match.KOSList = {}
+        Match.KOSCounter = {}
+        Match.SpottedC4s = {}
+        Match.AllArmedC4s = {}
+        Match.Smokes = {}
+        -- Clear attack targets so bots don't carry stale role-based targets
+        if SERVER then
+            for _, v in pairs(TTTBots.Bots) do
+                if not v.components then continue end
+                v:SetAttackTarget(nil, "POSTROUND_DM_RESET")
+            end
+        end
+        -- Keep AlivePlayers updated
+        Match.UpdateAlivePlayers()
+    else
+        Match.ResetStats(false)
+    end
 end)
 
 hook.Add("TTTPrepareRound", "TTTBots.Match.PrepareRound", function()
+    Match.PostRoundDM = false
     Match.ResetStats(false)
 end)
 
@@ -369,6 +411,21 @@ if SERVER then
             healthRemaining = healthRemaining,
             damageTaken = damageTaken,
             time = CurTime()
+        })
+    end)
+
+    --- Track kills made by bots during a round so post-round chatter can reference them.
+    hook.Add("PlayerDeath", "TTTBots.Match.TrackBotKills", function(victim, weapon, attacker)
+        if not (Match.RoundActive or Match.PostRoundDM) then return end
+        if not (IsValid(attacker) and attacker:IsPlayer() and attacker:IsBot()) then return end
+        if not IsValid(victim) then return end
+        if victim == attacker then return end  -- suicide
+
+        Match.BotRoundKills[attacker] = Match.BotRoundKills[attacker] or {}
+        table.insert(Match.BotRoundKills[attacker], {
+            victim = victim,
+            victimName = victim:Nick(),
+            time = CurTime(),
         })
     end)
 

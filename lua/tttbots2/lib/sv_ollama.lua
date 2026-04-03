@@ -35,7 +35,7 @@ local function getModel()
     if cvarModel and cvarModel ~= "" then
         return cvarModel
     end
-    return "tinyllama"
+    return "qwen2.5:1.5b"
 end
 
 --- Escape a string for safe inclusion inside a JSON string value.
@@ -64,8 +64,8 @@ function TTTBots.Ollama.SendText(prompt, bot, opts, callback)
     local url        = getURL()
     local model      = getModel()
     local temperature = lib.GetConVarFloat("chatter_temperature")
-    -- Clamp temperature for small models — high values cause incoherent output
-    if temperature > 0.7 then temperature = 0.7 end
+    -- Clamp temperature — qwen2.5:1.5b handles up to 0.8 well; higher causes incoherent output
+    if temperature > 0.8 then temperature = 0.8 end
 
     local botName = IsValid(bot) and bot:Nick() or nil
 
@@ -89,6 +89,12 @@ function TTTBots.Ollama.SendText(prompt, bot, opts, callback)
             -- No structured context — still build a system prompt to set identity
             llamaSystem = TTTBots.LlamaPrompts.BuildSystemPrompt(bot)
         end
+    end
+
+    -- Allow callers to pass an explicit system prompt (e.g. from accusation/casual builders)
+    -- which takes precedence if LlamaPrompts didn't produce one
+    if llamaSystem == "" and opts.systemPrompt and opts.systemPrompt ~= "" then
+        llamaSystem = opts.systemPrompt
     end
 
     -- Build JSON body
@@ -158,8 +164,14 @@ function TTTBots.Ollama.SendText(prompt, bot, opts, callback)
                     return
                 end
 
+                -- Ollama may return eval_count + prompt_eval_count
+                local totalTokens = nil
+                if response.eval_count then
+                    totalTokens = (response.prompt_eval_count or 0) + response.eval_count
+                end
+
                 if callback then
-                    callback(TTTBots.Providers.MakeOk("Ollama", text))
+                    callback(TTTBots.Providers.MakeOk("Ollama", text, totalTokens))
                 end
             else
                 if callback then

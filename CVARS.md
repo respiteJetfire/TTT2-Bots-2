@@ -71,6 +71,23 @@
 - **ttt_bot_llm_enabled** (default: `1`)
   - Master toggle to enable or disable all LLM (AI text generation) calls. When set to `0`, bots fall back to pre-written locale responses for all chatter events and will not contact any LLM provider (ChatGPT, Gemini, DeepSeek, or Ollama). Exposed as a checkbox in the **AI Providers** settings menu.
 
+### Rate Limiter & Cost Tracker
+
+- **ttt_bot_llm_max_rpm** (default: `30`)
+  - Maximum LLM requests per minute across all bots. Requests above this limit are rejected (high-priority events like KOS still get through). Set to `0` for unlimited.
+
+- **ttt_bot_llm_max_per_round** (default: `200`)
+  - Maximum LLM requests per round across all bots. Prevents runaway costs in long rounds. Set to `0` for unlimited.
+
+- **ttt_bot_llm_cost_per_1k_tokens** (default: `0.01`)
+  - Estimated cost in USD per 1,000 tokens for the configured LLM provider. Used for the cost tracker dashboard.
+
+- **ttt_bot_llm_budget_per_round** (default: `1.00`)
+  - Maximum estimated USD spend per round. Once this budget is hit, only high-priority requests (KOS, accusations) are allowed. Set to `0` for unlimited.
+
+- **ttt_bot_llm_ratelimit_debug** (default: `0`)
+  - Print rate limiter decisions and token tracking to server console. Filter: `[BOTDBG:RATELIMIT]`
+
 - **ttt_bot_chatter_lvl** (default: `3`)
   - The level of chatter that bots will have. 0 = none, 1 = critical only, 2 = callouts/important only, 3 = everything.
 

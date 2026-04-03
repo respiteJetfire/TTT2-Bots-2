@@ -24,6 +24,7 @@ local _bh = TTTBots.Behaviors
 TTTBots.Behaviors.PriorityNodes = {
     --- Fight back vs the environment (blocking props) or other players.
     FightBack = {
+        _bh.PanicRetreat,
         _bh.ClearBreakables,
         _bh.AttackTarget,
         _bh.SeekCover,
@@ -31,6 +32,7 @@ TTTBots.Behaviors.PriorityNodes = {
 
     --- Defend self from accusations or KOS calls (below FightBack, above social)
     SelfDefense = {
+        _bh.CombatRetreat,
         _bh.Retreat,
         _bh.DefendSelf,
     },
@@ -114,11 +116,14 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.Healgun,
         _bh.Roledefib
     },
-    --- Deploy turrets, use timestop, use peacekeeper
+    --- Deploy turrets, use timestop, use peacekeeper, NPC launchers
     TacticalEquipment = {
         _bh.UseTurret,
         _bh.UseTimestop,
         _bh.UseGravityMine,
+        _bh.UseCombineLauncher,
+        _bh.UseFastZombieLauncher,
+        _bh.UseHeadcrabLauncher,
     },
     --- DNA Scanner usage for detective roles
     DNAScanner = {

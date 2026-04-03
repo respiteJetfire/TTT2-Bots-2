@@ -80,11 +80,11 @@ function AD.Load()
     local raw = file.Read(AD.SAVE_FILE, "DATA")
     if not raw or raw == "" then return end
 
-    local data = util.JSONToKeyValues(raw)
+    local data = util.JSONToTable(raw)
     if not data then return end
 
     if data.History and istable(data.History) then
-        -- JSONToKeyValues may convert the array to string-keyed table; normalize.
+        -- JSONToTable may convert the array to string-keyed table; normalize.
         local history = {}
         for _, v in pairs(data.History) do
             table.insert(history, tobool(v))

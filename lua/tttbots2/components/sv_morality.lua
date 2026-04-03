@@ -260,9 +260,24 @@ function BotMorality:ResetRoundState()
 end
 
 hook.Add("TTTEndRound", "TTTBots.Morality.ResetRoundState", function()
+    local isPostRoundDM = TTTBots.Match.IsPostRoundDM()
     for _, bot in ipairs(TTTBots.Bots or {}) do
         if not (IsValid(bot) and bot.components and bot.components.morality) then continue end
-        bot.components.morality:ResetRoundState()
+        if isPostRoundDM then
+            -- Post-round DM: clear suspicion/role state but keep the bot combat-ready.
+            -- Attack targets are cleared by the Match hook; FFA targeting will reassign.
+            local morality = bot.components.morality
+            morality.suspicions = {}
+            morality.roleGuesses = {}
+            morality.roleGuessTimestamps = {}
+            morality.testedClean = nil
+            morality._confirmedHostilesSeen = nil
+            bot.grudge = nil
+            bot.personalSpaceTbl = nil
+            bot.pendingAccusations = nil
+        else
+            bot.components.morality:ResetRoundState()
+        end
     end
 end)
 
@@ -323,6 +338,11 @@ end)
 function BotMorality:Think()
     self.tick = (self.bot.tick or 0)
     if not lib.IsPlayerAlive(self.bot) then return end
+
+    -- Post-round DM: skip all role-based morality, FFA targeting is handled
+    -- by the dedicated PostRoundDM timer in sv_morality_hostility.lua
+    if TTTBots.Match.IsPostRoundDM() then return end
+
     self:TickSuspicions()        -- from sv_morality_suspicion.lua
     self:SetRandomNearbyTarget() -- opportunistic (this file)
     self:TickIfLastAlive()       -- opportunistic (this file)
@@ -361,5 +381,5 @@ end
 local plyMeta = FindMetaTable("Player")
 function plyMeta:BotMorality()
     ---@cast self Bot
-    return self.components.morality
+    return self.components and self.components.morality or nil
 end

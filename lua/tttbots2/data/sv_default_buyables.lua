@@ -1761,6 +1761,90 @@ Registry.GravityMine = {
     PrimaryWeapon = false,
 }
 
+---@type Buyable
+--- Fires a canister that deploys 2-3 Combine soldiers from orbit.
+--- Gated by the outdoorSWEPs trait since it requires sky access.
+Registry.CombineLauncher = {
+    Name = "Combine Launcher",
+    Class = "weapon_ttt_combinelauncher",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = true,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt_combinelauncher") then return false end
+        return testPlyHasTrait(ply, "outdoorSWEPs", 4)
+            or testPlyHasTrait(ply, "aggressive", 5)
+            or testPlyHasTrait(ply, "gimmick", 4)
+    end,
+    SituationalScore = function(ply)
+        local base = 4
+        local enemies = countAliveNonAllies(ply)
+        if enemies >= 3 then base = base + 2 end
+        if enemies >= 5 then base = base + 2 end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Fires a canister that deploys 2-4 fast zombies from orbit.
+--- Fast zombies are highly mobile and disruptive to innocents.
+Registry.FastZombieLauncher = {
+    Name = "Fast Zombie Launcher",
+    Class = "weapon_ttt_fastzombielauncher",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = true,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt_fastzombielauncher") then return false end
+        return testPlyHasTrait(ply, "outdoorSWEPs", 4)
+            or testPlyHasTrait(ply, "aggressive", 5)
+            or testPlyHasTrait(ply, "gimmick", 4)
+    end,
+    SituationalScore = function(ply)
+        local base = 4
+        local enemies = countAliveNonAllies(ply)
+        if enemies >= 3 then base = base + 2 end
+        if enemies >= 5 then base = base + 2 end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
+---@type Buyable
+--- Fires a headcrab canister that releases 4-6 headcrabs on impact.
+--- The env_headcrabcanister entity handles all NPC spawning natively.
+Registry.HeadcrabLauncher = {
+    Name = "Headcrab Launcher",
+    Class = "weapon_ttt_headlauncher",
+    Price = 1,
+    Priority = 3,
+    RandomChance = 1,
+    ShouldAnnounce = true,
+    AnnounceTeam = false,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt_headlauncher") then return false end
+        return testPlyHasTrait(ply, "outdoorSWEPs", 4)
+            or testPlyHasTrait(ply, "grenades", 4)
+            or testPlyHasTrait(ply, "gimmick", 4)
+    end,
+    SituationalScore = function(ply)
+        local base = 4
+        local enemies = countAliveNonAllies(ply)
+        if enemies >= 3 then base = base + 2 end
+        if enemies >= 5 then base = base + 2 end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+}
+
 for key, data in pairs(Registry) do
 	TTTBots.Buyables.RegisterBuyable(data)
 end

@@ -81,6 +81,9 @@ end
 local function ShouldDisengage(bot, target)
     if not (IsValid(bot) and IsValid(target)) then return false end
 
+    -- Post-round deathmatch: never disengage, it's a FFA brawl
+    if TTTBots.Match.IsPostRoundDM() then return false end
+
     -- ── Never disengage conditions ────────────────────────────────────
     -- Self-defense: always fight back.
     local Arb = TTTBots.Morality
@@ -324,7 +327,13 @@ function Attack.Seek(bot, targetPos)
     local lastSeenTime = memory:GetLastSeenTime(target)
     local timeNow = CurTime()
     local secsSince = lastSeenTime > 0 and (timeNow - lastSeenTime) or 0
-    local isAlive = target:Health() > 0 and not target:IsSpec() and TTTBots.Lib.IsPlayerAlive(target)
+    local isAlive
+    if target:IsNPC() then
+        -- NPCs don't have IsSpec or IsTerror; just check health and validity
+        isAlive = IsValid(target) and target:Health() > 0
+    else
+        isAlive = target:Health() > 0 and not target:IsSpec() and TTTBots.Lib.IsPlayerAlive(target)
+    end
     if not isAlive then
         bot:SetAttackTarget(nil, "BEHAVIOR_END")
         return
@@ -951,6 +960,9 @@ local LOF_RADIUS = 48 -- roughly player half-width
 function Attack.WillShootingTeamkill(bot, target)
     if not (IsValid(bot) and IsValid(target)) then return false end
 
+    -- Post-round deathmatch: no teamkill concern, it's FFA
+    if TTTBots.Match.IsPostRoundDM() then return false end
+
     -- High-priority combat: relax the bystander check so the bot actually
     -- shoots back at someone who is shooting them, or fires on a KOSedByAll
     -- target even if another player is partly in the way.
@@ -1237,9 +1249,12 @@ function Attack.ValidateTarget(bot)
     -- regardless of team. Uses perception-aware ally check to handle disguised
     -- roles (Spy, etc.) and applies to ALL base roles equally — the alliance
     -- system itself already handles innocent-vs-innocent correctly.
+    -- During post-round deathmatch, alliances are dissolved — it's FFA.
     local selfDefensePri = TTTBots.Morality and TTTBots.Morality.PRIORITY and TTTBots.Morality.PRIORITY.SELF_DEFENSE or 5
     local isSelfDefense = (bot.attackTargetPriority or 0) >= selfDefensePri
-    local isAlly = ((TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, target))
+    local isPostRoundDM = TTTBots.Match.IsPostRoundDM()
+    local isAlly = (not isPostRoundDM)
+        and ((TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, target))
         or TTTBots.Roles.IsAllies(bot, target))
         and not isSelfDefense
 
@@ -1318,6 +1333,8 @@ end
 
 function Attack.IsTargetAlly(bot)
     if not IsValid(bot.attackTarget) then return false end
+    -- During post-round deathmatch, nobody is an ally — it's FFA
+    if TTTBots.Match.IsPostRoundDM() then return false end
     -- NPCs cannot be allies — only check players
     if bot.attackTarget:IsNPC() then return false end
     if not bot.attackTarget:IsPlayer() then return false end

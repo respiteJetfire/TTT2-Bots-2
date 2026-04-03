@@ -52,7 +52,7 @@ function FollowMe.InitiateFollow(bot, player, teamOnly)
     local roleDisablesSuspicion = not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
     local chatter = bot:BotChatter()
     local Morality = bot:BotMorality()
-    local playerSus = Morality:GetSuspicion(player) or 0
+    local playerSus = (Morality and Morality.GetSuspicion and Morality:GetSuspicion(player)) or 0
     --- calculate chance of acceptance and time based on player's suspicion level (0% and 5 seconds at -10, 100% and 20 seconds at 10 but player can exceed both), or a base 50% if not using suspicion 
     --- if the player is a public role, the bot will always accept local targetIsPolice = TTTBots.Roles.GetRoleFor(target):GetAppearsPolice()
     local chance = 0.5

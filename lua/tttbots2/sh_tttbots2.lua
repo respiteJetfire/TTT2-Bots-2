@@ -68,6 +68,8 @@ local function includeServer()
     include("tttbots2/lib/sv_buyables.lua")
     include("tttbots2/lib/sv_adaptive_difficulty.lua")
     include("tttbots2/lib/sv_roles.lua")
+    include("tttbots2/lib/sv_errortracker.lua")
+    include("tttbots2/lib/sv_swep_threat_response.lua")
 end
 
 --- Similar to includeSharedFile, will include the file if we're a client, otherwise will AddCSLuaFile it if we're a server.
@@ -84,6 +86,8 @@ local function includeClient()
     includeClientFile("tttbots2/client/cl_planstats.lua")
     includeClientFile("tttbots2/client/cl_customplans.lua")
     includeClientFile("tttbots2/client/cl_TTS.lua")
+    includeClientFile("tttbots2/lib/cl_ratelimiter.lua")
+    includeClientFile("tttbots2/client/cl_errortracker.lua")
 end
 
 --- Places the file in the AddCSLuaFile if server, otherwise loads it if we're a client. Includes the file either way.
@@ -97,6 +101,7 @@ end
 ---Include the shared files
 ---@param isReload? boolean = false
 local function includeShared(isReload)
+    includeSharedFile("tttbots2/lib/sh_errortracker.lua", isReload) -- Error tracker — loaded first for early capture
     includeSharedFile("tttbots2/lib/sh_events.lua", isReload)   -- Event bus — loaded first so all other modules can subscribe
     includeSharedFile("tttbots2/lib/sh_botlib.lua", isReload)
     includeSharedFile("tttbots2/commands/sh_cvars.lua", isReload)
@@ -130,6 +135,7 @@ util.AddNetworkString("TTTBots_CustomPlan_Sync")
 util.AddNetworkString("TTTBots_CustomPlan_RequestSync")
 util.AddNetworkString("SayTTSEL")
 util.AddNetworkString("SayTTSBad")
+util.AddNetworkString("TTTBots_ErrorTracker_Error")
 -- Cupid role compatibility: bot-side lover linking sends these messages directly.
 util.AddNetworkString("inLove")
 util.AddNetworkString("betrayedTraitor")

@@ -129,6 +129,11 @@ function KarmaAwareness.CheckPreAttack(bot, requestedPriority)
 		return true
 	end
 
+	-- During post-round deathmatch, karma restrictions don't apply — it's FFA.
+	if TTTBots.Match.IsPostRoundDM() then
+		return true
+	end
+
 	local minPriority = KarmaAwareness.GetMinimumPriorityForAttack(bot)
 
 	-- Block if the attack priority is below the karma-adjusted minimum.

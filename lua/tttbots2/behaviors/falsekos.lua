@@ -77,9 +77,11 @@ function FalseKOS.Validate(bot)
     local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
     if ra and ra:IsEndgame() then return false end
 
+    -- Phase constants (used in multiple blocks below)
+    local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+
     -- Phase gate: only MID or LATE (not EARLY — too suspicious; not OVERTIME — too obvious)
-    if ra then
-        local PHASE = TTTBots.Components.RoundAwareness.PHASE
+    if ra and PHASE then
         local phase = ra:GetPhase()
         if phase == PHASE.EARLY or phase == PHASE.OVERTIME then return false end
     end
@@ -104,7 +106,7 @@ function FalseKOS.Validate(bot)
     end
 
     -- Phase bonus: LATE phase gets extra +10% (more desperate)
-    if ra then
+    if ra and PHASE then
         local phase = ra:GetPhase()
         if phase == PHASE.LATE then
             triggerChance = triggerChance + 10

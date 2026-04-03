@@ -17,6 +17,8 @@ L.submenu_tttbots_voice_title = "Voice & TTS"
 L.submenu_tttbots_personality_title = "Personality"
 L.submenu_tttbots_naming_title = "Naming"
 L.submenu_tttbots_debug_title = "Debug"
+L.submenu_tttbots_ratelimiter_title = "Rate Limiter & Cost"
+L.submenu_tttbots_troubleshooting_title = "Troubleshooting"
 
 -- Section headers
 L.header_tttbots_general = "General Settings"
@@ -59,6 +61,10 @@ L.header_tttbots_naming_custom = "Custom Names"
 L.header_tttbots_debug_drawing = "Debug Drawing"
 L.header_tttbots_debug_misc = "Debug Misc"
 L.header_tttbots_noise = "Noise Investigation"
+L.header_tttbots_ratelimiter = "Rate Limits"
+L.header_tttbots_cost_tracking = "Cost Tracking"
+L.header_tttbots_ratelimiter_debug = "Rate Limiter Debug"
+L.header_tttbots_ratelimiter_dashboard = "Live Dashboard (Admin Only)"
 
 -- Help text
 L.help_tttbots_quota = "The quota system keeps a set number of bots in the server at all times."
@@ -70,6 +76,9 @@ L.help_tttbots_pathfinding_max_nodes = "Advanced setting. Maximum A* nodes explo
 L.help_tttbots_ai_keys = "API keys are server-only and never sent to clients. Required for AI-generated chat."
 L.help_tttbots_voice_provider = "Selects how bots produce voice audio. Free TTS requires no API key."
 L.help_tttbots_stt = "STT sends voice chat audio to a local service for transcription so bots can reply to players speaking."
+L.help_tttbots_ratelimiter = "Rate limits prevent runaway LLM costs by capping requests per minute and per round. High-priority events like KOS callouts and accusations always pass through. Set a limit to 0 to disable it."
+L.help_tttbots_cost_tracking = "Track estimated LLM spend based on token usage. Cost is calculated from the per-model cost rate and the usage.total_tokens field returned by all OpenAI-compatible APIs. Set the budget to 0 for unlimited."
+L.help_tttbots_ratelimiter_dashboard = "Live stats from the server, updated every 5 seconds. Only visible to admins."
 L.help_tttbots_stt_azure = "Azure credentials below are only required when the STT backend is set to 'Azure STT'. Leave blank when using Local Whisper."
 L.help_tttbots_boredom = "When boredom is enabled, bots may leave the server after going too long without action."
 L.help_tttbots_pressure = "Pressure degrades bot aim when they are under fire."
@@ -194,6 +203,13 @@ L.label_tttbots_chatter_voice_azure_resource_api_key = "Azure STT API Key"
 L.label_tttbots_chatter_voice_azure_resource_name = "Azure Resource Name"
 L.label_tttbots_chatter_voice_azure_region = "Azure Region"
 L.label_tttbots_chatter_voice_local_tts_url = "Local TTS URL Override"
+
+-- Rate Limiter & Cost labels
+L.label_tttbots_llm_max_rpm = "Max Requests Per Minute (0 = unlimited)"
+L.label_tttbots_llm_max_per_round = "Max Requests Per Round (0 = unlimited)"
+L.label_tttbots_llm_cost_per_1k_tokens = "Cost per 1K Tokens (USD)"
+L.label_tttbots_llm_budget_per_round = "Budget per Round (USD, 0 = unlimited)"
+L.label_tttbots_llm_ratelimit_debug = "Debug Rate Limiter (Console)"
 
 -- Personality labels
 L.label_tttbots_boredom = "Enable Boredom"
@@ -357,3 +373,9 @@ L.label_tttbots_plans_job_repeat = "Repeat (re-assign to same bot)"
 L.query_tttbots_plans_delete = "Delete plan '%s'? This cannot be undone."
 L.msg_tttbots_plans_noname = "Please enter a plan name."
 L.msg_tttbots_plans_nojobs = "Please add at least one job to the plan."
+
+-- ========================================
+-- Troubleshooting Sub-Menu
+-- ========================================
+L.header_tttbots_troubleshooting = "Error Log"
+L.help_tttbots_troubleshooting = "This panel captures Lua errors originating from TTT Bots 2 on both the client and server. Duplicate errors are collated and shown with a count (x2, x3, …). Use the buttons below to copy the full log to your clipboard or clear it. The list refreshes automatically every 2 seconds."

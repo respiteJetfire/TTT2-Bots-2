@@ -230,18 +230,27 @@ local ACCUSE_STYLE = {
     Default  = "State your accusation naturally.",
 }
 
---- Build an LLM prompt for in-character accusation generation (9.3).
+--- Build an LLM system+user prompt pair for accusation generation (9.3).
+--- Returns { system = "...", prompt = "..." } for all providers.
 ---@param bot Player
 ---@param suspect Player
 ---@param evidenceSummary string  Human-readable evidence brief from FormatEvidenceSummary()
 ---@param strength string  "KOS" | "medium" | "soft"
----@return string  Single flat prompt string (for cloud providers)
+---@return table { system: string, prompt: string }
 function TTTBots.PromptContext.GetAccusationPrompt(bot, suspect, evidenceSummary, strength)
     local pers      = bot:BotPersonality()
     local archetype = pers and pers.archetype or "Default"
     local style     = ACCUSE_STYLE[archetype] or ACCUSE_STYLE.Default
     local botName   = bot:Nick()
     local susName   = IsValid(suspect) and suspect:Nick() or "unknown"
+
+    -- System prompt: identity + accusation style + output rules
+    local system = string.format(
+        "You are %s in Trouble in Terrorist Town. %s "
+        .. "RULES: Write ONLY one short accusation as an in-game chat message (max 12 words). "
+        .. "No quotes, no asterisks, no name prefix, no narration.",
+        botName, style
+    )
 
     -- Determine urgency wording
     local urgency
@@ -255,21 +264,16 @@ function TTTBots.PromptContext.GetAccusationPrompt(bot, suspect, evidenceSummary
 
     local gameCtx = TTTBots.PromptContext.BuildGameStateContext(bot)
 
-    local prompt = string.format(
-        "You are %s in Trouble in Terrorist Town. %s "
-        .. "You must accuse %s. Urgency level: %s. "
-        .. "Evidence you have: %s. "
-        .. "%s "
-        .. "Write a single short in-game chat message (max 12 words) as your accusation. "
-        .. "No quotes, no asterisks, no name prefix.",
-        botName, gameCtx, susName, urgency, evidenceSummary, style
+    local userPrompt = string.format(
+        "%s You must accuse %s. Urgency: %s. Evidence: %s. Say your accusation:",
+        gameCtx, susName, urgency, evidenceSummary
     )
 
-    if #prompt > 1800 then
-        prompt = prompt:sub(1, 1797) .. "..."
+    if #userPrompt > 800 then
+        userPrompt = userPrompt:sub(1, 797) .. "..."
     end
 
-    return prompt
+    return { system = system, prompt = userPrompt }
 end
 
 --- Build an LLM system+user prompt pair for accusation (Llama/local providers).
@@ -329,10 +333,10 @@ local CASUAL_CLOUD_STYLE = {
     Default  = "You make a short, natural idle remark.",
 }
 
---- Build a flat casual prompt string for cloud LLM providers.
+--- Build a system+user prompt pair for casual chat for cloud LLM providers.
 ---@param bot Player
 ---@param triggerReason string  one of: "idle"|"boredom"|"proximity"|"post_combat"|"quiet_round"|"near_miss"|"survivor"
----@return string  flat prompt string
+---@return table { system: string, prompt: string }
 function TTTBots.PromptContext.GetCasualCloudPrompt(bot, triggerReason)
     local pers       = IsValid(bot) and bot:BotPersonality() or nil
     local archetype  = pers and pers.archetype or "Default"
@@ -362,13 +366,17 @@ function TTTBots.PromptContext.GetCasualCloudPrompt(bot, triggerReason)
     }
     local triggerStr = triggerLabels[triggerReason] or triggerLabels.idle
 
-    local prompt = string.format(
-        "You are %s in Trouble in Terrorist Town. %s %s%s "
-        .. "Write a single short casual in-game chat message (max 12 words). "
-        .. "No quotes, no asterisks, no name prefix.",
-        botName, gameCtx, moodStr, style .. " " .. triggerStr
+    -- System prompt: identity, personality style, output rules
+    local system = string.format(
+        "You are %s in Trouble in Terrorist Town during a quiet moment. %s %s"
+        .. "RULES: Write ONLY one short casual in-game chat message (max 12 words). "
+        .. "No quotes, no asterisks, no name prefix, no narration.",
+        botName, style, moodStr
     )
+    if gameCtx ~= "" then system = system .. " " .. gameCtx end
 
-    if #prompt > 1800 then prompt = prompt:sub(1, 1797) .. "..." end
-    return prompt
+    -- User prompt: trigger reason only
+    local userPrompt = triggerStr .. " Say something casual:"
+
+    return { system = system, prompt = userPrompt }
 end

@@ -114,6 +114,19 @@ function TTTBots.Roles.GetLivingAllies(player)
     end)
 end
 
+---@param roleData RoleData|table|nil
+---@param ply Player|nil
+---@return any
+local function GetRoleTeamSafe(roleData, ply)
+    if roleData and roleData.GetTeam then
+        return roleData:GetTeam()
+    end
+    if IsValid(ply) and ply.GetTeam then
+        return ply:GetTeam()
+    end
+    return TEAM_NONE
+end
+
 ---Gets if the player is the ally of another player. This is based on the role's allies.
 ---@param ply1 Player
 ---@param ply2 Player
@@ -124,15 +137,29 @@ function TTTBots.Roles.IsAllies(ply1, ply2)
     local role2 = TTTBots.Roles.GetRoleFor(ply2)
     if not role1 or not role2 then return false end
 
+    local role1LovesTeammates = role1.GetLovesTeammates and role1:GetLovesTeammates() or false
+    local role2LovesTeammates = role2.GetLovesTeammates and role2:GetLovesTeammates() or false
+    local ply1Team = ply1.GetTeam and ply1:GetTeam() or TEAM_NONE
+    local ply2Team = ply2.GetTeam and ply2:GetTeam() or TEAM_NONE
+
     -- Workaround for roles like Bodyguard where player team is adjusted on-the-fly
     if (
-        (role1:GetLovesTeammates() or role2:GetLovesTeammates())
-        and (ply1:GetTeam() == ply2:GetTeam())
+        (role1LovesTeammates or role2LovesTeammates)
+        and (ply1Team == ply2Team)
     ) then return true end
 
+    local role1AlliedRoles = role1.GetAlliedRoles and role1:GetAlliedRoles() or {}
+    local role1AlliedTeams = role1.GetAlliedTeams and role1:GetAlliedTeams() or {}
+    local role2AlliedRoles = role2.GetAlliedRoles and role2:GetAlliedRoles() or {}
+    local role2AlliedTeams = role2.GetAlliedTeams and role2:GetAlliedTeams() or {}
+    local role1Name = role1.GetName and role1:GetName() or (ply1.GetRoleStringRaw and ply1:GetRoleStringRaw()) or "innocent"
+    local role2Name = role2.GetName and role2:GetName() or (ply2.GetRoleStringRaw and ply2:GetRoleStringRaw()) or "innocent"
+    local role1Team = GetRoleTeamSafe(role1, ply1)
+    local role2Team = GetRoleTeamSafe(role2, ply2)
+
     -- Now just testing if the roles are setup to care about each other.
-    local allied1 = role1:GetAlliedRoles()[role2:GetName()] or role1:GetAlliedTeams()[role2:GetTeam()] or false
-    local allied2 = role2:GetAlliedRoles()[role1:GetName()] or role2:GetAlliedTeams()[role1:GetTeam()] or false
+    local allied1 = role1AlliedRoles[role2Name] or role1AlliedTeams[role2Team] or false
+    local allied2 = role2AlliedRoles[role1Name] or role2AlliedTeams[role1Team] or false
 
     -- Using 'or' here intentionally, as the mode does not currently support one-sided alliances.
     return allied1 or allied2
@@ -148,14 +175,24 @@ function TTTBots.Roles.IsEnemies(ply1, ply2)
     local role2 = TTTBots.Roles.GetRoleFor(ply2)
     if not role1 or not role2 then return false end
 
+    local role1LovesTeammates = role1.GetLovesTeammates and role1:GetLovesTeammates() or false
+    local role2LovesTeammates = role2.GetLovesTeammates and role2:GetLovesTeammates() or false
+    local ply1Team = ply1.GetTeam and ply1:GetTeam() or TEAM_NONE
+    local ply2Team = ply2.GetTeam and ply2:GetTeam() or TEAM_NONE
+
     -- Workaround for roles like Bodyguard where player team is adjusted on-the-fly
     if (
-        (role1:GetLovesTeammates() or role2:GetLovesTeammates())
-        and (ply1:GetTeam() == ply2:GetTeam())
+        (role1LovesTeammates or role2LovesTeammates)
+        and (ply1Team == ply2Team)
     ) then return false end
 
+    local role1EnemyRoles = role1.GetEnemyRoles and role1:GetEnemyRoles() or {}
+    local role1EnemyTeams = role1.GetEnemyTeams and role1:GetEnemyTeams() or {}
+    local role2Name = role2.GetName and role2:GetName() or (ply2.GetRoleStringRaw and ply2:GetRoleStringRaw()) or "innocent"
+    local role2Team = GetRoleTeamSafe(role2, ply2)
+
     -- Now just testing if the roles are setup to hate each other.
-    local enemy1 = role1:GetEnemyRoles()[role2:GetName()] or role1:GetEnemyTeams()[role2:GetTeam()] or false
+    local enemy1 = role1EnemyRoles[role2Name] or role1EnemyTeams[role2Team] or false
 
     -- Using 'or' here intentionally, as the mode does not currently support one-sided alliances.
     return enemy1 or false

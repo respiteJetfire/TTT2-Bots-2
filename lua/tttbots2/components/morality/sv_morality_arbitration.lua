@@ -79,6 +79,8 @@ Arb.REASON_LABELS = {
     -- Priority 0 — Clears
     BEHAVIOR_END            = "Behavior ended — clearing target",
     ROUND_RESET             = "Round reset — clearing all targets",
+    POSTROUND_DM_RESET      = "Post-round DM started — clearing role-based targets",
+    POSTROUND_DM_FFA        = "Post-round deathmatch — FFA attack nearest player",
     RESPAWN_CLEAR           = "Respawn — clearing stale pre-death target",
     CEASEFIRE               = "Ceasefire — clearing target",
     LEGACY                  = "Legacy call (no reason provided)",

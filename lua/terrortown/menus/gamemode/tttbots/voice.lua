@@ -167,19 +167,16 @@ function CLGAMEMODESUBMENU:Populate(parent)
     form6:MakeTextEntry({
         serverConvar = "ttt_bot_chatter_voice_azure_resource_api_key",
         label = "label_tttbots_chatter_voice_azure_resource_api_key",
-        master = enbSTT,
     })
 
     form6:MakeTextEntry({
         serverConvar = "ttt_bot_chatter_voice_azure_resource_name",
         label = "label_tttbots_chatter_voice_azure_resource_name",
-        master = enbSTT,
     })
 
     form6:MakeTextEntry({
         serverConvar = "ttt_bot_chatter_voice_azure_region",
         label = "label_tttbots_chatter_voice_azure_region",
-        master = enbSTT,
     })
 
     -- Local Piper TTS

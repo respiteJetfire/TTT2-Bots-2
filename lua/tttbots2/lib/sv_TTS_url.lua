@@ -21,6 +21,10 @@ local function playTTSUrl(ply, url, teamOnly, duration)
         net.Send(recipients)
     elseif not recipients then
         net.Broadcast()
+    else
+        -- No recipients in proximity; abort the started net message so it
+        -- doesn't leak into the next net.Start call.
+        net.Abort()
     end
     -- If recipients is an empty table (no one in range), don't send at all
 

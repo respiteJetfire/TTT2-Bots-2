@@ -30,13 +30,23 @@ local alivePlayers = {}
 local function updateAlivePlayers()
     alivePlayers = {}
     for i, ply in pairs(player.GetAll()) do
-        alivePlayers[ply] = (IsValid(ply) and not (ply:IsSpec()) and ply:Alive() and ply:Health() > 0)
+        -- IsTerror() (Team == TEAM_TERROR) is the authoritative alive check
+        -- used by TTT2's win condition (GM:TTTCheckForWin). We must align with
+        -- it so that bots the engine considers dead are also dead in our cache.
+        -- Fallback: if IsTerror doesn't exist (e.g. non-TTT gamemode), use the
+        -- legacy IsSpec check.
+        local isTerror = ply.IsTerror and ply:IsTerror()
+        if isTerror == nil then
+            -- IsTerror not available, fall back to legacy check
+            isTerror = not ply:IsSpec()
+        end
+        alivePlayers[ply] = (IsValid(ply) and isTerror and ply:Alive() and ply:Health() > 0)
     end
 end
 if SERVER then timer.Create("TTTBots.Lib.AlivePlayersInterval", 1 / (TTTBots.Tickrate), 0, updateAlivePlayers) end
 
 
---- Check if not :IsSpec and :Alive
+--- Check if not :IsSpec and :Alive (uses IsTerror for TTT2 compatibility)
 ---@realm shared
 function TTTBots.Lib.IsPlayerAlive(ply)
     return alivePlayers[ply]
@@ -48,6 +58,39 @@ end
 function TTTBots.Lib.GetPlayerLifeStates()
     return alivePlayers
 end
+
+--- Fugue-state safety net: detects bots that the engine considers dead but are
+--- stuck in TEAM_TERROR (which blocks the round from ending). Force-spectates
+--- them so the win checker can proceed.
+---@realm server
+local function cleanupFugueStateBots()
+    -- Only run during an active round
+    if not TTTBots.Match or not TTTBots.Match.RoundActive then return end
+    for _, ply in pairs(player.GetAll()) do
+        if not IsValid(ply) or not ply:IsBot() then continue end
+        -- A bot is in a fugue state if it is on TEAM_TERROR but the engine
+        -- says it is not alive (Alive() == false or Health <= 0).
+        local onTerrorTeam = ply.IsTerror and ply:IsTerror()
+        if not onTerrorTeam then continue end
+        local engineAlive = ply:Alive() and ply:Health() > 0
+        if engineAlive then continue end
+        -- Skip bots that are mid-revival (they legitimately block the round)
+        if ply.IsBlockingRevival and ply:IsBlockingRevival() then continue end
+        -- This bot is in a fugue state — force it to spectator
+        print(string.format(
+            "[TTT Bots 2] Fugue-state fix: bot %s was on TEAM_TERROR but not alive (Alive=%s, HP=%s). Forcing to TEAM_SPEC.",
+            tostring(ply:Nick()),
+            tostring(ply:Alive()),
+            tostring(ply:Health())
+        ))
+        ply:SetTeam(TEAM_SPEC)
+        if ply.SetRagdollSpec then ply:SetRagdollSpec(true) end
+        ply:Spectate(OBS_MODE_IN_EYE)
+        -- Force an immediate cache update so downstream systems see the change
+        alivePlayers[ply] = false
+    end
+end
+if SERVER then timer.Create("TTTBots.Lib.FugueStateCleanup", 2, 0, cleanupFugueStateBots) end
 
 local EXPLOSIVE_BARREL_MODELS = {
     ["models/props_c17/oildrum001_explosive.mdl"] = true,

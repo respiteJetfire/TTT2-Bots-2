@@ -211,8 +211,15 @@ function HiddenKnife.OnRunning(bot)
 
     local huntTarget = state.huntTarget
     if not (IsValid(huntTarget) and lib.IsPlayerAlive(huntTarget)) then
-        state.huntTarget = nil
-        return STATUS.RUNNING  -- will re-find on next retarget tick
+        -- Target is gone — force immediate retarget instead of waiting for timer
+        local target, score = findBestKnifeTarget(bot)
+        if IsValid(target) and score > 0 then
+            state.huntTarget = target
+            state.lastRetargetTime = timeNow
+            huntTarget = target
+        else
+            return STATUS.FAILURE
+        end
     end
 
     local loco = bot:BotLocomotor() ---@type CLocomotor

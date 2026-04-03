@@ -55,6 +55,19 @@ bot_sh_cvar("cheat_bot_zombie", "0",
 -- Chatter cvars
 bot_sh_cvar("llm_enabled", "1",
     "Master toggle to enable or disable all LLM (AI text generation) calls. When set to 0, bots will fall back to locale-string responses for all chatter events and will not contact any LLM provider.")
+
+-- Rate limiter / cost tracker cvars
+bot_sh_cvar("llm_max_rpm", "30",
+    "Maximum LLM requests per minute across all bots. Requests above this limit are rejected (high-priority events like KOS still get through). Set to 0 for unlimited.")
+bot_sh_cvar("llm_max_per_round", "200",
+    "Maximum LLM requests per round across all bots. Prevents runaway costs in long rounds. Set to 0 for unlimited.")
+bot_sh_cvar("llm_cost_per_1k_tokens", "0.01",
+    "Estimated cost in USD per 1,000 tokens for the configured LLM provider. Used for the cost tracker dashboard.")
+bot_sh_cvar("llm_budget_per_round", "1.00",
+    "Maximum estimated USD spend per round. Once this budget is hit, only high-priority requests (KOS, accusations) are allowed. Set to 0 for unlimited.")
+bot_sh_cvar("llm_ratelimit_debug", "0",
+    "Print rate limiter decisions and token tracking to server console. Filter: [BOTDBG:RATELIMIT]")
+
 bot_sh_cvar("chatter_lvl", "3",
     "The level of chatter that bots will have. 0 = none (not even KOS), 1 = critical only (like KOS), 2 = >= callouts/important only, 3 = everything.")
 bot_sh_cvar("chatter_cps", "30",
@@ -109,6 +122,8 @@ bot_sh_cvar("chatter_casual_llm", "1",
     "Whether LLM-generated lines are used in casual/idle dialog exchanges (the llm_line template steps). Set to 0 to always use locale templates instead.")
 bot_sh_cvar("chatter_casual_llm_chance", "0.4",
     "Probability (0.0-1.0) that a casual dialog llm_line step will call the LLM instead of being skipped. Default 0.4 = 40% of casual dialog closing lines are LLM-generated.")
+bot_sh_cvar("chatter_precache_llm", "0",
+    "When set to 1, on server boot (first round start) the system scans all known chatter events and uses LLM generation to create fallback locale lines for any event that has no localized strings. Requires ttt_bot_llm_enabled = 1. Generated lines are cached in memory for the session.")
 
 -- Gameplay-effecting cvars
 bot_sh_cvar("plans_mindelay", "12",

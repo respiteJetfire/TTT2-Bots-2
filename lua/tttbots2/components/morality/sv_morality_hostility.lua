@@ -846,6 +846,8 @@ end
 -- ===========================================================================
 
 local function preventAttackAll(bot)
+    -- During post-round deathmatch, alliances are dissolved — skip all prevent policies
+    if TTTBots.Match.IsPostRoundDM() then return end
     preventAttackAlly(bot)
     preventCloaked(bot)
     preventAttackAllies(bot)
@@ -922,5 +924,77 @@ timer.Create("TTTBots.Components.Morality.CommonSense", 1, 0, function()
         if not bot.components.chatter or not bot:BotLocomotor() then continue end
         if not lib.IsPlayerAlive(bot) then continue end
         runHostilityPolicy(bot)
+    end
+end)
+
+-- ===========================================================================
+-- Post-Round Deathmatch — FFA targeting (1 second interval)
+-- ===========================================================================
+
+--- During post-round deathmatch, all bots enter a free-for-all: they attack
+--- the closest alive player regardless of role or team, preferring visible
+--- targets but falling back to nearby players within acquisition range.
+--- Roles no longer matter — the round is over and PVP damage is enabled.
+---@param bot Bot
+local function postRoundDMTargeting(bot)
+    -- Already fighting someone? Only re-evaluate if the target is dead/invalid.
+    if IsValid(bot.attackTarget) and bot.attackTarget:IsPlayer()
+        and lib.IsPlayerAlive(bot.attackTarget) then
+        return
+    end
+
+    -- Find the closest alive player — prefer visible targets, but if none are
+    -- visible, fall back to the closest player within NEARBY_RANGE units so
+    -- bots actively converge on enemies rather than standing idle.
+    local NEARBY_RANGE = 1500  -- units; generous search radius for post-round FFA
+
+    local bestDistVisible = math.huge
+    local bestVisible     = nil
+    local bestDistNearby  = math.huge
+    local bestNearby      = nil
+    local botPos = bot:GetPos()
+    local alivePlayers = TTTBots.Match.AlivePlayers or {}
+
+    for _, ply in ipairs(alivePlayers) do
+        if not IsValid(ply) then continue end
+        if ply == bot then continue end
+        if not lib.IsPlayerAlive(ply) then continue end
+        -- Ghost DM players are in a separate realm — skip them
+        if GhostDM and GhostDM.IsGhost and GhostDM.IsGhost(ply) then continue end
+
+        local dist = botPos:Distance(ply:GetPos())
+
+        if bot:Visible(ply) and dist < bestDistVisible then
+            bestDistVisible = dist
+            bestVisible     = ply
+        end
+
+        if dist <= NEARBY_RANGE and dist < bestDistNearby then
+            bestDistNearby = dist
+            bestNearby     = ply
+        end
+    end
+
+    -- Prefer visible target; fall back to nearest nearby target
+    local bestTarget = bestVisible or bestNearby
+
+    if bestTarget and bestTarget ~= NULL then
+        -- Seed position in memory so AttackTarget.Seek can path immediately
+        local mem = bot.components and bot.components.memory
+        if mem and mem.UpdateKnownPositionFor then
+            mem:UpdateKnownPositionFor(bestTarget, bestTarget:GetPos())
+        end
+        Arb.RequestAttackTarget(bot, bestTarget, "POSTROUND_DM_FFA", PRI.ROLE_HOSTILITY)
+    end
+end
+
+timer.Create("TTTBots.Components.Morality.PostRoundDM", 1, 0, function()
+    if not TTTBots.Match.IsPostRoundDM() then return end
+    for _, bot in pairs(TTTBots.Bots) do
+        if not bot or bot == NULL or not IsValid(bot) then continue end
+        if not bot.components then continue end
+        if not bot:BotLocomotor() then continue end
+        if not lib.IsPlayerAlive(bot) then continue end
+        postRoundDMTargeting(bot)
     end
 end)

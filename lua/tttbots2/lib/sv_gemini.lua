@@ -34,6 +34,34 @@ function TTTBots.Gemini.SendText(prompt, bot, opts, callback)
         url = 'https://generativelanguage.googleapis.com/v1/models/' .. model .. ':generateContent?key=' .. apiKey
     end
 
+    -- Build request body as a proper Lua table, then serialise safely with
+    -- util.TableToJSON to prevent JSON injection from untrusted prompt text.
+    local bodyTable = {
+        contents = {
+            {
+                parts = {
+                    { text = prompt }
+                }
+            }
+        },
+        generationConfig = {
+            temperature = temperature,
+            maxOutputTokens = 500
+        }
+    }
+
+    -- Gemini uses systemInstruction for system-level prompts
+    local systemPrompt = opts.systemPrompt
+    if systemPrompt and systemPrompt ~= "" then
+        bodyTable.systemInstruction = {
+            parts = {
+                { text = systemPrompt }
+            }
+        }
+    end
+
+    local requestBody = util.TableToJSON(bodyTable)
+
     HTTP({
         url = url,
         type = 'application/json',
@@ -41,17 +69,7 @@ function TTTBots.Gemini.SendText(prompt, bot, opts, callback)
         headers = {
             ['Content-Type'] = 'application/json',
         },
-        body = [[{
-            "contents": [{
-                "parts": [{
-                    "text": "]] .. prompt .. [["
-                }]
-            }],
-            "generationConfig": {
-                "temperature": ]] .. temperature .. [[,
-                "maxOutputTokens": 500
-            }
-        }]],
+        body = requestBody,
         success = function(code, body, headers)
             if code == 200 then
                 local ok, response = pcall(util.JSONToTable, body)
@@ -66,8 +84,10 @@ function TTTBots.Gemini.SendText(prompt, bot, opts, callback)
                    response.candidates[1].content and response.candidates[1].content.parts and
                    response.candidates[1].content.parts[1] and response.candidates[1].content.parts[1].text then
                     local text = TTTBots.Providers.SanitizeText(response.candidates[1].content.parts[1].text)
+                    -- Gemini returns token counts in usageMetadata.totalTokenCount
+                    local totalTokens = response.usageMetadata and response.usageMetadata.totalTokenCount or nil
                     if callback then
-                        callback(TTTBots.Providers.MakeOk("Gemini", text))
+                        callback(TTTBots.Providers.MakeOk("Gemini", text, totalTokens))
                     end
                 else
                     local msg = "Invalid response structure"

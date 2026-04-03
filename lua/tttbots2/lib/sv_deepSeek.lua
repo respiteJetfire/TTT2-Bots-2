@@ -29,9 +29,21 @@ function TTTBots.DeepSeek.SendText(prompt, bot, opts, callback)
         return
     end
 
-    -- Sanitize and escape the prompt for JSON
-    local sanitizedText = string.gsub(prompt, '[%c%z\128-\255]', '')
-    sanitizedText = string.gsub(sanitizedText, '"', '\\"')
+    -- Build request body as a proper Lua table, then serialise safely with
+    -- util.TableToJSON to prevent JSON injection from untrusted prompt text.
+    local messages = {}
+    local systemPrompt = opts.systemPrompt
+    if systemPrompt and systemPrompt ~= "" then
+        messages[#messages + 1] = { role = "system", content = systemPrompt }
+    end
+    messages[#messages + 1] = { role = "user", content = prompt }
+
+    local requestBody = util.TableToJSON({
+        model = model,
+        messages = messages,
+        max_tokens = 500,
+        temperature = temperature
+    })
 
     HTTP({
         url = 'https://api.deepseek.com/v1/chat/completions',
@@ -41,12 +53,7 @@ function TTTBots.DeepSeek.SendText(prompt, bot, opts, callback)
             ['Content-Type'] = 'application/json',
             ['Authorization'] = 'Bearer ' .. apiKey,
         },
-        body = [[{
-            "model": "]] .. model .. [[",
-            "messages": [{"role": "user", "content": "]] .. sanitizedText .. [["}],
-            "max_tokens": 500,
-            "temperature": ]] .. temperature .. [[
-        }]],
+        body = requestBody,
         success = function(code, body, headers)
             local ok, response = pcall(util.JSONToTable, body)
             if not ok or not response then
@@ -58,8 +65,10 @@ function TTTBots.DeepSeek.SendText(prompt, bot, opts, callback)
 
             if response.choices and response.choices[1] and response.choices[1].message and response.choices[1].message.content then
                 local text = TTTBots.Providers.SanitizeText(response.choices[1].message.content)
+                -- Extract token usage for cost tracking
+                local totalTokens = response.usage and response.usage.total_tokens or nil
                 if callback then
-                    callback(TTTBots.Providers.MakeOk("DeepSeek", text))
+                    callback(TTTBots.Providers.MakeOk("DeepSeek", text, totalTokens))
                 end
             else
                 local msg = "Invalid response structure"

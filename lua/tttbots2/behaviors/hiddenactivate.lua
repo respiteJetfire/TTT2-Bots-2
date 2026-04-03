@@ -12,8 +12,9 @@
 ---   - Random chance gate (adds variety)
 ---   - Fallback: force-transform after 180s
 ---
---- After pressing Reload, the server-side KeyPress hook in sh_hd_handler.lua
---- handles the actual transformation. We verify success via NWBool.
+--- After pressing Reload (via loco:Reload()), the engine fires the KeyPress
+--- hook in the Hidden role's shared.lua, which calls ActivateHiddenStalker().
+--- We verify success via the ttt2_hd_stalker_mode NWBool.
 
 ---@class BHiddenActivate
 TTTBots.Behaviors.HiddenActivate = {}
@@ -160,6 +161,7 @@ function Activate.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "HiddenActivate")
     state.pressedReload = false
     state.pressTime = 0
+    state.retryCount = 0
     return STATUS.RUNNING
 end
 
@@ -184,8 +186,14 @@ function Activate.OnRunning(bot)
             if isInStalkerMode(bot) then
                 return STATUS.SUCCESS
             else
-                -- Failed to transform — reset and try again
+                -- Failed to transform — increment retry counter and try again
+                state.retryCount = (state.retryCount or 0) + 1
                 state.pressedReload = false
+
+                -- Safety: give up after 5 retries to avoid infinite loop
+                if state.retryCount >= 5 then
+                    return STATUS.FAILURE
+                end
             end
         end
         return STATUS.RUNNING
@@ -200,13 +208,13 @@ function Activate.OnRunning(bot)
     local readiness = calculateReadiness(bot)
 
     if readiness >= READINESS_THRESHOLD or forceTransform then
-        -- Press IN_RELOAD to trigger transformation
         -- Stop moving briefly so the transformation can process cleanly
         loco:SetGoal()
 
-        -- Simulate pressing Reload via the locomotor's key press
-        -- The bot framework uses bot:SetButtons() or direct input injection
-        bot:SetButtons(bit.bor(bot:GetButtons() or 0, IN_RELOAD))
+        -- Use the locomotor's Reload() method to queue IN_RELOAD for the next
+        -- StartCommand tick. The engine's KeyPress hook in the Hidden role addon
+        -- will detect IN_RELOAD and trigger ActivateHiddenStalker().
+        loco:Reload()
 
         state.pressedReload = true
         state.pressTime = CurTime()

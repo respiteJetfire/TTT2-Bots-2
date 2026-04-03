@@ -131,6 +131,11 @@ function StunNade.Validate(bot)
     end
 
     -- Random chance for tactical throw when 1 threat is nearby (setup for knife kill)
+    -- Throttle: only roll once every 2 seconds per bot to avoid near-instant triggering
+    local lastRoll = bot._hdStunNadeLastRoll or 0
+    if CurTime() - lastRoll < 2.0 then return false end
+    bot._hdStunNadeLastRoll = CurTime()
+
     return math.random(1, 10) == 1
 end
 

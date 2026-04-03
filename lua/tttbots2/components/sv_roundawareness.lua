@@ -17,6 +17,7 @@ BotRoundAwareness.PHASE = {
     MID      = "MID",      -- 25–60 %
     LATE     = "LATE",     -- 60–85 %
     OVERTIME = "OVERTIME", -- 85 %+
+    POSTROUND = "POSTROUND", -- Round ended; post-round DM or just the end screen
 }
 
 local PHASE = BotRoundAwareness.PHASE
@@ -62,6 +63,10 @@ function BotRoundAwareness:ClearRoundState()
     self.tooQuietTimer          = CurTime()
     self.minPhase               = nil       -- forced minimum phase (set when ally dies)
     self.minAggressionMult      = nil       -- forced minimum aggression (set when ally dies)
+    -- Post-round state
+    self.isPostRound            = false     -- true once TTTEndRound fires
+    self.isPostRoundDM          = false     -- true when ttt_postround_dm is active
+    self.rolesRevealedToBot     = false     -- has the bot "seen" the role reveal?
 end
 
 ---------------------------------------------------------------------------
@@ -244,7 +249,15 @@ end
 ---------------------------------------------------------------------------
 
 function BotRoundAwareness:Think()
-    if not TTTBots.Match.RoundActive then return end
+    if not TTTBots.Match.RoundActive and not TTTBots.Match.PostRoundDM then return end
+
+    if TTTBots.Match.PostRoundDM then
+        -- In post-round DM: override phase to POSTROUND, keep updating alive counts
+        self.phase       = PHASE.POSTROUND
+        self.isPostRound = true
+        self.isPostRoundDM = true
+        return
+    end
 
     self:UpdatePhase()
     self:UpdateSuspicionPressure()
@@ -312,6 +325,18 @@ function BotRoundAwareness:IsEndgame()
     return self:GetSecondsRemaining() <= 15
 end
 
+--- Returns true when the round has ended (post-round screen or post-round DM).
+---@return boolean
+function BotRoundAwareness:IsPostRound()
+    return self.isPostRound or false
+end
+
+--- Returns true specifically when post-round deathmatch is active.
+---@return boolean
+function BotRoundAwareness:IsPostRoundDM()
+    return self.isPostRoundDM or false
+end
+
 ---------------------------------------------------------------------------
 -- Player meta accessor
 ---------------------------------------------------------------------------
@@ -336,6 +361,35 @@ if SERVER then
                 local comp = bot:BotRoundAwareness()
                 if comp then
                     comp:OnRoundStart()
+                end
+            end
+        end
+    end)
+
+    --- On round end: flag bots as post-round, set phase, check for post-round DM
+    hook.Add("TTTEndRound", "TTTBots.RoundAwareness.OnRoundEnd", function()
+        if not TTTBots.Bots then return end
+        local isPostRoundDM = TTTBots.Match.IsPostRoundDM()
+        for _, bot in ipairs(TTTBots.Bots) do
+            if IsValid(bot) then
+                local comp = bot:BotRoundAwareness()
+                if comp then
+                    comp.isPostRound   = true
+                    comp.isPostRoundDM = isPostRoundDM
+                    comp.phase         = PHASE.POSTROUND
+                end
+            end
+        end
+    end)
+
+    --- On prepare round: fully reset all bots
+    hook.Add("TTTPrepareRound", "TTTBots.RoundAwareness.OnPrepareRound", function()
+        if not TTTBots.Bots then return end
+        for _, bot in ipairs(TTTBots.Bots) do
+            if IsValid(bot) then
+                local comp = bot:BotRoundAwareness()
+                if comp then
+                    comp:ClearRoundState()
                 end
             end
         end

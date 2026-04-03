@@ -53,6 +53,7 @@ local chatFiles = {
     "sh_chats_roles_clown.lua",
     "sh_chats_roles_gundealer.lua",
     "sh_chats_roles_priest.lua",
+    "sh_chats_roles_copycat.lua",
     "sh_chats_misc.lua",
     "sh_casual_chats.lua",
     "sh_strings.lua",

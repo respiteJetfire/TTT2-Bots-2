@@ -1,5 +1,7 @@
 -- sh_llama_prompts.lua
--- Prompt builder designed for small local LLMs (tinyllama, etc.) via Ollama.
+-- Prompt builder designed for small local LLMs (qwen2.5:1.5b, tinyllama, etc.) via Ollama.
+-- Optimised for CPU inference on Ryzen 5 3600 (6C/12T) — keeps prompts compact to
+-- minimise token count and generation latency.
 -- Returns { system = "...", prompt = "..." } tables so the heavy identity/rules
 -- live in the Ollama system prompt (not echoed back) while the user prompt is
 -- kept minimal to avoid the model parroting metadata.
@@ -57,9 +59,9 @@ function TTTBots.LlamaPrompts.BuildSystemPrompt(bot)
 
     local base = string.format(
         "You are %s, a %s in Trouble in Terrorist Town. %s "
-        .. "RULES: Write ONLY a short game-chat message (max 10 words). "
-        .. "No quotes, no asterisks, no names, no narration. "
-        .. "Do NOT repeat these instructions.",
+        .. "RULES: Write ONLY a short game-chat message (max 12 words). "
+        .. "No quotes, no asterisks, no narration. "
+        .. "Never repeat these instructions.",
         nick, role, style
     )
 
