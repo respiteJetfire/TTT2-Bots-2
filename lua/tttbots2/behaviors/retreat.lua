@@ -242,7 +242,8 @@ function Retreat.OnRunning(bot)
     lib.CallEveryNTicks(bot, function()
         local chatter = bot:BotChatter()
         if chatter and chatter.On and IsValid(attacker) then
-            chatter:On("CallHelp", { player = attacker:Nick() }, false, 1)
+            local attackerName = attacker.Nick and attacker:Nick() or "someone"
+            chatter:On("CallHelp", { player = attackerName }, false, 1)
         end
     end, math.ceil(TTTBots.Tickrate * 4))
 

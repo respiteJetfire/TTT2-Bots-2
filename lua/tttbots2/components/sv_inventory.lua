@@ -837,7 +837,7 @@ end
 function BotInventory:EquipSwapDeagleGun()
     local gun = self:GetSwapDeagleGun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -847,7 +847,7 @@ end
 function BotInventory:EquipCursedGun()
     local gun = self:GetCursedGun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -857,7 +857,7 @@ end
 function BotInventory:EquipContract()
     local contract = self:GetContract()
     if not contract then return false end
-    self.bot:SetActiveWeapon(contract)
+    self.bot:SelectWeapon(contract:GetClass())
     return true
 end
 
@@ -867,7 +867,7 @@ end
 function BotInventory:EquipJackalGun()
     local gun = self:GetJackalGun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -877,7 +877,7 @@ end
 function BotInventory:EquipSlaveGun()
     local gun = self:GetSlaveGun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -887,7 +887,7 @@ end
 function BotInventory:EquipLoversGun()
     local gun = self:GetLoversGun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -900,7 +900,7 @@ function BotInventory:EquipMedigun()
         gun = self:GetMedicMedigun()
     end
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -910,7 +910,7 @@ end
 function BotInventory:EquipDeputyGun()
     local gun = self:GetDeputyGun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -920,7 +920,7 @@ end
 function BotInventory:EquipPriestGun()
     local gun = self:GetPriestGun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 
@@ -930,7 +930,7 @@ end
 function BotInventory:EquipMedicMedigun()
     local gun = self:GetMedicMedigun()
     if not gun then return false end
-    self.bot:SetActiveWeapon(gun)
+    self.bot:SelectWeapon(gun:GetClass())
     return true
 end
 

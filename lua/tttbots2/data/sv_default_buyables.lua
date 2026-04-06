@@ -1845,6 +1845,45 @@ Registry.HeadcrabLauncher = {
     PrimaryWeapon = false,
 }
 
+---@type Buyable
+--- Unified Apocalypse SWEP: opens a menu to choose between Zombie or Combine
+--- apocalypse. For bots, it auto-selects randomly. Spawns a team-aware NPC horde.
+Registry.Apocalypse = {
+    Name = "Apocalypse",
+    Class = "weapon_ttt_apocalypse",
+    Price = 1,
+    Priority = 6,
+    RandomChance = 1,
+    ShouldAnnounce = true,
+    AnnounceTeam = true,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt_apocalypse") then return false end
+        -- Also skip if they already have one of the standalone apocalypse weapons
+        if ply:HasWeapon("weapon_ttt_zombieapocalypse") then return false end
+        if ply:HasWeapon("weapon_ttt_combineapocalypse") then return false end
+        return testPlyHasTrait(ply, "aggressive", 3)
+            or testPlyHasTrait(ply, "gimmick", 4)
+            or math.random(1, 4) == 1
+    end,
+    SituationalScore = function(ply)
+        local base = 6
+        local enemies = countAliveNonAllies(ply)
+        if enemies >= 3 then base = base + 3 end
+        if enemies >= 5 then base = base + 3 end
+        -- Higher priority when solo traitor (needs force multiplier)
+        local aliveAllies = 0
+        for _, other in ipairs(player.GetAll()) do
+            if not IsValid(other) or not other:Alive() or other == ply then continue end
+            if TTTBots.Roles.IsAllies(ply, other) then aliveAllies = aliveAllies + 1 end
+        end
+        if aliveAllies == 0 then base = base + 4 end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+    LimitedStock = true,
+}
+
 for key, data in pairs(Registry) do
 	TTTBots.Buyables.RegisterBuyable(data)
 end

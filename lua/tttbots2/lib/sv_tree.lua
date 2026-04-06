@@ -121,6 +121,7 @@ TTTBots.Behaviors.PriorityNodes = {
         _bh.UseTurret,
         _bh.UseTimestop,
         _bh.UseGravityMine,
+        _bh.UseZombieApocalypse,
         _bh.UseCombineLauncher,
         _bh.UseFastZombieLauncher,
         _bh.UseHeadcrabLauncher,

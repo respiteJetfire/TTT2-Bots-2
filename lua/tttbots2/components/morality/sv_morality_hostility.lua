@@ -576,19 +576,62 @@ local function attackUnknowns(bot)
     end
 end
 
---- KOS all non-Bot NPCs (Zombies, Headcrabs, etc)
+--- Maximum engagement range for NPC zombies (npc_zombie, npc_fastzombie,
+--- npc_poisonzombie). Bots will only attack these NPCs if they are visible
+--- AND within this many units. Other hostile NPCs are still attacked on
+--- sight without a range limit (headcrabs, etc).
+local CV_ZOMBIE_NPC_RANGE = CreateConVar(
+    "ttt_bot_zombie_npc_range", "2000", FCVAR_ARCHIVE + FCVAR_NOTIFY,
+    "Max range (units) at which bots engage zombie NPCs spawned in-world (e.g. from Zombie Apocalypse weapon). 0 = unlimited.",
+    0, 10000
+)
+
+--- NPC classes considered zombie-type; bots apply the range gate only to these.
+local ZOMBIE_NPC_CLASSES = {
+    npc_zombie        = true,
+    npc_fastzombie    = true,
+    npc_poisonzombie  = true,
+}
+
+--- KOS all non-Bot NPCs (Zombies, Headcrabs, etc).
+--- Zombie-type NPCs (npc_zombie / npc_fastzombie / npc_poisonzombie) are only
+--- engaged when visible AND within ttt_bot_zombie_npc_range units.
+--- All other hostile NPCs (headcrabs, etc.) are attacked on sight with no
+--- additional range restriction.
+---
+--- Apocalypse SWEPs (Zombie Apocalypse, Combine Apocalypse) tag their spawned
+--- NPCs with "ttt2_apoc_owner_team".  Bots on the same team as the caster skip
+--- those NPCs entirely — they are friendly forces and should not be shot.
+--- (A bot may still choose to attack them for deception, but that is handled
+--- by higher-level behaviour logic, not the baseline hostility policy.)
 ---@param bot Bot
 local function attackNPCs(bot)
     local npcs = TTTBots.Lib.GetNPCs()
     local closest = nil
     local minDist = math.huge
+    local zombieRange = CV_ZOMBIE_NPC_RANGE:GetFloat()
+    local botTeam = bot:GetTeam()
+
     for _, npc in pairs(npcs) do
-        if bot:Visible(npc) then
-            local dist = bot:GetPos():Distance(npc:GetPos())
-            if dist < minDist then
-                minDist = dist
-                closest = npc
-            end
+        if not bot:Visible(npc) then continue end
+
+        -- Skip NPCs that were spawned by an ally's apocalypse SWEP.
+        -- The SWEP tags each NPC with the caster's team string so we can
+        -- identify friendly forces without needing access to the SWEP's
+        -- internal tracking tables.
+        local apocTeam = npc:GetNWString("ttt2_apoc_owner_team", "")
+        if apocTeam ~= "" and apocTeam == botTeam then continue end
+
+        local dist = bot:GetPos():Distance(npc:GetPos())
+
+        -- Apply range gate for zombie-type NPCs only
+        if ZOMBIE_NPC_CLASSES[npc:GetClass()] then
+            if zombieRange > 0 and dist > zombieRange then continue end
+        end
+
+        if dist < minDist then
+            minDist = dist
+            closest = npc
         end
     end
     if closest and closest ~= NULL then

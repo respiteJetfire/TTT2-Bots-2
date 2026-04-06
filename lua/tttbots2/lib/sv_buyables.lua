@@ -540,3 +540,38 @@ TTTBots.Buyables.RegisterBuyable({
 })
 
 -- ── End new deferred buyables ────────────────────────────────────────────
+
+-- ── Zombie Apocalypse SWEP ───────────────────────────────────────────────
+-- Registered as a standard (non-deferred) traitor buyable.
+-- The UseZombieApocalypse behavior activates it immediately after purchase.
+-- High priority (35) and high SituationalScore ensure bots buy it early;
+-- it is team-safe so there is never a risk of friendly fire.
+TTTBots.Buyables.RegisterBuyable({
+    Name           = "ZombieApocalypse",
+    Class          = "weapon_ttt_zombieapocalypse",
+    Price          = 1,
+    Priority       = 35,
+    Roles          = { "traitor" },
+    PrimaryWeapon  = false,
+    ShouldAnnounce = false,
+    TTT2           = false,
+    CanBuy = function(bot)
+        -- Only buy once per round (weapon is consumed on use)
+        if bot:HasWeapon("weapon_ttt_zombieapocalypse") then return false end
+        return TTTBots.Lib.WepClassExists("weapon_ttt_zombieapocalypse")
+    end,
+    SituationalScore = function(bot)
+        -- Always valuable: spawns a horde that auto-targets all enemies
+        -- and cannot hurt teammates.  Score rises with enemy count.
+        local enemies = 0
+        for _, ply in ipairs(player.GetAll()) do
+            if not IsValid(ply) or not ply:Alive() or ply == bot then continue end
+            if TTTBots.Roles and TTTBots.Roles.IsAllies(bot, ply) then continue end
+            enemies = enemies + 1
+        end
+        if enemies < 1 then return 0 end
+        -- Base score 35, +4 per enemy up to a cap of 55
+        return math.min(35 + enemies * 4, 55)
+    end,
+})
+-- ── End Zombie Apocalypse buyable ────────────────────────────────────────

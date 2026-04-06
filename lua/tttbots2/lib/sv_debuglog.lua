@@ -539,6 +539,7 @@ timer.Create("TTTBots.DebugLog.Timeline", 15, 0, function()
 
     -- Alive player list with roles
     for _, ply in ipairs(alive) do
+        if not IsValid(ply) then continue end
         local isBot = ply:IsBot() and "[BOT]" or "[HUM]"
         DL.Logf("timeline", "TIME", "  %s %-20s  Role: %-16s  Team: %-10s  HP: %d",
             isBot, pname(ply), rolename(ply), teamname(ply), ply:Health())

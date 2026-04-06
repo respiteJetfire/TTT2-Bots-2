@@ -392,6 +392,9 @@ Bots in active combat are exempt from throttling by default (`tickscaler_exempt_
 - **ttt_bot_kos_postround** (default: `0`)
   - Bots will KOS players in the post-round.
 
+- **ttt_bot_zombie_npc_range** (default: `2000`)
+  - Maximum range (in units) at which bots will engage zombie-type NPCs (`npc_zombie`, `npc_fastzombie`, `npc_poisonzombie`) spawned in the world (e.g. from the Zombie Apocalypse traitor weapon). Bots will only attack these NPCs if they are **visible** and within this distance. Set to `0` for unlimited range. Other hostile NPCs (e.g. headcrabs) are unaffected by this limit.
+
 ## Behavior CVARS
 
 - **ttt_bot_radar_chance** (default: `100`)

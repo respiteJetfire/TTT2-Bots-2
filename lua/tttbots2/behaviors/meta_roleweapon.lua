@@ -119,13 +119,32 @@ function TTTBots.Behaviors.RegisterRoleWeapon(config)
     end
 
     local function EquipWeapon(bot)
+        -- If the role weapon is already the active weapon, skip re-equipping.
+        -- Calling SetActiveWeapon / equip every frame can reset the weapon's
+        -- deploy state and prevent it from ever actually firing.
+        local activeWep = bot:GetActiveWeapon()
+        if IsValid(activeWep) then
+            local inv = bot:BotInventory()
+            if inv then
+                local roleWep
+                if config.getWeaponFn then
+                    roleWep = config.getWeaponFn(inv)
+                elseif config.hasWeaponFn and config.equipDirectFn then
+                    roleWep = config.equipDirectFn(bot)
+                end
+                if IsValid(roleWep) and activeWep == roleWep then
+                    return true  -- already equipped, no action needed
+                end
+            end
+        end
+
         local inv = bot:BotInventory()
         if config.equipFn then
             return inv and config.equipFn(inv)
         elseif config.equipDirectFn then
             local wep = config.equipDirectFn(bot)
             if IsValid(wep) then
-                bot:SetActiveWeapon(wep)
+                bot:SelectWeapon(wep:GetClass())
                 return true
             end
         end

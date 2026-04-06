@@ -17,6 +17,15 @@ function CLGAMEMODESUBMENU:Populate(parent)
         label = "help_tttbots_llm_enabled",
     })
 
+    form:MakeCheckBox({
+        serverConvar = "ttt_bot_chatter_precache_llm",
+        label = "label_tttbots_chatter_precache_llm",
+    })
+
+    form:MakeHelp({
+        label = "help_tttbots_chatter_precache_llm",
+    })
+
     form:MakeComboBox({
         serverConvar = "ttt_bot_chatter_api_provider",
         label = "label_tttbots_chatter_api_provider",

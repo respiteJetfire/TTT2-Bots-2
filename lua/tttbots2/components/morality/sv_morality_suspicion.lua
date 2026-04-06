@@ -94,9 +94,9 @@ BotMorality.SuspicionDescriptions = {
 }
 
 BotMorality.Thresholds = {
-    KOS = 7,
-    RoleGuess = 6,
-    Sus = 3,
+    KOS = 10,
+    RoleGuess = 8,
+    Sus = 5,
     Trust = -3,
     Innocent = -7,
 }
@@ -530,7 +530,8 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
                 self.lastShotChatterTime[attacker] = now
                 local chatter = self.bot:BotChatter()
                 if chatter and chatter.On and TTTBots.Roles.GetRoleFor(self.bot):GetUsesSuspicion() then
-                    chatter:On("BeingShotAt", { player = attacker:Nick(), playerEnt = attacker })
+                    local allyName = (IsValid(attacker) and attacker.Nick) and attacker:Nick() or "someone"
+                    chatter:On("BeingShotAt", { player = allyName, playerEnt = attacker })
                 end
             end
             return -- ally hit us, do NOT retaliate
@@ -584,9 +585,9 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
             local ct = self.bot.attackTarget
             local cp = self.bot.attackTargetPriority or 0
             print(string.format("[TTTBots][SELF_DEFENSE] %s: RequestAttackTarget REJECTED for attacker %s (currentTarget=%s, currentPri=%d, requestedPri=%d)",
-                self.bot:Nick(),
-                IsValid(attacker) and attacker:Nick() or "invalid",
-                IsValid(ct) and ct:Nick() or "nil",
+                IsValid(self.bot) and self.bot.Nick and self.bot:Nick() or "invalid_bot",
+                IsValid(attacker) and attacker.Nick and attacker:Nick() or "invalid",
+                IsValid(ct) and ct.Nick and ct:Nick() or "nil",
                 cp, selfDefPriority or 0))
         end
         self:ChangeSuspicion(attacker, "HurtMe")
@@ -602,7 +603,8 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
             local chatter = self.bot:BotChatter()
             if chatter and chatter.On and TTTBots.Roles.GetRoleFor(self.bot):GetUsesSuspicion() then
                 local sus = self:GetSuspicion(attacker)
-                local args = { player = attacker:Nick(), playerEnt = attacker }
+                local attackerName = (IsValid(attacker) and attacker.Nick) and attacker:Nick() or "someone"
+                local args = { player = attackerName, playerEnt = attacker }
                 if sus >= self.Thresholds.KOS then
                     chatter:On("CallKOS", args)
                 else
@@ -794,6 +796,7 @@ hook.Add("PlayerHurt", "TTTBots.Components.Morality.PlayerHurt", function(victim
     -- produced zero bystander awareness even for bots staring at the scene.
     -- No FOV restriction: gunshots are loud and combat is highly noticeable —
     -- any bot with line-of-sight to either combatant should react.
+    if not IsValid(attacker) then return end
     local witnesses = {}
     for _, bot in ipairs(TTTBots.Bots) do
         if not IsValid(bot) or not lib.IsPlayerAlive(bot) then continue end

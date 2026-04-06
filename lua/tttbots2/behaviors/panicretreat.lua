@@ -154,6 +154,7 @@ end
 ---@return Vector|nil
 local function GetPanicFleePos(bot, threatPos)
     local botPos = bot:GetPos()
+    if not threatPos then threatPos = botPos end
     local awayDir = (botPos - threatPos):GetNormalized()
     -- Zero-length guard (bot is ON the threat)
     if awayDir:LengthSqr() < 0.01 then

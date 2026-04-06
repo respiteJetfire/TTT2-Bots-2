@@ -161,6 +161,8 @@ L.label_tttbots_chatter_casual_llm_chance = "Casual LLM Line Chance (0-1)"
 -- AI Provider labels
 L.label_tttbots_llm_enabled = "Enable LLM (AI Text Generation)"
 L.help_tttbots_llm_enabled = "Master toggle for all AI text generation. When disabled, bots fall back to pre-written locale responses and make no calls to any LLM provider (ChatGPT, Gemini, DeepSeek, or Ollama)."
+L.label_tttbots_chatter_precache_llm = "Pre-generate LLM Response Cache"
+L.help_tttbots_chatter_precache_llm = "On server boot (first round start), scans all chatter events and uses the LLM to generate fallback lines for any event missing locale strings. Generated lines are cached in memory for the session. Requires LLM to be enabled."
 L.label_tttbots_chatter_api_provider = "AI Provider"
 L.label_tttbots_chatter_gpt_chance = "AI Chat Usage Chance"
 L.label_tttbots_chatter_gpt_model = "GPT Model"

@@ -38,4 +38,18 @@ revenant:SetAlliedTeams(allyTeams)
 revenant:SetLovesTeammates(false)
 TTTBots.Roles.RegisterRole(revenant)
 
+-- Ensure revenant_state is initialized for bots before TTT2SpecialRoleSyncing fires.
+-- Without this, shared.lua compares nil < 2 and errors.
+hook.Add("TTTBeginRound", "TTTBots.revenant.InitState", function()
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not IsValid(bot) then continue end
+        if bot:GetSubRole() == ROLE_REVENANT then
+            if bot.revenant_state == nil then
+                bot.revenant_state = 1
+                bot.isRevenantWorldspawn = false
+            end
+        end
+    end
+end)
+
 return true
