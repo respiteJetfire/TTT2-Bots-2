@@ -1065,13 +1065,37 @@ function BotLocomotor:UpdateMovement()
         self:MoveDirectlyIfClose(goal)
 
         -- If we still aren't pathing (different nav area, no path computed yet),
-        -- and we can actually see the goal, walk toward it directly as a
-        -- fallback so the bot doesn't freeze while waiting for a path.
+        -- try fallback movement so the bot doesn't freeze while waiting for a path.
         if not self.isTryingPath and self.pathRequestWaiting then
+            -- First try: can we see the goal directly? Walk straight to it.
             local canSee = self:TestVisionWorldMask(self.bot:EyePos(), goal + Vector(0, 0, 32))
             if canSee then
                 self:SetPriorityGoal(goal)
                 self.isTryingPath = true
+            else
+                -- Second try: walk toward the nearest adjacent nav area that is
+                -- closer to the goal than we are. This gives the bot incremental
+                -- progress while the full A* path is still being computed, instead
+                -- of standing completely still during the queue backlog.
+                local botNav = navmesh.GetNearestNavArea(self.bot:GetPos())
+                if botNav then
+                    local adjacents = botNav:GetAdjacentAreas()
+                    local botDist = self.bot:GetPos():DistToSqr(goal)
+                    local bestNav = nil
+                    local bestDist = botDist
+                    for _, adj in pairs(adjacents) do
+                        if not adj or adj:HasAttributes(NAV_MESH_AVOID) then continue end
+                        local d = adj:GetCenter():DistToSqr(goal)
+                        if d < bestDist then
+                            bestDist = d
+                            bestNav = adj
+                        end
+                    end
+                    if bestNav then
+                        self:SetPriorityGoal(bestNav:GetCenter())
+                        self.isTryingPath = true
+                    end
+                end
             end
         end
     end

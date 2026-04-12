@@ -417,7 +417,9 @@ function TTTBots.Reload()
 
                 bot.timeInGame = (bot.timeInGame or 0) + (1 / TTTBots.Tickrate)
             end
-            TTTBots.Lib.UpdateBotModels()
+            if TTTBots.Lib.UpdateBotModels then
+                TTTBots.Lib.UpdateBotModels()
+            end
         end, function(err)
             print("ERROR:", err)
         end)

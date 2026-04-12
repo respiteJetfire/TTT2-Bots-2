@@ -181,7 +181,7 @@ function IC.SelectStrategy()
         local participants = IC.GetParticipantBots()
         local needsTest = 0
         for _, bot in ipairs(participants) do
-            local role = bot:GetSubRole and bot:GetSubRole()
+            local role = bot.GetSubRole and bot:GetSubRole()
             local alreadyChecked = TTTBots.Match.CheckedPlayers[bot]
                 and (role == nil or TTTBots.Match.CheckedPlayers[bot][role])
             local evidence = bot.components and bot.components.evidence
@@ -465,7 +465,7 @@ function IC._BuildTesterQueue(bots)
     IC.TesterQueue = {}
     for _, bot in ipairs(bots) do
         -- Primary filter: bot already used a role-checker this round
-        local role = bot:GetSubRole and bot:GetSubRole()
+        local role = bot.GetSubRole and bot:GetSubRole()
         local alreadyChecked = TTTBots.Match.CheckedPlayers[bot]
             and (role == nil or TTTBots.Match.CheckedPlayers[bot][role])
         if alreadyChecked then continue end

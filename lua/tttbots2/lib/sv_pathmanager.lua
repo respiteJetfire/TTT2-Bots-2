@@ -1143,81 +1143,66 @@ function TTTBots.PathManager.GetPortals()
     return portals
 end
 
---- Hook for pathing coroutine
+--- Hook for pathing coroutine.
+--- When the queue has multiple entries (e.g. round start with many bots), we
+--- process up to MAX_PATHS_PER_TICK completed paths per engine tick so the
+--- backlog drains much faster and bots start moving sooner.
+local MAX_PATHS_PER_TICK = 4
+
 hook.Add("Tick", "TTTBots.PathManager.PathCoroutine", function()
-    --[[
-        Putting this comment here because I'm not sure where else to put it.
-
-        Queued path structure:
-        local queuedPath = {
-            owner = owner,
-            pathID = pathID,
-            startArea = startArea,
-            finishArea = finishArea,
-            path = nil,
-        }
-
-        Cached path structure:
-        local pathinfo = {
-            path = path,
-            generatedAt = CurTime(),
-            TimeSince = function(self)
-                return CurTime() - self.generatedAt
-            end,
-            processedPath = path and type(path) == "table" and TTTBots.PathManager.PathPostProcess(path)
-        }
-    ]]
     local queued = TTTBots.PathManager.queuedPaths
-    local fr = string.format
     if #queued == 0 then
         return
     end
 
-    local queuedPath = queued[1]
+    local pathsCompleted = 0
 
-    if queuedPath.path == nil then
-        queuedPath.path = coroutine.create(TTTBots.PathManager.Astar2)
-    end
+    while #queued > 0 and pathsCompleted < MAX_PATHS_PER_TICK do
+        local queuedPath = queued[1]
 
-    -- print(fr("Generating path of ID %s for bot %s.", queuedPath.pathID, queuedPath.owner:Nick()))
-    local noErrs, result = coroutine.resume(queuedPath.path, queuedPath.startArea, queuedPath.finishArea,
-        { queuedPath.owner })
-
-    if not noErrs then print("Had errors generating;", result) end
-    -- "timeout" means A* yielded after exhausting its per-tick node budget.
-    -- The coroutine is still alive — leave the queue entry in place so it
-    -- resumes from the same open/closed sets on the very next Tick.
-    if result == "timeout" then
-        -- Do nothing: entry stays at the front of the queue, coroutine resumes next Tick.
-    elseif (type(result) == "boolean" or type(result) == "table") then
-        local path = result
-        local pathID = queuedPath.pathID
-        local owner = queuedPath.owner
-        local processedPath = (path and type(path) == "table" and TTTBots.PathManager.PathPostProcess(path)) or
-            nil
-
-        -- print("Result of generation was " .. tostring(result) .. " (type " .. type(result) .. ")")
-
-        -- Cache the path
-        TTTBots.PathManager.cachedPaths[pathID] = {
-            path = path,
-            generatedAt = CurTime(),
-            TimeSince = function(self) return CurTime() - self.generatedAt end,
-            processedPath = processedPath
-        }
-
-        if not path or not processedPath or #processedPath == 0 then
-            -- path is truly impossible (open set exhausted with no route found)
-            TTTBots.PathManager.impossiblePaths[pathID] = true
-            -- print("Found impossible path, " .. pathID)
+        if queuedPath.path == nil then
+            queuedPath.path = coroutine.create(TTTBots.PathManager.Astar2)
         end
 
-        -- Remove the path from the queue
-        table.remove(queued, 1)
+        local noErrs, result = coroutine.resume(queuedPath.path, queuedPath.startArea, queuedPath.finishArea,
+            { queuedPath.owner })
 
-        -- print(fr("Path of ID %s for bot '%s' generated at %d", pathID, owner:Nick(), CurTime()))
-    elseif result == "cannot resume dead coroutine" then
-        -- print("Cannot resume dead coroutine, removing path from queue.")
-        table.remove(queued, 1)
+        if not noErrs then print("Had errors generating;", result) end
+
+        -- "timeout" means A* yielded after exhausting its per-tick node budget.
+        -- The coroutine is still alive — leave the queue entry in place so it
+        -- resumes from the same open/closed sets on the very next Tick.
+        if result == "timeout" then
+            break -- Can't make more progress this tick; the coroutine needs another slice.
+        elseif (type(result) == "boolean" or type(result) == "table") then
+            local path = result
+            local pathID = queuedPath.pathID
+            local owner = queuedPath.owner
+            local processedPath = (path and type(path) == "table" and TTTBots.PathManager.PathPostProcess(path)) or
+                nil
+
+            -- Cache the path
+            TTTBots.PathManager.cachedPaths[pathID] = {
+                path = path,
+                generatedAt = CurTime(),
+                TimeSince = function(self) return CurTime() - self.generatedAt end,
+                processedPath = processedPath
+            }
+
+            if not path or not processedPath or #processedPath == 0 then
+                -- path is truly impossible (open set exhausted with no route found)
+                TTTBots.PathManager.impossiblePaths[pathID] = true
+            end
+
+            -- Remove the path from the queue
+            table.remove(queued, 1)
+            pathsCompleted = pathsCompleted + 1
+        elseif result == "cannot resume dead coroutine" then
+            table.remove(queued, 1)
+            pathsCompleted = pathsCompleted + 1
+        else
+            -- Unknown yield value (e.g. a node count); the coroutine is mid-computation.
+            break
+        end
     end
 end)

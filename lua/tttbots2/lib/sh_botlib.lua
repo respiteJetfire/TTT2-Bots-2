@@ -3,19 +3,25 @@ TTTBots.Lib = TTTBots.Lib or {}
 TTTBots.Lib.speakingBot = nil
 
 if SERVER then
-    include("tttbots2/lib/sv_namemanager.lua")
-    include("tttbots2/lib/sv_viscache.lua")
+    local function safeInclude(path)
+        local ok, err = pcall(include, path)
+        if not ok then
+            ErrorNoHaltWithStack("[TTT Bots 2] Failed to include '" .. path .. "': " .. tostring(err))
+        end
+    end
+    safeInclude("tttbots2/lib/sv_namemanager.lua")
+    safeInclude("tttbots2/lib/sv_viscache.lua")
     -- Import components for bot creation
     TTTBots.Components = {}
-    include("tttbots2/components/sv_locomotor.lua")
-    include("tttbots2/components/sv_obstacletracker.lua")
-    include("tttbots2/components/sv_inventory.lua")
-    include("tttbots2/components/sv_personality.lua")
-    include("tttbots2/components/sv_memory.lua")
-    include("tttbots2/components/sv_morality.lua")
-    include("tttbots2/components/sv_evidence.lua")
-    include("tttbots2/components/sv_roundawareness.lua")
-    include("tttbots2/components/chatter/sv_chatter_core.lua")
+    safeInclude("tttbots2/components/sv_locomotor.lua")
+    safeInclude("tttbots2/components/sv_obstacletracker.lua")
+    safeInclude("tttbots2/components/sv_inventory.lua")
+    safeInclude("tttbots2/components/sv_personality.lua")
+    safeInclude("tttbots2/components/sv_memory.lua")
+    safeInclude("tttbots2/components/sv_morality.lua")
+    safeInclude("tttbots2/components/sv_evidence.lua")
+    safeInclude("tttbots2/components/sv_roundawareness.lua")
+    safeInclude("tttbots2/components/chatter/sv_chatter_core.lua")
 end
 
 TTTBots.Lib.BASIC_VIS_RANGE = 4000 --- Threshold to be considred for the :VisibleVec function in a basic visibility check.
@@ -1037,7 +1043,7 @@ function TTTBots.Lib.AddAdjacentsToRegion(nav, regionTbl, alreadyCached)
             for _, ladder in pairs(ladders) do
                 if not alreadyCached[ladder] then
                     -- Walk through the ladder's adjacent areas on the other side.
-                    local ladderAdjs = ladder:GetAdjacentAreas and ladder:GetAdjacentAreas() or {}
+                    local ladderAdjs = ladder.GetAdjacentAreas and ladder:GetAdjacentAreas() or {}
                     for _, ladderAdj in pairs(ladderAdjs) do
                         if not alreadyCached[ladderAdj] then
                             table.insert(stack, ladderAdj)

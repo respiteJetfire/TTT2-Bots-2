@@ -107,7 +107,7 @@ local function MakeFightOrFlightDecision(bot, threat, threatType)
     if bot.HasTrait and bot:HasTrait("hothead") then return "attack" end
 
     -- Unarmed bots → always flee
-    local inv = bot:BotInventory and bot:BotInventory()
+    local inv = bot.BotInventory and bot:BotInventory()
     if inv and inv.HasNoWeaponAvailable and inv:HasNoWeaponAvailable(false) then
         return "retreat"
     end
