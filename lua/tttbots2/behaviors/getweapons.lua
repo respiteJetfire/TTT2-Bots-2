@@ -104,6 +104,13 @@ end
 ---@return BStatus
 function GetWeapons.OnStart(bot)
     bot.getWeaponsStartTime = CurTime()
+    -- Comment on seeking a weapon
+    if IsValid(bot.botTargetWeapon) then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On and math.random(1, 3) == 1 then
+            chatter:On("GettingWeapon", {})
+        end
+    end
     return STATUS.RUNNING
 end
 

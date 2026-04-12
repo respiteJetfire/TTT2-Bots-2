@@ -12,7 +12,6 @@
 TTTBots.Behaviors.FollowInnocentPlan = {}
 
 local lib  = TTTBots.Lib
-local IC   = TTTBots.InnocentCoordinator
 local FollowInnocentPlan = TTTBots.Behaviors.FollowInnocentPlan
 FollowInnocentPlan.Name         = "FollowInnocentPlan"
 FollowInnocentPlan.Description  = "Execute an innocent-coordination job (buddy up, patrol, tester queue, perimeter, last stand)."
@@ -20,8 +19,22 @@ FollowInnocentPlan.Interruptible = true
 FollowInnocentPlan.Debug         = false
 
 local STATUS = TTTBots.STATUS
-local ACTIONS = IC and IC.ACTIONS or {}
-local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+
+--- Lazy accessor — InnocentCoordinator is server-only and may not exist at file-load time.
+local function getIC()
+    return TTTBots.InnocentCoordinator
+end
+
+--- Lazy accessor for the ACTIONS enum.
+local function getACTIONS()
+    local ic = TTTBots.InnocentCoordinator
+    return ic and ic.ACTIONS or {}
+end
+
+--- Lazy accessor for the round-phase enum.
+local function getPHASE()
+    return TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Helpers
@@ -37,6 +50,8 @@ end
 ---@param bot Bot
 ---@return boolean
 local function shouldSkip(bot)
+    local IC = getIC()
+    if not IC then return true end
     if not IC.IsParticipant(bot) then return true end
     local personality = bot.components and bot.components.personality
     if personality and personality:GetIgnoresOrders() then
@@ -44,6 +59,7 @@ local function shouldSkip(bot)
         -- Use phase-scaled compliance so they eventually commit instead of fallback-cycling.
         local complianceChance = 0.15
         local ra = bot.BotRoundAwareness and bot:BotRoundAwareness()
+        local PHASE = getPHASE()
         if ra and PHASE then
             local phase = ra:GetPhase()
             if phase == PHASE.MID then complianceChance = 0.35
@@ -89,6 +105,8 @@ function FollowInnocentPlan.Validate(bot)
     if not TTTBots.Match.PlansCanStart() then return false end
     if not TTTBots.Match.RoundActive then return false end
     if shouldSkip(bot) then return false end
+    local IC = getIC()
+    if not IC then return false end
     if not IC.SelectedStrategy then return false end
 
     -- Already has a valid job?
@@ -104,6 +122,8 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 
 function FollowInnocentPlan.OnStart(bot)
+    local IC = getIC()
+    if not IC then return STATUS.FAILURE end
     local job = IC.GetJobFor(bot)
     if not job then return STATUS.FAILURE end
     debugPrint("%s starting job %s", bot:Nick(), tostring(job.Action))
@@ -178,6 +198,8 @@ end
 
 --- QUEUE_TEST: walk to the tester and wait; bot with queue position 1 uses it immediately.
 local function runQueueTest(bot, job)
+    local IC = getIC()
+    if not IC then return STATUS.FAILURE end
     local testerPos = job.TargetObj
     if not testerPos then return STATUS.FAILURE end
 
@@ -260,7 +282,20 @@ local function runQueueTest(bot, job)
             0
         )
         local waitPos = testerPos + waitOffset
-        setReachableGoal(bot, waitPos)
+        local distToWait = bot:GetPos():Distance(waitPos)
+
+        if distToWait > 80 then
+            -- Still walking to the wait spot
+            setReachableGoal(bot, waitPos)
+        else
+            -- Already at the wait spot — stop moving and look toward the tester
+            -- so the bot looks natural (watching the queue) rather than frozen.
+            local loco = bot:BotLocomotor()
+            if loco then
+                loco:SetGoal()  -- clear goal so locomotor doesn't fight itself
+                loco:LookAt(testerPos)
+            end
+        end
     end
 
     return STATUS.RUNNING
@@ -268,13 +303,14 @@ end
 
 --- HOLD_PERIMETER: stand at assigned perimeter point and watch.
 local function runHoldPerimeter(bot, job)
+    local IC = getIC()
     local holdPos = job.TargetObj
     if not holdPos then return STATUS.FAILURE end
     local loco = bot:BotLocomotor()
     if loco then
         setReachableGoal(bot, holdPos)
         -- Look toward the corpse centre
-        if IC.PerimeterTarget then
+        if IC and IC.PerimeterTarget then
             loco:LookAt(IC.PerimeterTarget)
         end
     end
@@ -283,6 +319,7 @@ end
 
 --- HOLD_LAST_STAND: move to stronghold position; once there, stop moving and face threats.
 local function runHoldLastStand(bot, job)
+    local IC = getIC()
     local stronghold = job.TargetObj
     if not stronghold then return STATUS.FAILURE end
 
@@ -299,7 +336,7 @@ local function runHoldLastStand(bot, job)
     local bestDist = math.huge
     for _, ply in ipairs(TTTBots.Match.AlivePlayers) do
         if not lib.IsPlayerAlive(ply) then continue end
-        if IC.IsParticipant(ply) then continue end
+        if IC and IC.IsParticipant(ply) then continue end
         local d = bot:GetPos():Distance(ply:GetPos())
         if d < bestDist then bestDist = d; threat = ply end
     end
@@ -378,6 +415,8 @@ end
 --- Watches for suspicious behavior and looks at whoever is currently using the tester.
 --- 🟢 12: Personality-modulated leadership chatter while guarding.
 local function runGuardTester(bot, job)
+    local IC = getIC()
+    if not IC then return STATUS.FAILURE end
     local testerPos = job.TargetObj
     if not testerPos then return STATUS.FAILURE end
 
@@ -512,14 +551,15 @@ local ACT_RUNNING_HASH = {}
 
 -- Populate after ACTIONS enum is available (deferred by the return value of require)
 local function buildDispatch()
-    ACT_RUNNING_HASH[IC.ACTIONS.BUDDY_UP]        = runBuddyUp
-    ACT_RUNNING_HASH[IC.ACTIONS.PATROL_ZONE]     = runPatrolZone
-    ACT_RUNNING_HASH[IC.ACTIONS.QUEUE_TEST]      = runQueueTest
-    ACT_RUNNING_HASH[IC.ACTIONS.HOLD_PERIMETER]  = runHoldPerimeter
-    ACT_RUNNING_HASH[IC.ACTIONS.HOLD_LAST_STAND] = runHoldLastStand
-    ACT_RUNNING_HASH[IC.ACTIONS.DEPLOY_CHECKER]  = runDeployChecker
-    ACT_RUNNING_HASH[IC.ACTIONS.INVESTIGATE_AREA] = runInvestigateArea
-    ACT_RUNNING_HASH[IC.ACTIONS.GUARD_TESTER]    = runGuardTester
+    local ACTIONS = getACTIONS()
+    ACT_RUNNING_HASH[ACTIONS.BUDDY_UP]        = runBuddyUp
+    ACT_RUNNING_HASH[ACTIONS.PATROL_ZONE]     = runPatrolZone
+    ACT_RUNNING_HASH[ACTIONS.QUEUE_TEST]      = runQueueTest
+    ACT_RUNNING_HASH[ACTIONS.HOLD_PERIMETER]  = runHoldPerimeter
+    ACT_RUNNING_HASH[ACTIONS.HOLD_LAST_STAND] = runHoldLastStand
+    ACT_RUNNING_HASH[ACTIONS.DEPLOY_CHECKER]  = runDeployChecker
+    ACT_RUNNING_HASH[ACTIONS.INVESTIGATE_AREA] = runInvestigateArea
+    ACT_RUNNING_HASH[ACTIONS.GUARD_TESTER]    = runGuardTester
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -528,6 +568,9 @@ end
 
 function FollowInnocentPlan.OnRunning(bot)
     if not TTTBots.Match.RoundActive then return STATUS.FAILURE end
+
+    local IC = getIC()
+    if not IC then return STATUS.FAILURE end
 
     -- Build dispatch table lazily (ensures IC is fully loaded)
     if not next(ACT_RUNNING_HASH) then buildDispatch() end
@@ -556,11 +599,13 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 
 function FollowInnocentPlan.OnSuccess(bot)
-    IC.ClearJobFor(bot)
+    local IC = getIC()
+    if IC then IC.ClearJobFor(bot) end
 end
 
 function FollowInnocentPlan.OnFailure(bot)
-    IC.ClearJobFor(bot)
+    local IC = getIC()
+    if IC then IC.ClearJobFor(bot) end
 end
 
 function FollowInnocentPlan.OnEnd(bot)

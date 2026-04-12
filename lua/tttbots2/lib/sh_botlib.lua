@@ -4,6 +4,7 @@ TTTBots.Lib.speakingBot = nil
 
 if SERVER then
     include("tttbots2/lib/sv_namemanager.lua")
+    include("tttbots2/lib/sv_viscache.lua")
     -- Import components for bot creation
     TTTBots.Components = {}
     include("tttbots2/components/sv_locomotor.lua")
@@ -27,26 +28,61 @@ TTTBots.Lib.Offset = math.random(0, TTTBots.Lib.Period)
 
 local alivePlayers = {}
 ---@realm server
+-- Diagnostic counter: only print details once every N seconds to avoid spam
+local _aliveDbgNext = 0
 local function updateAlivePlayers()
     alivePlayers = {}
-    for i, ply in pairs(player.GetAll()) do
-        -- IsTerror() (Team == TEAM_TERROR) is the authoritative alive check
-        -- used by TTT2's win condition (GM:TTTCheckForWin). We must align with
-        -- it so that bots the engine considers dead are also dead in our cache.
-        -- Fallback: if IsTerror doesn't exist (e.g. non-TTT gamemode), use the
-        -- legacy IsSpec check.
-        local isTerror = ply.IsTerror and ply:IsTerror()
-        if isTerror == nil then
-            -- IsTerror not available, fall back to legacy check
-            isTerror = not ply:IsSpec()
+    local doDbg = SERVER and (CurTime() >= _aliveDbgNext) and TTTBots.Match and TTTBots.Match.RoundActive
+    if doDbg then _aliveDbgNext = CurTime() + 10 end -- print every 10s during round
+    local allPlayers = TTTBots.Lib.GetAllPlayers()
+    if doDbg then print(string.format("[ALIVE-DIAG] updateAlivePlayers: GetAllPlayers returned %d entries", #allPlayers)) end
+    for i, ply in pairs(allPlayers) do
+        if not IsValid(ply) then
+            if doDbg then print(string.format("[ALIVE-DIAG]   [%d] INVALID entity", i)) end
+            alivePlayers[ply] = false
+            continue
         end
-        alivePlayers[ply] = (IsValid(ply) and isTerror and ply:Alive() and ply:Health() > 0)
+        local isV = IsValid(ply)
+        local hasTerror = ply.IsTerror ~= nil
+        local isTerror = hasTerror and ply:IsTerror() or nil
+        local engineTeam = ply.Team and ply:Team() or -1
+        local isAlive = ply:Alive()
+        local hp = ply:Health()
+        local isSpec = ply.IsSpec and ply:IsSpec() or false
+
+        -- Use the more inclusive alive check: not spectator, alive, and has health.
+        -- The old IsTerror()-based check was too strict for TTT2 where bots may
+        -- briefly be on non-TERROR teams during role assignment transitions.
+        local aliveResult = (isV and not isSpec and isAlive and hp > 0)
+
+        if doDbg and ply:IsBot() then
+            print(string.format("[ALIVE-DIAG]   [%d] %s | IsValid=%s | Team()=%s | IsTerror=%s | IsSpec=%s | Alive=%s | HP=%d => %s",
+                i, ply:Nick(),
+                tostring(isV),
+                tostring(engineTeam),
+                tostring(isTerror),
+                tostring(isSpec),
+                tostring(isAlive),
+                hp,
+                tostring(aliveResult)))
+        end
+
+        alivePlayers[ply] = aliveResult
     end
 end
 if SERVER then timer.Create("TTTBots.Lib.AlivePlayersInterval", 1 / (TTTBots.Tickrate), 0, updateAlivePlayers) end
 
+--- Returns the per-tick cached player.GetAll() snapshot.
+--- Falls back to a fresh player.GetAll() if called outside the tick timer.
+---@return table<Player>
+---@realm server
+function TTTBots.Lib.GetAllPlayers()
+    return TTTBots._tickPlayers or player.GetAll()
+end
 
---- Check if not :IsSpec and :Alive (uses IsTerror for TTT2 compatibility)
+
+--- Check if not :IsSpec() and :Alive() and HP > 0.
+--- Uses the per-tick alivePlayers cache for O(1) lookups.
 ---@realm shared
 function TTTBots.Lib.IsPlayerAlive(ply)
     return alivePlayers[ply]
@@ -129,7 +165,7 @@ function TTTBots.Lib.GetAlivePlayers()
     local currentTime = CurTime()
     if currentTime - lastUpdateTime >= 1 then
         aliveCache = {}
-        for _, ply in ipairs(player.GetAll()) do
+        for _, ply in ipairs(TTTBots.Lib.GetAllPlayers()) do
             if ply:IsNPC() then continue end
             if TTTBots.Lib.IsPlayerAlive(ply) then
                 table.insert(aliveCache, ply)
@@ -637,13 +673,20 @@ function TTTBots.Lib.CallEveryNTicks(bot, callback, N)
     end
 end
 
---- An expensive visibility function that checks if ply1 can see ply2's feet, eyes, or hitbox center
+--- Raw (uncached) visibility function that checks if ply1 can see ply2's feet, eyes, or hitbox center.
+--- Prefer TTTBots.Lib.CanSee() which goes through the visibility cache.
 ---@param ply1 Player
 ---@param ply2 Player
 ---@return boolean canSee
 ---@realm shared
-function TTTBots.Lib.CanSee(ply1, ply2)
+function TTTBots.Lib._CanSeeRaw(ply1, ply2)
     if not IsValid(ply1) or not IsValid(ply2) then return false end
+
+    -- Distance pre-filter: skip traces for players beyond BASIC_VIS_RANGE
+    local distSqr = ply1:GetPos():DistToSqr(ply2:GetPos())
+    local maxRange = TTTBots.Lib.BASIC_VIS_RANGE or 4000
+    if distSqr > maxRange * maxRange then return false end
+
     local start = ply1:EyePos()
 
     -- Start at the eyes
@@ -662,6 +705,19 @@ function TTTBots.Lib.CanSee(ply1, ply2)
     if traceCenter.Entity == ply2 then return true end
 
     return false
+end
+
+--- Cached visibility check. Uses the VisCache to avoid redundant ray traces.
+--- Falls back to _CanSeeRaw on the first call or after cache expiry.
+---@param ply1 Player
+---@param ply2 Player
+---@return boolean canSee
+---@realm shared
+function TTTBots.Lib.CanSee(ply1, ply2)
+    if SERVER and TTTBots.VisCache then
+        return TTTBots.VisCache.CanSee(ply1, ply2)
+    end
+    return TTTBots.Lib._CanSeeRaw(ply1, ply2)
 end
 
 --- Checks if ply can see pos within an arc of X degrees. If so, checks if a VisibleVec returns true.
@@ -689,22 +745,30 @@ function TTTBots.Lib.CanSeeArc(ply, pos, arc)
 end
 
 --- Return a table of every given player within range that also have a VisibleVec sightline to the position.
+--- Uses DistToSqr for faster distance checks and the VisCache when available.
 ---@param pos Vector The position to check
 ---@param playerTbl table<Player>|nil (optional) defaults to all living players
 ---@param ignorePly Player|nil a player to ignore in the check, if any
 ---@realm shared
 function TTTBots.Lib.GetAllWitnessesBasic(pos, playerTbl, ignorePly)
     local RANGE = TTTBots.Lib.BASIC_VIS_RANGE
+    local RANGE_SQR = RANGE * RANGE
     local witnesses = {}
     playerTbl = playerTbl or TTTBots.Lib.GetAlivePlayers()
+    local useCache = SERVER and TTTBots.VisCache
     for i, ply in pairs(playerTbl) do
         if ply == NULL or not IsValid(ply) then continue end
-        if ply:GetPos():Distance(pos) <= RANGE then
-            if ply == ignorePly then continue end
-            local sawthat = ply:VisibleVec(pos)
-            if sawthat then
-                table.insert(witnesses, ply)
-            end
+        if ply == ignorePly then continue end
+        -- Fast squared-distance pre-filter (avoids sqrt)
+        if ply:GetPos():DistToSqr(pos) > RANGE_SQR then continue end
+        local sawthat
+        if useCache then
+            sawthat = TTTBots.VisCache.VisibleVec(ply, pos)
+        else
+            sawthat = ply:VisibleVec(pos)
+        end
+        if sawthat then
+            table.insert(witnesses, ply)
         end
     end
     return witnesses
@@ -717,7 +781,7 @@ end
 ---@realm shared
 function TTTBots.Lib.GetAllWitnesses(pos, botsOnly)
     local witnesses = {}
-    for _, ply in ipairs(botsOnly and TTTBots.Bots or player.GetAll()) do
+    for _, ply in ipairs(botsOnly and TTTBots.Bots or TTTBots.Lib.GetAllPlayers()) do
         if TTTBots.Lib.IsPlayerAlive(ply) and IsValid(ply) then
             local sawthat = TTTBots.Lib.CanSeeArc(ply, pos, 90)
             if sawthat then
@@ -966,6 +1030,21 @@ function TTTBots.Lib.AddAdjacentsToRegion(nav, regionTbl, alreadyCached)
                     table.insert(stack, adj)
                 end
             end
+
+            -- Also traverse ladders so areas connected only via a ladder
+            -- end up in the same region (matching what A* does at runtime).
+            local ladders = currentNav.GetLadders and currentNav:GetLadders() or {}
+            for _, ladder in pairs(ladders) do
+                if not alreadyCached[ladder] then
+                    -- Walk through the ladder's adjacent areas on the other side.
+                    local ladderAdjs = ladder:GetAdjacentAreas and ladder:GetAdjacentAreas() or {}
+                    for _, ladderAdj in pairs(ladderAdjs) do
+                        if not alreadyCached[ladderAdj] then
+                            table.insert(stack, ladderAdj)
+                        end
+                    end
+                end
+            end
         end
     end
 end
@@ -1067,6 +1146,14 @@ function TTTBots.Lib.GetNavRegions(forceRecache)
 
     _cachedRegions.hasCached = true
     print("[TTT Bots 2] Cached nav regions; there are " .. #_cachedRegions.regions .. " regions.")
+
+    -- Clear path caches that may have been populated with stale impossibility
+    -- decisions made before the region graph was fully built.
+    if TTTBots.PathManager then
+        TTTBots.PathManager.impossiblePaths = {}
+        TTTBots.PathManager.cachedPaths     = {}
+    end
+
     return _cachedRegions.regions
 end
 
@@ -1102,7 +1189,10 @@ function TTTBots.Lib.AreNavAreasConnected(startNav, finishNav)
     local startRegion = TTTBots.Lib.GetNavRegionIndex(startNav)
     local finishRegion = TTTBots.Lib.GetNavRegionIndex(finishNav)
 
-    if not startRegion or not finishRegion then return false end
+    -- If either region is unknown, allow the A* attempt rather than
+    -- pre-emptively marking the path impossible (e.g. for ladder nav areas
+    -- that aren't indexed into a region yet).
+    if not startRegion or not finishRegion then return true end
 
     return startRegion == finishRegion
 end
@@ -1160,7 +1250,7 @@ end
 ---@realm shared
 function TTTBots.Lib.GetAllWitnesses360(pos)
     local witnesses = {}
-    for _, ply in ipairs(player.GetAll()) do
+    for _, ply in ipairs(TTTBots.Lib.GetAllPlayers()) do
         if TTTBots.Lib.IsPlayerAlive(ply) then
             local sawthat = TTTBots.Lib.CanSee(ply, pos)
             if sawthat then
@@ -1172,6 +1262,7 @@ function TTTBots.Lib.GetAllWitnesses360(pos)
 end
 
 --- Like GetAllWitnesses360, but uses the :Visible function instead of CanSee, for greater optimization.
+--- Now includes a squared-distance pre-filter and optional VisCache usage.
 ---@param pos Vector
 ---@param nonTeammatesOnly? boolean
 ---@param caller? Player The player to use for teammate comparison
@@ -1182,10 +1273,19 @@ function TTTBots.Lib.GetAllVisible(pos, nonTeammatesOnly, caller)
         ErrorNoHaltWithStack("Invalid vec type to GetAllVisible: " .. type(pos))
         return {}
     end
+    local RANGE_SQR = (TTTBots.Lib.BASIC_VIS_RANGE or 4000) ^ 2
     local witnesses = {}
-    for _, ply in ipairs(player.GetAll()) do
+    local useCache = SERVER and TTTBots.VisCache
+    for _, ply in ipairs(TTTBots.Lib.GetAllPlayers()) do
         if TTTBots.Lib.IsPlayerAlive(ply) and (nonTeammatesOnly and caller and not TTTBots.Roles.IsAllies(caller, ply)) then
-            local sawthat = ply:VisibleVec(pos)
+            -- Squared-distance pre-filter
+            if ply:GetPos():DistToSqr(pos) > RANGE_SQR then continue end
+            local sawthat
+            if useCache then
+                sawthat = TTTBots.VisCache.VisibleVec(ply, pos)
+            else
+                sawthat = ply:VisibleVec(pos)
+            end
             if sawthat then
                 table.insert(witnesses, ply)
             end

@@ -155,7 +155,7 @@ function BotEvidence:RecalcSuspicion(target)
     -- Blend with existing raw suspicion: evidence provides a floor
     local current = morality:GetSuspicion(target)
     if score > current then
-        morality.suspicions[target] = score
+        morality:SetSuspicionDirect(target, score)
         morality:AnnounceIfThreshold(target)
         morality:SetAttackIfTargetSus(target)
     end
@@ -305,7 +305,7 @@ function BotEvidence:ConfirmInnocent(target, reason)
     if morality then
         local cur = morality:GetSuspicion(target)
         if cur > 0 then
-            morality.suspicions[target] = math.max(cur - 8, -5)
+            morality:SetSuspicionDirect(target, math.max(cur - 8, -5))
         end
     end
 end

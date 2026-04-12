@@ -90,7 +90,7 @@ function VouchForPlayer.OnStart(bot)
     if morality then
         local cur = morality:GetSuspicion(target)
         if cur > 0 then
-            morality.suspicions[target] = math.max(cur - 4, -2)
+            morality:SetSuspicionDirect(target, math.max(cur - 4, -2))
         end
     end
 

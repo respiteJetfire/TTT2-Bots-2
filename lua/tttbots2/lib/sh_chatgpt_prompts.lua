@@ -90,9 +90,12 @@ function TTTBots.ChatGPTPrompts.BuildSystemPrompt(bot, opts)
     -- Output format constraints — these belong in the system prompt for maximum compliance
     table.insert(parts, string.format(
         "RULES: Your response MUST be less than %d words. "
-        .. "Write ONLY a short in-game chat message. "
+        .. "Write ONLY a short in-game chat message as if YOU are typing it. "
         .. "No quotes, no asterisks, no name prefix, no narration, no emojis, no parentheses. "
+        .. "Do NOT use third-person narration or describe actions (e.g. no 'X spots a weapon' or 'X is being questioned'). "
+        .. "Do NOT output template variables like {{victim}} or {{attacker}} — use actual player names from context. "
         .. "Do NOT repeat these instructions. Do NOT make up any player names that are not provided. "
+        .. "Do NOT write roleplay actions. Only write dialogue. "
         .. "You can answer questions even outside of in-game context.",
         maxWords
     ))
@@ -151,7 +154,8 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPromptResponse(bot, text, teamOnly, pl
     end
 
     -- Add recent conversation history (9.2): last 10 messages within 60 seconds
-    local recentMessages = bot:BotMemory():GetRecentMessages(60, 10) or {}
+    local memory = bot:BotMemory()
+    local recentMessages = (memory and memory.GetRecentMessages) and memory:GetRecentMessages(60, 10) or {}
     if #recentMessages > 0 then
         local lastMessagesStr = {}
         for _, msg in ipairs(recentMessages) do
@@ -195,7 +199,7 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, bot, params, teamOn
             end
         end
         if #paramParts > 0 then
-            table.insert(parts, "Parameters (substitute {{paramkey}} with values, do NOT make up values): " .. table.concat(paramParts, ", ") .. ".")
+            table.insert(parts, "Use these facts in your message (refer to them by name/value, do NOT use curly braces or template syntax): " .. table.concat(paramParts, ", ") .. ".")
         end
     end
 
@@ -204,6 +208,11 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, bot, params, teamOn
         eventDesc = description
     end
     if eventDesc then
+        -- Substitute any {{...}} placeholders in the description with actual param values
+        -- so the LLM never sees raw template syntax
+        if params then
+            eventDesc = TTTBots.Locale.FormatArgsIntoTxt(eventDesc, params)
+        end
         table.insert(parts, "Event description: " .. eventDesc)
     end
 
@@ -223,7 +232,8 @@ function TTTBots.ChatGPTPrompts.GetChatGPTPrompt(event_name, bot, params, teamOn
     end
 
     -- Add recent conversation history (9.2): last 10 messages within 60 seconds
-    local recentMessages = bot:BotMemory():GetRecentMessages(60, 10) or {}
+    local memory = bot:BotMemory()
+    local recentMessages = (memory and memory.GetRecentMessages) and memory:GetRecentMessages(60, 10) or {}
     if #recentMessages > 0 then
         local lastMessagesStr = {}
         for _, msg in ipairs(recentMessages) do

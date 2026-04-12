@@ -162,6 +162,15 @@ function SeekCover.OnStart(bot)
     bot.seekCoverPeeking = false
     bot.seekCoverPeekTime = 0
     bot.seekCoverStartTime = CurTime()
+
+    -- Announce taking cover
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On then
+        local threatName = IsValid(bot.coverTarget) and bot.coverTarget:IsPlayer()
+            and bot.coverTarget:Nick() or nil
+        chatter:On("SeekingCover", { player = threatName }, false, 0)
+    end
+
     return STATUS.RUNNING
 end
 
@@ -247,6 +256,16 @@ function SeekCover.OnRunning(bot)
     if bot.seekCoverPeeking then
         -- Currently peeking: look at attacker and start firing.
         loco.stopLookingAround = true
+
+        -- Announce the first peek with a quick callout
+        if not bot.seekCoverPeekAnnounced then
+            bot.seekCoverPeekAnnounced = true
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On then
+                chatter:On("CoverPeekAttack", {}, false, 0)
+            end
+        end
+
         if IsValid(attacker) then
             loco:LookAt(attacker:EyePos())
             if lib.CanShoot(bot, attacker) then
@@ -283,6 +302,7 @@ function SeekCover.OnEnd(bot)
     bot.coverTarget = nil
     bot.seekCoverPos = nil
     bot.seekCoverPeeking = false
+    bot.seekCoverPeekAnnounced = false
     bot.seekCoverStartTime = nil
     -- Set cooldown so cover doesn't immediately re-trigger.
     bot.seekCoverCooldownUntil = CurTime() + POST_COVER_COOLDOWN

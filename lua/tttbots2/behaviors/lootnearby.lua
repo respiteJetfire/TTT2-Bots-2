@@ -146,6 +146,12 @@ function LootNearby.OnStart(bot)
         if loco then
             loco:SetGoal(bot.lootTarget:GetPos())
         end
+        -- Comment on finding a weapon to loot
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            local weaponName = bot.lootTarget:GetPrintName() or bot.lootTarget:GetClass() or "weapon"
+            chatter:On("LootingWeapon", { weapon = weaponName })
+        end
     end
     return STATUS.RUNNING
 end

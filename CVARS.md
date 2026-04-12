@@ -377,6 +377,15 @@ Bots in active combat are exempt from throttling by default (`tickscaler_exempt_
 - **ttt_bot_rdm** (default: `0`)
   - Enables RDM (random deathmatch).
 
+- **ttt_bot_innocent_mistrust** (default: `1`)
+  - Enables innocent-on-innocent suspicion-driven attacks. When enabled, innocent bots can attack perceived allies if suspicion reaches very high levels (2× KOS threshold), simulating realistic TTT paranoia and occasional RDM. This is a core TTT mechanic — innocents should sometimes kill other innocents due to paranoid misidentification. Set to `0` to disable.
+
+- **ttt_bot_innocent_mistrust_threshold** (default: `1.8`)
+  - Multiplier for the KOS threshold that an innocent bot needs to reach before attacking a perceived ally. Default `1.8` means suspicion must be 80% higher than the normal KOS threshold (e.g. 18 vs 10). Lower = more RDM, higher = less RDM. Range: `1.0` to `3.0`.
+
+- **ttt_bot_paranoia_chance** (default: `8`)
+  - Percent chance (0–100) per 10-second interval that an innocent bot generates false-positive suspicion against a nearby player (paranoia event). Simulates the uncertainty and nervous misidentification that is core to TTT gameplay. Set to `0` to disable paranoia events.
+
 - **ttt_bot_kos_enemies** (default: `0`)
   - Bots will KOS players in enemy roles or enemy teams.
 

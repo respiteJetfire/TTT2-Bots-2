@@ -263,7 +263,9 @@ TTTBots.Behaviors.RegisterRoleWeapon({
                 local morality = bot:BotMorality()
                 if morality and morality.GetSuspicion then
                     local cur = morality:GetSuspicion(target)
-                    morality.suspicions[target] = math.min(cur, 0)
+                    if cur > 0 then
+                        morality:SetSuspicionDirect(target, 0)
+                    end
                 end
 
                 local evidence = bot:BotEvidence()

@@ -249,6 +249,45 @@ local chancesOf100 = {
     PostRoundWitnessEvent          = 45,  -- Bot mentions something notable they witnessed
     PostRoundDMStarted             = 85,  -- Bot reacts to post-round FFA starting
     PostRoundDMKill                = 50,  -- Bot comments on a kill in post-round DM
+    -- -----------------------------------------------------------------------
+    -- Suspicion System — Threshold & Observation Chatter
+    -- -----------------------------------------------------------------------
+    SuspicionRising                = 45,  -- Bot notices suspicion growing on someone
+    SuspicionCleared               = 40,  -- Bot's suspicion on a target fully decayed
+    SuspicionConflict              = 55,  -- Bot disagrees with another bot's suspicion call
+    TraitorWeaponSpotted           = 80,  -- Bot saw someone holding a traitor weapon
+    NearUnidentifiedBody           = 50,  -- Bot calls out a player loitering near an unID'd body
+    WitnessC4Defuse                = 70,  -- Bot saw someone defuse C4 (positive evidence)
+    WitnessC4Plant                 = 90,  -- Bot saw someone plant C4 (highly suspicious)
+    SuspicionFollowing             = 40,  -- Bot notices someone is following them
+    SuspicionFollowingEscalate     = 65,  -- Following persisted — growing alarm
+    SuspicionGrenadeThrow          = 55,  -- Bot saw someone throw a grenade (incendiary/discombob)
+    SuspicionPersonalSpace         = 35,  -- Someone is uncomfortably close
+    ParanoiaComment                = 30,  -- Paranoid bot makes a paranoia-driven remark
+    -- -----------------------------------------------------------------------
+    -- Behavior-Driven Chatter — Actions & Awareness
+    -- -----------------------------------------------------------------------
+    GroupUpArrived                 = 35,  -- Bot successfully grouped up with an ally
+    GroupUpSeeking                 = 25,  -- Bot is heading toward an ally to group up
+    StalkingTarget                 = 30,  -- Traitor quietly comments while stalking (team-only)
+    StalkingAbort                  = 40,  -- Traitor aborts stalk — too many witnesses
+    SeekingCover                   = 50,  -- Bot announces taking cover under fire
+    CoverPeekAttack                = 35,  -- Bot peeking from cover to fire
+    WanderComment                  = 15,  -- Bot makes an idle comment while wandering
+    LootingWeapon                  = 30,  -- Bot comments on looting a dropped weapon
+    GettingWeapon                  = 25,  -- Bot comments while seeking a weapon
+    BodyguardProtecting            = 50,  -- Bodyguard announces protection (team-only)
+    DecrowdMoving                  = 20,  -- Bot notices crowding and moves away
+    ClearingBreakables             = 15,  -- Bot comments on breaking objects
+    InfectedRushing                = 70,  -- Infected mob rushing chatter (team-only)
+    GluttonBiting                  = 60,  -- Glutton bot biting a player
+    DoomguyHunting                 = 55,  -- Doomguy actively hunting targets
+    VultureFeeding                 = 45,  -- Vulture feeding on a corpse
+    JanitorSweeping                = 30,  -- Janitor cleaning up corpses
+    TrappingPlayer                 = 45,  -- Traitor locking door after a kill (team-only)
+    RevivingPlayer                 = 60,  -- Bot announcing defibrillator revive attempt
+    GuardianSeeking                = 40,  -- Guardian bot looking for someone to protect
+    MingeCrowbar                   = 25,  -- Bot trolling with crowbar pushes
 }
 
 --- Export event names so the precache system can discover them.
@@ -395,9 +434,12 @@ function BotChatter:On(event_name, args, teamOnly, delay, description)
     local localizedString
     local function handleChatResponse(response)
         if response then
-            return TTTBots.Locale.FormatArgsIntoTxt(response, args) or response
+            local formatted = TTTBots.Locale.FormatArgsIntoTxt(response, args)
+            -- If the formatted response is empty after stripping placeholders, discard it
+            if not formatted or formatted == "" then return nil end
+            return formatted
         else
-            return TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args) or "I don't know what to say."
+            return TTTBots.Locale.GetLocalizedLine(event_name, self.bot, args) or nil
         end
     end
 
@@ -657,6 +699,7 @@ hook.Add("PlayerDeath", "TTTBots.Chatter.DeathCallout", function(victim, weapon,
         end
     end
 
+    if not IsValid(namedKiller) then return end
     chatter:On("DeathCallout", { player = namedKiller:Nick(), playerEnt = namedKiller }, false, 0)
 end)
 
@@ -1156,7 +1199,7 @@ end)
 
 hook.Add("TTTBots.AttackEnd", "TTTBots.Chatter.PostCombatRelief", function(attacker, victim)
     if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
-    if not (IsValid(attacker) and attacker:IsBot()) then return end
+    if not (IsValid(attacker) and attacker:IsPlayer() and attacker:IsBot()) then return end
     if not TTTBots.Lib.IsPlayerAlive(attacker) then return end
 
     -- Rate-limit: don't fire more than once per 20s per bot
@@ -1354,7 +1397,7 @@ end)
 hook.Add("PlayerDeath", "TTTBots.Chatter.PostRoundDMKill", function(victim, weapon, attacker)
     if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
     if not TTTBots.Match.IsPostRoundDM() then return end
-    if not (IsValid(attacker) and attacker:IsBot()) then return end
+    if not (IsValid(attacker) and attacker:IsPlayer() and attacker:IsBot()) then return end
     if not (IsValid(victim) and victim:IsPlayer()) then return end
     if victim == attacker then return end
 
@@ -1731,7 +1774,7 @@ hook.Add("PlayerDeath", "TTTBots.Chatter.SKKnifeKill", function(victim, weapon, 
     if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
     if not TEAM_SERIALKILLER then return end
     if not TTTBots.Match.RoundActive then return end
-    if not (IsValid(attacker) and attacker:IsBot()) then return end
+    if not (IsValid(attacker) and attacker:IsPlayer() and attacker:IsBot()) then return end
     if not TTTBots.Lib.IsPlayerAlive(attacker) then return end
 
     local role = TTTBots.Roles.GetRoleFor(attacker)
@@ -2103,5 +2146,268 @@ hook.Add("TTT2AnkhRevive", "TTTBots.Chatter.AnkhRevival", function(revivedPlayer
             chatter:On("AnkhSpotted", {}, false, 1) -- observers comment on seeing someone revive
         end
         break
+    end
+end)
+
+-- ===========================================================================
+-- Suspicion System — Threshold & Observation Chatter Hooks
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- TraitorWeaponSpotted — bot sees a player holding a traitor weapon
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.TraitorWeaponSpotted", 6, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetUsesSuspicion()) then continue end
+
+        -- Scan visible players for traitor weapons
+        for _, ply in ipairs(TTTBots.Match.AlivePlayers or {}) do
+            if not IsValid(ply) or ply == bot then continue end
+            if bot:GetPos():Distance(ply:GetPos()) > 500 then continue end
+            if not bot:Visible(ply) then continue end
+
+            local activeWep = ply:GetActiveWeapon()
+            if not IsValid(activeWep) then continue end
+            -- Check if the weapon is a traitor buy weapon
+            local isTraitorWep = (activeWep.CanBuy and table.HasValue(activeWep.CanBuy or {}, ROLE_TRAITOR))
+                or (activeWep.Kind and activeWep.Kind == 7)  -- special weapons
+            if not isTraitorWep then continue end
+
+            -- Rate-limit per bot per target
+            bot._twSpottedTimes = bot._twSpottedTimes or {}
+            if (CurTime() - (bot._twSpottedTimes[ply] or 0)) < 30 then continue end
+            bot._twSpottedTimes[ply] = CurTime()
+
+            local chatter = bot:BotChatter()
+            if chatter then
+                chatter:On("TraitorWeaponSpotted", {
+                    player = ply:Nick(),
+                    playerEnt = ply,
+                    weapon = activeWep:GetPrintName() or activeWep:GetClass(),
+                }, false, 0)
+            end
+            break -- one callout per sweep per bot
+        end
+        break -- one bot per sweep
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- NearUnidentifiedBody — bot calls out a player lingering near an unID'd body
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.NearUnidentifiedBody", 8, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    local bots = lib.GetAliveBots()
+    local corpses = ents.FindByClass("prop_ragdoll")
+
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetUsesSuspicion()) then continue end
+
+        for _, corpse in ipairs(corpses) do
+            if not IsValid(corpse) then continue end
+            -- Only care about unidentified bodies
+            if corpse.IsIdentified and corpse:IsIdentified() then continue end
+            local corpsePos = corpse:GetPos()
+            if bot:GetPos():Distance(corpsePos) > 600 then continue end
+            if not bot:Visible(corpse) then continue end
+
+            -- Check for a player standing near this body
+            for _, ply in ipairs(TTTBots.Match.AlivePlayers or {}) do
+                if not IsValid(ply) or ply == bot then continue end
+                if ply:GetPos():Distance(corpsePos) > 150 then continue end
+
+                -- Rate-limit per bot
+                if (CurTime() - (bot._nearUnidBodyTime or 0)) < 25 then continue end
+                bot._nearUnidBodyTime = CurTime()
+
+                local chatter = bot:BotChatter()
+                if chatter then
+                    chatter:On("NearUnidentifiedBody", {
+                        player = ply:Nick(),
+                        playerEnt = ply,
+                    }, false, 0)
+                end
+                break
+            end
+            break
+        end
+        break -- one bot per sweep
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SuspicionFollowing — bot notices someone has been following them
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.SuspicionFollowing", 7, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetUsesSuspicion()) then continue end
+
+        local morality = bot.components.morality
+        if not morality then continue end
+
+        -- Check all suspicion records for FollowingMe events
+        for target, rec in pairs(morality.suspicions or {}) do
+            if not (IsValid(target) and target:IsPlayer()) then continue end
+            if type(rec) ~= "table" then continue end
+            if rec.threat < 3 then continue end -- need enough suspicion
+            if bot:GetPos():Distance(target:GetPos()) > 400 then continue end
+
+            -- Rate-limit
+            bot._followChatterTimes = bot._followChatterTimes or {}
+            if (CurTime() - (bot._followChatterTimes[target] or 0)) < 20 then continue end
+            bot._followChatterTimes[target] = CurTime()
+
+            local effectiveSus = morality:GetSuspicion(target)
+            local chatter = bot:BotChatter()
+            if not chatter then continue end
+
+            if effectiveSus >= 5 then
+                chatter:On("SuspicionFollowingEscalate", {
+                    player = target:Nick(),
+                    playerEnt = target,
+                }, false, 0)
+            else
+                chatter:On("SuspicionFollowing", {
+                    player = target:Nick(),
+                    playerEnt = target,
+                }, false, 0)
+            end
+            break
+        end
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SuspicionGrenadeThrow — witness someone throwing a grenade
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBots_GrenadeThrown", "TTTBots.Chatter.SuspicionGrenadeThrow", function(thrower, grenadeClass)
+    if not TTTBots.Match.RoundActive then return end
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not (IsValid(thrower) and thrower:IsPlayer()) then return end
+
+    -- Only suspicious grenade types
+    local suspiciousGrenades = {
+        ["weapon_ttt_confgrenade"] = true,  -- discombob
+        ["weapon_ttt_smokegrenade"] = true,
+        ["ttt_flame"] = true,              -- incendiary
+        ["weapon_ttt_firegrenade"] = true,
+    }
+    if not suspiciousGrenades[grenadeClass] then return end
+
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if bot == thrower then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetUsesSuspicion()) then continue end
+        if bot:GetPos():Distance(thrower:GetPos()) > 600 then continue end
+        if not bot:Visible(thrower) then continue end
+
+        if (CurTime() - (bot._grenadeChatterTime or 0)) < 15 then continue end
+        bot._grenadeChatterTime = CurTime()
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("SuspicionGrenadeThrow", {
+                player = thrower:Nick(),
+                playerEnt = thrower,
+            }, false, 0)
+        end
+        break -- one callout
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- ParanoiaComment — paranoid bots mutter under their breath periodically
+-- ---------------------------------------------------------------------------
+
+timer.Create("TTTBots.Chatter.ParanoiaComment", 25, 0, function()
+    if not TTTBots.Match.RoundActive then return end
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+
+    local bots = lib.GetAliveBots()
+    if #bots == 0 then return end
+
+    local bot = bots[math.random(1, #bots)]
+    if not (IsValid(bot) and bot.components) then return end
+
+    local personality = bot:BotPersonality()
+    if not personality then return end
+
+    -- Only paranoid or suspicious personality bots
+    local traits = personality.traits or {}
+    local isParanoid = false
+    for _, trait in ipairs(traits) do
+        if trait == "suspicious" or trait == "paranoid" then
+            isParanoid = true
+            break
+        end
+    end
+    if not isParanoid then return end
+
+    local chatter = bot:BotChatter()
+    if chatter then
+        chatter:On("ParanoiaComment", {}, false, 0)
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- SuspicionConflict — bot disagrees with another bot's accusation
+-- ---------------------------------------------------------------------------
+
+hook.Add("TTTBots_CallKOS", "TTTBots.Chatter.SuspicionConflict", function(caller, target)
+    if not TTTBots.Match.RoundActive then return end
+    if not TTTBots.Lib.GetConVarBool("emotional_chatter") then return end
+    if not (IsValid(caller) and IsValid(target)) then return end
+
+    local bots = lib.GetAliveBots()
+    for _, bot in ipairs(bots) do
+        if not (IsValid(bot) and bot.components) then continue end
+        if bot == caller then continue end
+        local role = TTTBots.Roles.GetRoleFor(bot)
+        if not (role and role:GetUsesSuspicion()) then continue end
+
+        local morality = bot.components.morality
+        if not morality then continue end
+
+        -- Check if this bot thinks the target is TRUSTED/INNOCENT
+        local targetSus = morality:GetSuspicion(target)
+        local trustThreshold = morality.Thresholds.Trust or -3
+        if targetSus > trustThreshold then continue end -- doesn't trust target enough to disagree
+
+        -- Rate-limit
+        if (CurTime() - (bot._conflictChatterTime or 0)) < 20 then continue end
+        bot._conflictChatterTime = CurTime()
+
+        local chatter = bot:BotChatter()
+        if chatter then
+            chatter:On("SuspicionConflict", {
+                player = target:Nick(),
+                playerEnt = target,
+                caller = caller:Nick(),
+                callerEnt = caller,
+            }, false, math.random(1, 3))
+        end
+        break -- one disagreement per KOS call
     end
 end)

@@ -103,6 +103,10 @@ function BehaviorWait.RequestWait(bot, player, teamOnly)
     local roleDisablesSuspicion = not TTTBots.Roles.GetRoleFor(bot):GetUsesSuspicion()
     local chatter = bot:BotChatter()
     local Morality = bot:BotMorality()
+    if not Morality then
+        print(bot:Nick() .. " has no Morality component, skipping wait request from " .. player:Nick())
+        return
+    end
     local playerSus = Morality:GetSuspicion(player) or 0
 
     -- Reject wait from KOS'd players — a KOS'd traitor should not be able

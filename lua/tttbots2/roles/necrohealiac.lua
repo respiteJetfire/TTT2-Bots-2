@@ -18,7 +18,13 @@
 if not TTTBots.Lib.IsTTT2() then return false end
 if not ROLE_NECROH then return false end
 
+local roleDescription = "You are the Necrohealiac, an innocent sub-role. You heal whenever another player dies. "
+    .. "This means you benefit from deaths — even traitor kills indirectly help you. "
+    .. "Play as a standard innocent: investigate, use suspicion, and survive. "
+    .. "Your passive healing makes you increasingly resilient as the round progresses."
+
 local necrohealiac = TTTBots.RoleBuilder.InnocentLike("necroh")
+necrohealiac:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(necrohealiac)
 
 return true

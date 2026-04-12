@@ -170,7 +170,23 @@ function TTTBots.Behaviors.RegisterRoleWeapon(config)
 
     function Behavior.Validate(bot)
         if not IsValid(bot) then return false end
-        if bot.attackTarget ~= nil then return false end
+        if bot.attackTarget ~= nil then
+            -- For conversion behaviors, if the attack target is the same player
+            -- we want to convert, clear the attack target so we can convert them
+            -- instead of killing them. This prevents the flickering loop where
+            -- morality sets attackTarget (e.g. KOS_UNKNOWN) and the conversion
+            -- behavior can never validate.
+            if config.isConversion and IsValid(bot.attackTarget) and bot.attackTarget:IsPlayer() then
+                local conversionTarget = GetTarget(bot) or (config.findTargetFn and config.findTargetFn(bot))
+                if IsValid(conversionTarget) and bot.attackTarget == conversionTarget then
+                    bot:SetAttackTarget(nil, "BEHAVIOR_END")
+                else
+                    return false
+                end
+            else
+                return false
+            end
+        end
         if not HasWeapon(bot) then return false end
         if not TTTBots.Match.IsRoundActive() then return false end
         if config.validateExtraFn and not config.validateExtraFn(bot) then return false end

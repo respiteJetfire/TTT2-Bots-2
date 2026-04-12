@@ -401,6 +401,11 @@ function BotChatter:RespondToPlayerMessage(ply, text, team, delay, wasVoice)
                 return
             end
             local response = TTTBots.Providers.StripQuotes(envelope.text)
+            -- Strip any unresolved {{...}} placeholders the LLM may have echoed
+            response = response:gsub("{{.-}}", "")
+            response = response:gsub("%s%s+", " ")
+            response = response:match("^%s*(.-)%s*$") or response
+            if response == "" then return end
             chatter:textorTTS(bot, response, teamOnly, false, wasVoice)
         end)
     end

@@ -75,6 +75,7 @@ Arb.REASON_LABELS = {
     OPPORTUNISTIC_ATTACK    = "Traitor random nearby attack",
     LAST_ALIVE              = "Last two alive — must fight",
     RDM_RAGE                = "RDM triggered by rage/boredom",
+    MISTRUST_PARANOIA       = "Innocent mistrust — paranoia-driven attack on perceived ally",
 
     -- Priority 0 — Clears
     BEHAVIOR_END            = "Behavior ended — clearing target",

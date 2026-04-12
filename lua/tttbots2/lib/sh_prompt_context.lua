@@ -43,9 +43,14 @@ local function describeSuspects(bot)
     -- Build a sorted list of (player, suspicion) pairs
     local entries = {}
     local suspTable = morality.suspicions or {}
-    for ply, score in pairs(suspTable) do
-        if IsValid(ply) and score and score > 2 then
-            table.insert(entries, { ply = ply, score = score })
+    for ply, _ in pairs(suspTable) do
+        if IsValid(ply) then
+            -- Use GetSuspicion() to derive a single numeric score from the
+            -- multi-dimensional record (threat/trust/confidence).
+            local score = morality:GetSuspicion(ply)
+            if score and score > 2 then
+                table.insert(entries, { ply = ply, score = score })
+            end
         end
     end
     if #entries == 0 then return "none" end

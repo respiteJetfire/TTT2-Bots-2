@@ -80,9 +80,13 @@ hook.Add("Think", "TTTBots.Banker.CreditWatch", function()
         if credits > prev then
             local personality = ply.BotPersonality and ply:BotPersonality()
             if personality then
-                -- Richer = slightly more confident, but never reckless
-                local newAggr = math.Clamp(0.3 + (credits / 20), 0.3, 0.8)
-                personality:SetAggression(newAggr)
+                -- Richer = slightly more confident, but never reckless.
+                -- Map current credits to confidence and apply only the delta.
+                if personality.GetMood and personality.ShiftMood then
+                    local targetConfidence = math.Clamp(credits / 20, 0, 0.5)
+                    local currentConfidence = personality:GetMood("confidence") or 0
+                    personality:ShiftMood("confidence", targetConfidence - currentConfidence)
+                end
             end
         end
 

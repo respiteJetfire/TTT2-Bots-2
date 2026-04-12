@@ -90,6 +90,13 @@ function JSweep.OnStart(bot)
         state.cleanedCorpses = {}
     end
     state.target = findNearestCorpse(bot, state.cleanedCorpses)
+
+    -- Announce cleanup
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On and math.random(1, 2) == 1 then
+        chatter:On("JanitorSweeping", {}, true, 0)
+    end
+
     return STATUS.RUNNING
 end
 

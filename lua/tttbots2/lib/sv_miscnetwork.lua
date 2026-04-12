@@ -110,3 +110,60 @@ end)
 
 hook.Add("PlayerDisconnected", "TTTBots.Network.PlayerDisconnected", syncClientAvatars)
 hook.Add("PlayerInitialSpawn", "TTTBots.Network.PlayerInitialSpawn", syncClientAvatars)
+
+--- Bot Menu data: sends bot info (name, traits, difficulty, role, alive status)
+--- and the registered buyables list to a requesting client.
+net.Receive("TTTBots_RequestBotMenuData", function(len, ply)
+    if not IsValid(ply) or not ply:IsSuperAdmin() then return end
+
+    -- Gather bot data
+    local botData = {}
+    for _, bot in ipairs(TTTBots.Bots) do
+        if not IsValid(bot) then continue end
+        local entry = {
+            nick = bot:Nick(),
+            alive = TTTBots.Lib.IsPlayerAlive(bot) or false,
+            role = (bot.GetRoleStringRaw and bot:GetRoleStringRaw()) or "unknown",
+            team = (bot.GetTeam and tostring(bot:GetTeam())) or "unknown",
+        }
+        local personality = bot.components and bot.components.personality
+        if personality then
+            entry.traits = personality:GetTraits() or {}
+            entry.difficulty = personality:GetDifficulty() or 0
+            entry.archetype = personality.archetype or "default"
+            entry.rage = personality:GetRage() or 0
+            entry.boredom = personality:GetBoredom() or 0
+            entry.pressure = personality:GetPressure() or 0
+        else
+            entry.traits = {}
+            entry.difficulty = 0
+            entry.archetype = "default"
+            entry.rage = 0
+            entry.boredom = 0
+            entry.pressure = 0
+        end
+        table.insert(botData, entry)
+    end
+
+    -- Gather buyables data (name, class, price, priority, roles)
+    local buyableData = {}
+    if TTTBots.Buyables and TTTBots.Buyables.m_buyables then
+        for name, buyable in pairs(TTTBots.Buyables.m_buyables) do
+            if buyable.DeferredEvent then continue end -- Skip deferred buyables for cleaner display
+            table.insert(buyableData, {
+                name = buyable.Name or name,
+                class = buyable.Class or "",
+                price = buyable.Price or 0,
+                priority = buyable.Priority or 0,
+                roles = buyable.Roles or {},
+                primaryWeapon = buyable.PrimaryWeapon or false,
+                ttt2 = buyable.TTT2 or false,
+            })
+        end
+        table.sort(buyableData, function(a, b) return a.priority > b.priority end)
+    end
+
+    net.Start("TTTBots_BotMenuData")
+    net.WriteTable({ bots = botData, buyables = buyableData })
+    net.Send(ply)
+end)

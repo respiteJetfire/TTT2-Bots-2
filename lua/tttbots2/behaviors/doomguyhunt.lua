@@ -116,6 +116,14 @@ end
 function Hunt.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "DoomguyHunt")
     state.lastRetargetTime = 0
+    state.lastHuntChatter = 0
+
+    -- Hunting chatter
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On and math.random(1, 3) == 1 then
+        chatter:On("DoomguyHunting", {}, false, 0)
+    end
+
     return STATUS.RUNNING
 end
 

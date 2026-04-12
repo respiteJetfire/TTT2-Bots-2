@@ -59,6 +59,8 @@ TTTBots.Roles.RegisterRole(survivalist)
 
 -- ---------------------------------------------------------------------------
 -- Survivalist personality: low-health caution.
+-- Uses the BotRoundAwareness component's aggressionMult field to modulate
+-- how aggressively the bot engages, based on remaining health.
 -- ---------------------------------------------------------------------------
 hook.Add("Think", "TTTBots.Survivalist.LowHealthCaution", function()
     if not TTTBots.Match.IsRoundActive() then return end
@@ -67,16 +69,16 @@ hook.Add("Think", "TTTBots.Survivalist.LowHealthCaution", function()
         if not (IsValid(ply) and ply:IsBot() and ply:IsActive()) then continue end
         if ply:GetSubRole() ~= ROLE_SURVIVALIST then continue end
 
-        local personality = ply.BotPersonality and ply:BotPersonality()
-        if not personality then continue end
+        local ra = ply.BotRoundAwareness and ply:BotRoundAwareness()
+        if not ra then continue end
 
         local hpRatio = ply:Health() / math.max(ply:GetMaxHealth(), 1)
         if hpRatio < 0.35 then
-            personality:SetAggression(0.2)  -- Very cautious when nearly dead
+            ra.aggressionMult = 0.2   -- Very cautious when nearly dead
         elseif hpRatio < 0.6 then
-            personality:SetAggression(0.4)  -- Moderately cautious
+            ra.aggressionMult = 0.4   -- Moderately cautious
         else
-            personality:SetAggression(0.65) -- Confident when healthy
+            ra.aggressionMult = 0.65  -- Confident when healthy
         end
     end
 end)

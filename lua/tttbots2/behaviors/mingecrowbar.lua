@@ -83,6 +83,14 @@ function MingeCrowbar.OnStart(bot)
     bot.mingeStopTime = CurTime() + 3.5
     bot.mingeTarget = MingeCrowbar.GetMingeTarget(bot)
     MingeCrowbar.SetMingeTimer(bot)
+
+    -- Minge comment
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On then
+        local targetName = IsValid(bot.mingeTarget) and bot.mingeTarget:Nick() or nil
+        chatter:On("MingeCrowbar", { player = targetName }, false, 0)
+    end
+
     return STATUS.RUNNING
 end
 

@@ -32,6 +32,28 @@ function TTTBots.Chat.MessagePlayer(ply, message)
     ply:ChatPrint("[TTT Bots 2] " .. message)
 end
 
+--- P2 Perf: Adaptive ThinkRate scaling.
+--- Returns a multiplier (1..max) based on current bot count.
+--- Below the threshold: returns 1 (no scaling). Above: logarithmic ramp.
+---@return number multiplier
+function TTTBots.GetAdaptiveThinkRateMultiplier()
+    local cv = GetConVar("ttt_bot_adaptive_thinkrate")
+    if not (cv and cv:GetBool()) then return 1 end
+
+    local botCount = #(TTTBots.Bots or {})
+    local threshold = GetConVar("ttt_bot_adaptive_thinkrate_threshold")
+    threshold = threshold and threshold:GetInt() or 12
+    if botCount <= threshold then return 1 end
+
+    local maxMulti = GetConVar("ttt_bot_adaptive_thinkrate_max_multi")
+    maxMulti = maxMulti and maxMulti:GetInt() or 3
+
+    -- Logarithmic ramp: multi = 1 + log2(botCount / threshold)
+    local ratio = botCount / threshold
+    local multi = 1 + math.log(ratio) / math.log(2)
+    return math.Clamp(math.floor(multi), 1, maxMulti)
+end
+
 local function includeServer()
     include("tttbots2/lib/sv_proximity.lua")
     include("tttbots2/lib/sv_pathmanager.lua")
@@ -70,6 +92,7 @@ local function includeServer()
     include("tttbots2/lib/sv_roles.lua")
     include("tttbots2/lib/sv_errortracker.lua")
     include("tttbots2/lib/sv_swep_threat_response.lua")
+    include("tttbots2/lib/sv_suspicion_net.lua")
 end
 
 --- Similar to includeSharedFile, will include the file if we're a client, otherwise will AddCSLuaFile it if we're a server.
@@ -88,6 +111,7 @@ local function includeClient()
     includeClientFile("tttbots2/client/cl_TTS.lua")
     includeClientFile("tttbots2/lib/cl_ratelimiter.lua")
     includeClientFile("tttbots2/client/cl_errortracker.lua")
+    includeClientFile("tttbots2/client/cl_suspicion_monitor.lua")
 end
 
 --- Places the file in the AddCSLuaFile if server, otherwise loads it if we're a client. Includes the file either way.
@@ -136,6 +160,12 @@ util.AddNetworkString("TTTBots_CustomPlan_RequestSync")
 util.AddNetworkString("SayTTSEL")
 util.AddNetworkString("SayTTSBad")
 util.AddNetworkString("TTTBots_ErrorTracker_Error")
+-- Suspicion Monitor: real-time suspicion debugging
+util.AddNetworkString("TTTBots_RequestSuspicionData")
+util.AddNetworkString("TTTBots_SuspicionData")
+-- Bot Menu: bot info + buyable list networking
+util.AddNetworkString("TTTBots_RequestBotMenuData")
+util.AddNetworkString("TTTBots_BotMenuData")
 -- Cupid role compatibility: bot-side lover linking sends these messages directly.
 util.AddNetworkString("inLove")
 util.AddNetworkString("betrayedTraitor")
@@ -303,6 +333,10 @@ function TTTBots.Reload()
         -- Performance sampling: record tick start for auto-adjuster
         if TTTBots.TickRateAuto then TTTBots.TickRateAuto.BeginSample() end
 
+        -- P1 Perf: Cache player.GetAll() once per tick so all components
+        -- and sub-systems use the same snapshot without re-querying the engine.
+        TTTBots._tickPlayers = player.GetAll()
+
         local call, err = pcall(function()
             -- _testBotAttack()
             TTTBots.Match.Tick()
@@ -310,25 +344,22 @@ function TTTBots.Reload()
             -- Dynamic tick scaler: recalculate skip value once per tick
             TTTBots.TickScaler.Recalculate()
 
-            -- Run behavior trees only on bots that the tick scaler allows
-            -- this tick. When scaling is disabled every bot passes.
-            -- Emergency escalation may additionally skip tree runs for idle bots.
+            -- Run behavior trees for ALL bots every tick.
+            -- The behavior tree assigns goals (walk targets, attack targets, etc.)
+            -- that the locomotor needs to execute movement. Skipping the tree causes
+            -- bots to stand still because the locomotor has no goals to follow.
+            -- Component ThinkRate throttling (below) already reduces per-component
+            -- CPU cost — the tree itself is cheap and must always run.
             for _, bot in ipairs(TTTBots.Bots) do
                 if not IsValid(bot) then continue end
                 if not bot.components then continue end
-                if not TTTBots.TickScaler.ShouldBotThink(bot) then continue end
-                -- Escalation: skip behavior tree for non-combat bots when under heavy load
-                if TTTBots.TickRateAuto and TTTBots.TickRateAuto.ShouldSkipBehaviorTree
-                   and TTTBots.TickRateAuto.ShouldSkipBehaviorTree(bot) then
-                    continue
-                end
                 local tree = TTTBots.Behaviors.GetTreeFor(bot)
                 if not tree then continue end
                 TTTBots.Behaviors.RunTree(bot, tree)
             end
 
             TTTBots.PlanCoordinator.Tick()
-            TTTBots.InnocentCoordinator.Tick()
+            if TTTBots.InnocentCoordinator then TTTBots.InnocentCoordinator.Tick() end
             local bots = TTTBots.Bots
             for i, bot in pairs(bots) do
                 -- TTTBots.DebugServer.RenderDebugFor(bot, { "all" })
@@ -356,15 +387,23 @@ function TTTBots.Reload()
                     thinkRateMulti = TTTBots.TickRateAuto.GetThinkRateMultiplier()
                 end
 
+                -- P2 Perf: Adaptive ThinkRate scaling by bot count.
+                -- When many bots are active, automatically slow non-critical
+                -- components so total CPU cost grows sub-linearly.
+                local adaptiveMulti = TTTBots.GetAdaptiveThinkRateMultiplier
+                    and TTTBots.GetAdaptiveThinkRateMultiplier() or 1
+                thinkRateMulti = thinkRateMulti * adaptiveMulti
+
                 for i, component in pairs(bot.components) do
                     if component.Think == nil then
                         print("No think")
                         continue
                     end
                     -- Dynamic tick scaler gate: if this bot is throttled, skip
-                    -- component thinking entirely (locomotor still runs via
-                    -- StartCommand so movement doesn't freeze).
-                    if not botShouldThink then continue end
+                    -- component thinking — but ALWAYS let locomotor run.
+                    -- StartCommand only reads movement state that Think() computes;
+                    -- without Think(), movementVec goes stale and the bot freezes.
+                    if not botShouldThink and component ~= bot.components.locomotor then continue end
                     -- Escalation gate: if the behavior tree is being skipped
                     -- for this bot, also skip heavy components (but not locomotor).
                     if escalationTreeSkip and component ~= bot.components.locomotor then continue end

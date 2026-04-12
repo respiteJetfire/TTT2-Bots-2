@@ -64,6 +64,13 @@ end
 ---@return BStatus
 function TrapPlayer.OnStart(bot)
 	bot.trapState = "navigating"
+
+	-- Team-only comment about trapping
+	local chatter = bot:BotChatter()
+	if chatter and chatter.On then
+		chatter:On("TrappingPlayer", {}, true, 0)
+	end
+
 	return STATUS.RUNNING
 end
 

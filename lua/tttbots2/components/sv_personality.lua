@@ -1378,10 +1378,11 @@ function BotPersonality:WasRecentTraitor(ply)
 end
 local RDM_BOREDOM_MIN = 0.7
 local RDM_RAGE_MIN = 0.7
-local RDM_PCT_CHANCE = 20 -- 10% chance to rdm every 2.5 seconds if criteria are met
+local RDM_PCT_CHANCE = 20 -- 20% chance to rdm every 2.5 seconds if criteria are met
 timer.Create("TTTBots.Personality.RDM", 2.5, 0, function()
     if not TTTBots.Match.IsRoundActive() then return end
     if not lib.GetConVarBool("rdm") then return end
+    local mistrustEnabled = lib.GetConVarBool("innocent_mistrust")
     for i, bot in pairs(TTTBots.Bots) do
         ---@cast bot Bot
         if not lib.IsPlayerAlive(bot) then continue end -- skip if bot not loaded
@@ -1395,10 +1396,78 @@ timer.Create("TTTBots.Personality.RDM", 2.5, 0, function()
         local chanceTest = math.random(1, 100) <= RDM_PCT_CHANCE
 
         if chanceTest and (isRdmer or (boredom > RDM_BOREDOM_MIN) or (rage > RDM_RAGE_MIN)) then
-            local targets = lib.GetAllWitnessesBasic(bot:GetPos(), TTTBots.Match.AlivePlayers, bot)
-            local grudge = (IsValid(bot.grudge) and lib.IsPlayerAlive(bot.grudge) and bot.grudge)
-            local randomTarget = grudge or table.Random(targets)
-            if targets and #targets > 0 then
+            local allVisible = lib.GetAllWitnessesBasic(bot:GetPos(), TTTBots.Match.AlivePlayers, bot)
+            -- Build primary target list: non-allies
+            local targets = {}
+            for _, ply in ipairs(allVisible) do
+                if not (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, ply)
+                        or TTTBots.Roles.IsAllies(bot, ply)) then
+                    targets[#targets + 1] = ply
+                end
+            end
+
+            -- INNOCENT MISTRUST RDM: If no non-ally targets exist and mistrust is
+            -- enabled, extreme rage/boredom can cause an innocent to snap and RDM
+            -- a fellow innocent. This simulates the classic TTT "I can't take it
+            -- anymore" RDM moment. Requires much higher thresholds than normal RDM.
+            if #targets == 0 and mistrustEnabled then
+                local extremeRage = rage > 0.85
+                local extremeBoredom = boredom > 0.85
+                local isExtremeRdmer = isRdmer and (rage > 0.5 or boredom > 0.5)
+                if extremeRage or extremeBoredom or isExtremeRdmer then
+                    -- Pick from allies, but with a much lower chance
+                    if math.random(1, 100) <= 8 then -- 8% sub-chance (vs 100% for normal RDM)
+                        local allyTargets = {}
+                        local morality = bot.components and bot.components.morality
+                        for _, ply in ipairs(allVisible) do
+                            if ply == bot then continue end
+                            -- Prefer the most suspicious ally (still an ally but we don't trust them)
+                            local sus = morality and morality:GetSuspicion(ply) or 0
+                            if sus > 0 then
+                                allyTargets[#allyTargets + 1] = ply
+                            end
+                        end
+                        -- If no suspicious allies, any visible player will do (pure rage RDM)
+                        if #allyTargets == 0 then
+                            for _, ply in ipairs(allVisible) do
+                                if ply ~= bot then
+                                    allyTargets[#allyTargets + 1] = ply
+                                end
+                            end
+                        end
+                        if #allyTargets > 0 then
+                            local rdmTarget = table.Random(allyTargets)
+                            -- Inject high suspicion so the mistrust gate in
+                            -- SetAttackTarget allows the attack
+                            if morality then
+                                local kosThresh = TTTBots.Components.Morality.Thresholds.KOS or 10
+                                local mistrustMult = lib.GetConVarFloat("innocent_mistrust_threshold") or 1.8
+                                local needed = math.ceil(kosThresh * mistrustMult)
+                                local currentSus = morality:GetSuspicion(rdmTarget)
+                                if currentSus < needed then
+                                    morality:SetSuspicionDirect(rdmTarget, needed)
+                                end
+                            end
+                            bot:SetAttackTarget(rdmTarget, "RDM_RAGE", 1)
+                            if lib.GetConVarBool("debug_misc") then
+                                print(string.format("[TTTBots][RDM_MISTRUST] %s RDM'd ally %s (rage=%.2f, boredom=%.2f)",
+                                    bot:Nick(), IsValid(rdmTarget) and rdmTarget:Nick() or "?", rage, boredom))
+                            end
+                        end
+                    end
+                end
+            end
+
+            if #targets > 0 then
+                local grudge = (IsValid(bot.grudge) and lib.IsPlayerAlive(bot.grudge) and bot.grudge)
+                -- Only use grudge if they are also a valid non-ally target
+                local grudgeValid = false
+                if grudge then
+                    for _, t in ipairs(targets) do
+                        if t == grudge then grudgeValid = true; break end
+                    end
+                end
+                local randomTarget = (grudgeValid and grudge) or table.Random(targets)
                 bot:SetAttackTarget(randomTarget, "RDM_RAGE", 1)
             end
         end

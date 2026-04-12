@@ -21,7 +21,7 @@ local bTree = {
     _prior.FightBack,
     _prior.Requests,
     _bh.FakeInvestigate,        -- Blend in as innocent while disguised
-    _bh.AlibiBbuilding,         -- Build alibis to maintain cover
+    _bh.AlibiBuilding,          -- Build alibis to maintain cover
     _prior.Traitor,             -- Core traitor coordination
     _bh.InvestigateCorpse,
     _prior.Restore,

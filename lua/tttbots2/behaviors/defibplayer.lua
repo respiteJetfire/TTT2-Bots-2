@@ -146,6 +146,14 @@ function DefibPlayer.OnStart(bot)
         bot.defibTarget, bot.defibRag = DefibPlayer.GetCorpse(bot, true)
     end
 
+    -- Announce revive attempt
+    if bot.defibTarget and IsValid(bot.defibTarget) then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("RevivingPlayer", { player = bot.defibTarget:Nick() }, false, 0)
+        end
+    end
+
     return STATUS.RUNNING
 end
 

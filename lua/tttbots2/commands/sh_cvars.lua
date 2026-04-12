@@ -67,6 +67,8 @@ bot_sh_cvar("llm_budget_per_round", "1.00",
     "Maximum estimated USD spend per round. Once this budget is hit, only high-priority requests (KOS, accusations) are allowed. Set to 0 for unlimited.")
 bot_sh_cvar("llm_ratelimit_debug", "0",
     "Print rate limiter decisions and token tracking to server console. Filter: [BOTDBG:RATELIMIT]")
+bot_sh_cvar("llm_cooldown", "1.0",
+    "Minimum seconds between LLM calls for a single bot. Prevents any one bot from monopolizing the LLM budget with rapid back-to-back events. High-priority events (KOS, accusations) bypass this cooldown. Set to 0 to disable per-bot cooldown. Range: 0.0 - 3.0.")
 
 bot_sh_cvar("chatter_lvl", "3",
     "The level of chatter that bots will have. 0 = none (not even KOS), 1 = critical only (like KOS), 2 = >= callouts/important only, 3 = everything.")
@@ -175,6 +177,8 @@ bot_sh_cvar("names_custom", "",
     "A list of comma-separated names that bots will use as they join: distributed as first come, first served. Example: 'hello world,bob,billy,steve steve,austin' do not put spaces after commas.")
 
 -- Debug cvars
+bot_sh_cvar("viscache_debug", "0",
+    "Periodically prints visibility cache diagnostics (entries, hit rate) to server console every 10s. Filter: [BOTDBG:VISCACHE]")
 bot_sh_cvar("debug_pathfinding", "0",
     "[May console spam. Development use only] Enables debug for pathfinding. Requires built-in developer convar to be 1 for drawings.")
 bot_sh_cvar("debug_look", "0",
@@ -267,6 +271,12 @@ bot_sh_cvar("pathfinding_max_nodes", "600",
     "Maximum number of A* nodes the pathfinder will explore before giving up on a path. Higher values allow finding paths through complex maps at the cost of more CPU time per frame.")
 bot_sh_cvar("rdm", "0",
     "Enables RDM (random deathmatch). This isn't advised for most situations, but can offer some extra variety should you want it.")
+bot_sh_cvar("innocent_mistrust", "1",
+    "Enables innocent-on-innocent suspicion-driven attacks. When enabled, innocent bots can attack perceived allies if suspicion reaches very high levels (2x KOS threshold), simulating realistic TTT paranoia and occasional RDM. This is a core TTT mechanic — innocents should sometimes kill other innocents due to paranoid misidentification. Set to 0 to disable.")
+bot_sh_cvar("innocent_mistrust_threshold", "1.8",
+    "Multiplier for the KOS threshold that an innocent bot needs to reach before attacking a perceived ally. Default 1.8 means suspicion must be 80% higher than the normal KOS threshold (e.g. 18 vs 10). Lower = more RDM, higher = less RDM. Range: 1.0 to 3.0.")
+bot_sh_cvar("paranoia_chance", "8",
+    "Percent chance (0-100) per 10-second interval that an innocent bot generates false-positive suspicion against a nearby player (paranoia event). Simulates the uncertainty and nervous misidentification that is core to TTT gameplay. Set to 0 to disable.")
 bot_sh_cvar("kos_enemies", "0",
     "If set to 1, bots will KOS players in enemy roles or enemy teams. If set to 0, bots will not KOS enemies outside of normal gameplay function. This is a global setting.")
 bot_sh_cvar("kos_nonallies", "0",
@@ -366,6 +376,14 @@ bot_sh_cvar("tickscaler_stagger", "1",
     "If 1, bot think calls are staggered across ticks so not all bots skip the same frames. Distributes CPU load more evenly.")
 bot_sh_cvar("tickscaler_debug", "0",
     "Periodically prints tick scaler diagnostics to server console: bot count, skip value, per-bot effective Hz, and combat exemptions. Filter: [BOTDBG:TICKSCALER]")
+
+-- Adaptive ThinkRate scaling
+bot_sh_cvar("adaptive_thinkrate", "1",
+    "When enabled, component ThinkRates are automatically scaled up (slowed down) when bot count exceeds a threshold. This reduces per-bot CPU cost at high populations without requiring the full TickScaler system.")
+bot_sh_cvar("adaptive_thinkrate_threshold", "12",
+    "Bot count at or below which no adaptive ThinkRate scaling is applied. Above this, ThinkRates increase logarithmically. Default 12.")
+bot_sh_cvar("adaptive_thinkrate_max_multi", "3",
+    "Maximum ThinkRate multiplier that adaptive scaling can apply. Default 3 means components run at most 1/3 speed.")
 
 -- Evidence / Social Deduction cvars
 bot_sh_cvar("evidence_kos_threshold", "14",

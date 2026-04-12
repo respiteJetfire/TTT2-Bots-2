@@ -25,7 +25,7 @@ local bTree = {
     _prior.FightBack,           -- Defend if attacked
     _prior.Requests,            -- Handle requests
     _bh.FakeInvestigate,        -- Pretend to investigate corpses (detective cover)
-    _bh.AlibiBbuilding,         -- Build alibis like an innocent
+    _bh.AlibiBuilding,          -- Build alibis like an innocent
     _prior.Traitor,             -- Core traitor actions (coordinate, plant C4, etc.)
     _bh.UseDNAScanner,          -- Use DNA scanner (given by role loadout)
     _bh.InvestigateCorpse,      -- Investigate corpses for intel

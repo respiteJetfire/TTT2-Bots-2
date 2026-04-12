@@ -133,6 +133,13 @@ function Protect.OnStart(bot)
     state.ward = nil
     state.phase = "SEEKING"
     state.lastRetarget = 0
+
+    -- Announce guardian role
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On then
+        chatter:On("GuardianSeeking", {}, false, 0)
+    end
+
     return STATUS.RUNNING
 end
 

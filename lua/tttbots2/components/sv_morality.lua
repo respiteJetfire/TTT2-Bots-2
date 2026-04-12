@@ -51,7 +51,7 @@ function BotMorality:Initialize(bot)
     bot.components.morality = self
 
     self.componentID = string.format("Morality (%s)", lib.GenerateID())
-    self.ThinkRate = 1 -- Run every tick (5Hz)
+    self.ThinkRate = 2 -- Run every 2nd tick (~2.5Hz) — P0 perf optimization
 
     self.tick = 0
     self.bot = bot ---@type Bot
@@ -347,27 +347,20 @@ function BotMorality:Think()
     self:SetRandomNearbyTarget() -- opportunistic (this file)
     self:TickIfLastAlive()       -- opportunistic (this file)
 
-    -- Per-tick on-sight KOS response: innocents/detectives engage a KOS target
-    -- the moment they see one, without waiting for the 1-second CommonSense timer.
+    -- P1 Perf: Consolidated per-tick hostility checks.
+    -- Instead of calling 4 separate functions that each independently scan
+    -- for visible enemies, we call them sequentially but the underlying
+    -- GetAllWitnessesBasic / VisibleVec calls are now served from VisCache,
+    -- so repeated visibility queries within the same tick are cache hits.
     if TTTBots.Morality.AttackKOSListed then
         TTTBots.Morality.AttackKOSListed(self.bot)
     end
-
-    -- Per-tick KOSedByAll response: all bots react immediately when they see a
-    -- KOSedByAll target (Doomguy, infected zombies, etc.) instead of waiting
-    -- for the 1-second CommonSense timer.
     if TTTBots.Morality.AttackKOSedByAll then
         TTTBots.Morality.AttackKOSedByAll(self.bot)
     end
-
-    -- Per-tick restless aggression: restless bots with a ranged weapon attack
-    -- any visible non-ally immediately.
     if TTTBots.Morality.RestlessRangedAggression then
         TTTBots.Morality.RestlessRangedAggression(self.bot)
     end
-
-    -- Per-tick confirmed hostiles: react immediately when a player's hostile
-    -- role has been publicly confirmed by TTT2 (body searched, resurrected, etc.)
     if TTTBots.Morality.AttackConfirmedHostiles then
         TTTBots.Morality.AttackConfirmedHostiles(self.bot)
     end

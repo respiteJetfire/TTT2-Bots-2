@@ -71,8 +71,10 @@ end
 
 hook.Add("TTT2PostPlayerDeath", "TTTBots.Vigilante.TrackMultiplier",
     function(victim, inflictor, attacker)
-        if not (IsValid(attacker) and attacker:IsBot()) then return end
-        if attacker:GetSubRole() ~= ROLE_VIGILANTE then return end
+        if not IsValid(attacker) then return end
+        -- Guard: attacker may be a nextbot/NPC (no IsBot/IsPlayer methods)
+        if not attacker.IsBot or not attacker:IsBot() then return end
+        if not attacker.GetSubRole or attacker:GetSubRole() ~= ROLE_VIGILANTE then return end
         if not IsValid(victim) then return end
 
         -- NWFloat is updated server-side by the addon; read it next tick.
@@ -80,13 +82,13 @@ hook.Add("TTT2PostPlayerDeath", "TTTBots.Vigilante.TrackMultiplier",
             if not (IsValid(attacker) and attacker:IsActive()) then return end
 
             local mult = getVigMultiplier(attacker)
-            local personality = attacker.BotPersonality and attacker:BotPersonality()
-            if not personality then return end
+            local ra = attacker.BotRoundAwareness and attacker:BotRoundAwareness()
+            if not ra then return end
 
             -- Scale aggression with multiplier: ×1.0 → base, ×2.0 → very aggro,
             -- multiplier below 1.0 (from team kill) → cautious.
             local aggr = math.Clamp((mult - 0.5) / 1.5, 0.1, 1.0)
-            personality:SetAggression(aggr)
+            ra.aggressionMult = aggr
 
             local chatter = attacker:BotChatter()
             if chatter and chatter.On then

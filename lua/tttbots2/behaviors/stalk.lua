@@ -188,6 +188,15 @@ function Stalk.OnStart(bot)
         Stalk.SetTarget(bot)
     end
 
+    -- Rare team-only stalk chatter (maintain stealth)
+    local target = Stalk.GetTarget(bot)
+    if target and IsValid(target) and math.random(1, 4) == 1 then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("StalkingTarget", { player = target:Nick(), playerEnt = target }, true)
+        end
+    end
+
     return STATUS.RUNNING
 end
 
@@ -271,6 +280,13 @@ function Stalk.OnRunning(bot)
         targetFacingArc = 50 -- more desperate: only abort if staring almost directly at us
     end
     if isTargetLookingAtBot(target, bot, targetFacingArc) then
+        -- Fire abort chatter occasionally when witnesses prevent attack
+        if math.random(1, 8) == 1 then
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On then
+                chatter:On("StalkingAbort", {}, true)
+            end
+        end
         return STATUS.RUNNING -- Wait for them to look away
     end
 

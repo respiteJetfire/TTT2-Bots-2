@@ -1846,6 +1846,44 @@ Registry.HeadcrabLauncher = {
 }
 
 ---@type Buyable
+--- Jerma Launcher: single-shot traitor equipment that launches a Jerma985
+--- Nextbot wherever the shooter is looking. The nextbot is extremely
+--- disruptive and relentlessly chases players. Single use, consumed on fire.
+--- Requires the Jerma985 Nextbot addon (Workshop ID 3330585475).
+Registry.JermaLauncher = {
+    Name = "Jerma Launcher",
+    Class = "weapon_ttt2_jerma_launcher",
+    Price = 1,
+    Priority = 4,
+    RandomChance = 1,
+    ShouldAnnounce = true,
+    AnnounceTeam = true,
+    CanBuy = function(ply)
+        if ply:HasWeapon("weapon_ttt2_jerma_launcher") then return false end
+        return testPlyHasTrait(ply, "troll", 3)
+            or testPlyHasTrait(ply, "aggressive", 4)
+            or testPlyHasTrait(ply, "gimmick", 4)
+    end,
+    SituationalScore = function(ply)
+        local base = 5
+        local enemies = countAliveNonAllies(ply)
+        if enemies >= 3 then base = base + 2 end
+        if enemies >= 5 then base = base + 2 end
+        -- Higher priority when solo traitor (needs force multiplier)
+        local aliveAllies = 0
+        for _, other in ipairs(player.GetAll()) do
+            if not IsValid(other) or not other:Alive() or other == ply then continue end
+            if TTTBots.Roles.IsAllies(ply, other) then aliveAllies = aliveAllies + 1 end
+        end
+        if aliveAllies == 0 then base = base + 3 end
+        return base
+    end,
+    Roles = KillerRoles,
+    PrimaryWeapon = false,
+    LimitedStock = true,
+}
+
+---@type Buyable
 --- Unified Apocalypse SWEP: opens a menu to choose between Zombie or Combine
 --- apocalypse. For bots, it auto-selects randomly. Spawns a team-aware NPC horde.
 Registry.Apocalypse = {

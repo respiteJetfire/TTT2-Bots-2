@@ -373,6 +373,30 @@ function TTTBots.Providers.SendText(prompt, bot, opts, callback)
         return
     end
 
+    -- Per-bot cooldown gate
+    local cooldown = lib.GetConVarFloat("llm_cooldown") or 1.0
+    if cooldown > 0 and IsValid(bot) and not RL.IsHighPriority(opts) then
+        local lastCall = bot._lastLLMCallTime or 0
+        if CurTime() - lastCall < cooldown then
+            RL.RecordRejection()
+            local debug = lib.GetConVarBool("llm_ratelimit_debug")
+            if debug then
+                print(string.format("[BOTDBG:RATELIMIT] REJECTED per-bot cooldown for %s (%.1fs / %.1fs)",
+                    bot:Nick(), CurTime() - lastCall, cooldown))
+            end
+            if callback then
+                callback(TTTBots.Providers.MakeError("BotCooldown", 429,
+                    string.format("Per-bot cooldown: %.1fs remaining", cooldown - (CurTime() - lastCall)), nil))
+            end
+            return
+        end
+    end
+
+    -- Stamp the bot's last LLM call time
+    if IsValid(bot) then
+        bot._lastLLMCallTime = CurTime()
+    end
+
     RL.RecordRequest()
 
     local providerInt = opts.provider

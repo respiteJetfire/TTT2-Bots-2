@@ -25,6 +25,15 @@ end
 --- Called when the behavior is started
 function Wander.OnStart(bot)
     Wander.UpdateWanderGoal(bot) -- sets bot.wander
+
+    -- Rare idle comment while wandering
+    if math.random(1, 6) == 1 then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("WanderComment", {})
+        end
+    end
+
     return STATUS.RUNNING
 end
 

@@ -111,6 +111,16 @@ function GBite.Validate(bot)
 end
 
 function GBite.OnStart(bot)
+    -- Hunger-driven chatter
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On then
+        local hunger = getHunger(bot)
+        if hunger <= HUNGER_CRITICAL then
+            chatter:On("GluttonBiting", {}, true)
+        elseif math.random(1, 3) == 1 then
+            chatter:On("GluttonBiting", {}, true)
+        end
+    end
     return STATUS.RUNNING
 end
 

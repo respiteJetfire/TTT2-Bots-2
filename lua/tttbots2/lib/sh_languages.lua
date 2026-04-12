@@ -55,6 +55,7 @@ local chatFiles = {
     "sh_chats_roles_priest.lua",
     "sh_chats_roles_copycat.lua",
     "sh_chats_misc.lua",
+    "sh_chats_suspicion.lua",
     "sh_casual_chats.lua",
     "sh_strings.lua",
 }
@@ -101,6 +102,12 @@ function TTTBots.Locale.FormatLine(line, params)
     for key, value in pairs(params) do
         line = line:gsub("{{" .. tostring(key) .. "}}", tostring(value))
     end
+    -- Strip any remaining unresolved {{...}} placeholders
+    line = line:gsub("{{.-}}", "")
+    -- Collapse double/triple spaces left behind by stripped placeholders
+    line = line:gsub("%s%s+", " ")
+    -- Trim leading/trailing whitespace
+    line = line:match("^%s*(.-)%s*$") or line
     return line
 end
 
@@ -215,6 +222,12 @@ function TTTBots.Locale.FormatArgsIntoTxt(txt, args)
     for k, v in pairs(args) do
         txt = txt:gsub("{{" .. k .. "}}", tostring(v))
     end
+    -- Strip any remaining unresolved {{...}} placeholders so they never appear in chat
+    txt = txt:gsub("{{.-}}", "")
+    -- Collapse double/triple spaces left behind by stripped placeholders
+    txt = txt:gsub("%s%s+", " ")
+    -- Trim leading/trailing whitespace
+    txt = txt:match("^%s*(.-)%s*$") or txt
     return txt
 end
 

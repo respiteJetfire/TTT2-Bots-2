@@ -36,7 +36,57 @@ local roleDescription = "You are the Fuse, a traitor sub-role. You have a countd
 local fuse = TTTBots.RoleBuilder.TraitorLike("fuse", TEAM_TRAITOR)
 fuse:SetBTree(bTree)
 fuse:SetKnowsLifeStates(true)       -- isOmniscientRole
+fuse:SetStartsFights(true)           -- Must fight to survive
+fuse:SetCanHide(false)               -- No time to hide
+fuse:SetCanSnipe(false)              -- Close-range is faster
 fuse:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(fuse)
 
+-- ---------------------------------------------------------------------------
+-- Timer-based aggression: Fuse bot becomes increasingly desperate as the
+-- countdown timer approaches zero. The Fuse addon typically stores the
+-- remaining time as a NWFloat or NWInt.
+-- ---------------------------------------------------------------------------
+local _nextFuseCheck = 0
+hook.Add("Think", "TTTBots.Fuse.TimerPressure", function()
+    if not TTTBots.Match.IsRoundActive() then return end
+    if CurTime() < _nextFuseCheck then return end
+    _nextFuseCheck = CurTime() + 1
+
+    for _, bot in ipairs(TTTBots.Bots or {}) do
+        if not (IsValid(bot) and bot:IsBot() and bot:Alive()) then continue end
+        if bot:GetSubRole() ~= ROLE_FUSE then continue end
+
+        local personality = bot.BotPersonality and bot:BotPersonality()
+        if not personality then continue end
+
+        -- Try to read the fuse timer from NW data
+        local fuseTime = bot:GetNWFloat("fuse_timer", -1)
+        if fuseTime < 0 then
+            fuseTime = bot:GetNWFloat("ttt2_fuse_timer", -1)
+        end
+        if fuseTime < 0 then
+            fuseTime = bot:GetNWInt("fuse_timer", -1)
+        end
+
+        if fuseTime >= 0 then
+            -- Scale aggression based on remaining time
+            -- <5s = PANIC (1.0), <15s = URGENT (0.9), <30s = HIGH (0.8), else = NORMAL (0.7)
+            local aggression = 0.7
+            if fuseTime < 5 then
+                aggression = 1.0
+            elseif fuseTime < 15 then
+                aggression = 0.9
+            elseif fuseTime < 30 then
+                aggression = 0.8
+            end
+            personality:SetAggression(aggression)
+        else
+            -- Fallback: always be highly aggressive (timer is ticking)
+            personality:SetAggression(0.85)
+        end
+    end
+end)
+
+print("[TTT Bots 2] Fuse role integration loaded — timer-based aggression escalation.")
 return true

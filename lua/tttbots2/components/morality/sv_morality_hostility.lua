@@ -653,6 +653,22 @@ local function preventAttackAlly(bot)
     local isAllies = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(bot, attackTarget))
         or TTTBots.Roles.IsAllies(bot, attackTarget)
     if isAllies then
+        -- INNOCENT MISTRUST: If mistrust is enabled and suspicion of the target
+        -- exceeds the mistrust threshold, do NOT clear the target — the bot
+        -- genuinely believes this ally is a traitor and should follow through.
+        local mistrustEnabled = lib.GetConVarBool("innocent_mistrust")
+        if mistrustEnabled then
+            local morality = bot.components and bot.components.morality
+            if morality then
+                local sus = morality:GetSuspicion(attackTarget)
+                local kosThreshold = BotMorality.Thresholds.KOS or 10
+                local mistrustMult = lib.GetConVarFloat("innocent_mistrust_threshold") or 1.8
+                local mistrustThreshold = kosThreshold * mistrustMult
+                if sus >= mistrustThreshold then
+                    return -- Suspicion high enough: do NOT clear the attack target
+                end
+            end
+        end
         -- Use SELF_DEFENSE priority to clear ally targets so no lower-priority
         -- assignment can keep an ally locked as a target. The self-defense
         -- trigger itself already checks alliance before requesting, so this
@@ -735,7 +751,7 @@ local function personalSpace(bot)
             bot.personalSpaceTbl[other] = math.max(time - 0.5, 0)
         end
 
-        if bot.personalSpaceTbl[other] or 0 <= 0 then
+        if (bot.personalSpaceTbl[other] or 0) <= 0 then
             bot.personalSpaceTbl[other] = nil
         end
 

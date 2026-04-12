@@ -76,11 +76,11 @@ These roles have their own `.lua` file in `lua/tttbots2/roles/` with full custom
 | **Impostor** | Custom tree with `ImpostorKill` + `ImpostorSabotage`; instant kill via interact (+use eye-trace) or knife mode (45 s cooldown); proactive O2/Reactor sabotage via `IMPO_SABO_DATA` API with net message fallback; `impo_can_insta_kill` / `impo_in_vent` NW tracking; excludes Spy from instakill; `isOmniscientRole`; no shop |
 | **Fuse** | `TraitorLike` builder with aggressive `Stalk`-first tree; timer-pressure driven — must kill within cooldown or self-explode; timer reset is server-driven; `isOmniscientRole` |
 | **Gambler** | `TraitorLike` builder; receives random assortment of traitor items/weapons at round start (server-driven); no credit earning; `isOmniscientRole` |
-| **Morphling** | `TraitorLike` builder with `FakeInvestigate` + `AlibiBbuilding` deception blend; disguise device (`weapon_ttt_morph_disguise`) used automatically; suspicion hook reduces bot trust; `isOmniscientRole` |
+| **Morphling** | `TraitorLike` builder with `FakeInvestigate` + `AlibiBuilding` deception blend; disguise device (`weapon_ttt_morph_disguise`) used automatically; suspicion hook reduces bot trust; `isOmniscientRole` |
 | **Psycho** | `TraitorLike` builder with aggressive `Stalk`-first tree; transformation item boosts damage/speed post-delay (server-driven); `isOmniscientRole`; no shop |
 | **Roider** | `TraitorLike` builder; preferred weapon `weapon_zm_improvised` (crowbar); enhanced crowbar damage and push force are server-driven |
 | **Sus** | Custom tree with `FakeInvestigate` + traitor coordination blend; `isOmniscientRole`; `unknownTeam`; randomly may be TEAM_TRAITOR at spawn; jams traitor chat/voice (server-driven); appears as traitor on radar and corpse inspection |
-| **Defective** | `TraitorLike`-style custom tree with `FakeInvestigate` + `AlibiBbuilding` deception blend; disguised as Detective to all; uses DNA scanner; `unknownTeam` suspicion hook (lower mult = appears trustworthy); `isOmniscientRole` |
+| **Defective** | `TraitorLike`-style custom tree with `FakeInvestigate` + `AlibiBuilding` deception blend; disguised as Detective to all; uses DNA scanner; `unknownTeam` suspicion hook (lower mult = appears trustworthy); `isOmniscientRole` |
 | **Haunted** | `TraitorLike` builder; `TTT2PostPlayerDeath` hook marks killer as KOS target for all traitor bots (promotes haunt-trigger conditions); revival is server-driven; `isOmniscientRole` |
 
 ### 🟡 Neutral / Independent Teams

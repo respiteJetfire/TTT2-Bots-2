@@ -294,7 +294,10 @@ function AccusePlayer.OnRunning(bot)
         end
         local morality = bot:BotMorality()
         if morality then
-            morality.suspicions[suspect] = math.min(morality:GetSuspicion(suspect), 2)
+            local cur = morality:GetSuspicion(suspect)
+            if cur > 2 then
+                morality:SetSuspicionDirect(suspect, 2)
+            end
         end
         return STATUS.SUCCESS
     end

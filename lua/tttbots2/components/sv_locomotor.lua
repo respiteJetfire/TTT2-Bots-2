@@ -2091,11 +2091,38 @@ function plyMeta:SetAttackTarget(target, reason, priority)
     -- Self-defense is no longer an override here — the self-defense trigger
     -- in sv_morality_suspicion.lua already checks alliance before requesting.
     -- During post-round deathmatch, alliances are dissolved — it's FFA.
+    --
+    -- INNOCENT MISTRUST: When ttt_bot_innocent_mistrust is enabled, innocent
+    -- bots can attack perceived allies if their suspicion of the target exceeds
+    -- the mistrust threshold (KOS × multiplier). This simulates the core TTT
+    -- mechanic where innocents sometimes kill other innocents due to paranoia
+    -- and misidentification.
     if IsValid(target) and target:IsPlayer() and not TTTBots.Match.IsPostRoundDM() then
         local isAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(self, target))
             or TTTBots.Roles.IsAllies(self, target)
         if isAlly then
-            return
+            -- Check if innocent mistrust allows this attack
+            local mistrustEnabled = TTTBots.Lib.GetConVarBool("innocent_mistrust")
+            local morality = self.components and self.components.morality
+            if mistrustEnabled and morality then
+                local sus = morality:GetSuspicion(target)
+                local kosThreshold = TTTBots.Components.Morality.Thresholds.KOS or 10
+                local mistrustMult = TTTBots.Lib.GetConVarFloat("innocent_mistrust_threshold") or 1.8
+                local mistrustThreshold = kosThreshold * mistrustMult
+                if sus >= mistrustThreshold then
+                    -- Suspicion is extreme — allow the attack despite alliance.
+                    -- This is the "I'm SURE you're the traitor" moment.
+                    if TTTBots.Lib.GetConVarBool("debug_misc") then
+                        print(string.format("[TTTBots][MISTRUST] %s attacking ally %s (sus=%.1f >= mistrust=%.1f)",
+                            self:Nick(), target:Nick(), sus, mistrustThreshold))
+                    end
+                    -- Fall through to allow the attack
+                else
+                    return -- Suspicion not high enough to override alliance
+                end
+            else
+                return -- Mistrust disabled or no morality component
+            end
         end
     end
     if (hook.Run("TTTBotsCanAttack", self, target) == false) then return end

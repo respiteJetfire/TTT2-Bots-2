@@ -27,15 +27,18 @@ local function playFileURL(ply, url, teamOnly)
     -- Add player to speakingPlayers table
     local localPlayer = LocalPlayer()
     print("Local player: ", localPlayer)
-    local localPlayerTeam = localPlayer and localPlayer:GetTeam()
+    if not IsValid(localPlayer) or not localPlayer.GetTeam then
+        print("Local player not ready yet.")
+        return
+    end
+    local localPlayerTeam = localPlayer:GetTeam()
     print("Local player team: ", localPlayerTeam)
     print("URL: ", url)
-    if IsValid(ply) then
-        print("ply team: ", ply:GetTeam())
-    else
+    if not IsValid(ply) or not ply.GetTeam then
         print("Invalid player entity.")
         return
     end
+    print("ply team: ", ply:GetTeam())
     local cantPlay = ((teamOnly and (localPlayerTeam ~= ply:GetTeam() or localPlayerTeam == "nones")) or false)
     if cantPlay then
         print("Can't play sound file for player: " .. ply:Nick())

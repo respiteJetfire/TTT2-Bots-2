@@ -77,6 +77,14 @@ function GroupUp.Validate(bot)
 end
 
 function GroupUp.OnStart(bot)
+    -- Announce seeking a group partner
+    local state = TTTBots.Behaviors.GetState(bot, "GroupUp")
+    if state.target and IsValid(state.target) then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("GroupUpSeeking", { player = state.target:Nick() })
+        end
+    end
     return STATUS.RUNNING
 end
 
@@ -97,6 +105,11 @@ function GroupUp.OnRunning(bot)
         local evidence = bot:BotEvidence()
         if evidence then
             evidence:AddTravelCompanion(target)
+        end
+        -- Announce arrival
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("GroupUpArrived", { player = target:Nick() })
         end
         return STATUS.SUCCESS
     end

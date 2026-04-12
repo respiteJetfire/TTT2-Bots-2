@@ -408,8 +408,18 @@ function Memory:UpdateKnownPositions()
         return false
     end
 
+    -- P1 Perf: pre-compute bot position for distance pre-filter
+    local botPos = self.bot:GetPos()
+    local maxRangeSqr = (lib.BASIC_VIS_RANGE or 4000) ^ 2
+
     for i, ply in pairs(AlivePlayers) do
+        if not IsValid(ply) then continue end
         if ply == self.bot then continue end
+        -- Distance pre-filter: skip expensive CanSee trace for far-away players
+        if botPos:DistToSqr(ply:GetPos()) > maxRangeSqr then
+            self:HandleUnseenPlayer(ply)
+            continue
+        end
         if not lib.CanSee(self.bot, ply) then
             self:HandleUnseenPlayer(ply)
             continue
@@ -467,7 +477,7 @@ function Memory:UpdatePlayerLifeStates()
 
     if isOmniscient then
         -- Traitors know who is dead and who is alive, so first set everyone to dead.
-        for i, ply in pairs(player.GetAll()) do
+        for i, ply in pairs(TTTBots.Lib.GetAllPlayers()) do
             if ply == bot then continue end
             self:SetPlayerLifeState(ply, DEAD)
         end
@@ -489,7 +499,7 @@ end
 function Memory:GetRecentlySeenPlayers(withinSecs)
     local withinSecs = withinSecs or 5
     local players = {}
-    for i, ply in pairs(player.GetAll()) do
+    for i, ply in pairs(TTTBots.Lib.GetAllPlayers()) do
         if self:SawPlayerRecently(ply) then
             table.insert(players, ply)
         end
@@ -501,7 +511,7 @@ end
 ---@return table<Vector> positions [Player]=Vector
 function Memory:GetKnownPlayersPos()
     local positions = {}
-    for i, ply in pairs(player.GetAll()) do
+    for i, ply in pairs(TTTBots.Lib.GetAllPlayers()) do
         local pnp = self.playerKnownPositions[ply:Nick()]
         if not pnp then continue end
         positions[ply] = pnp.pos
@@ -513,7 +523,7 @@ end
 ---@return table<Player> players
 function Memory:GetKnownAlivePlayers()
     local players = {}
-    for i, ply in pairs(player.GetAll()) do
+    for i, ply in pairs(TTTBots.Lib.GetAllPlayers()) do
         if self:GetPlayerLifeState(ply) == ALIVE then
             table.insert(players, ply)
         end
@@ -525,7 +535,7 @@ end
 ---@return table<Player> players
 function Memory:GetActualAlivePlayers()
     local players = {}
-    for i, ply in pairs(player.GetAll()) do
+    for i, ply in pairs(TTTBots.Lib.GetAllPlayers()) do
         if lib.IsPlayerAlive(ply) then
             table.insert(players, ply)
         end
@@ -733,17 +743,22 @@ timer.Create("TTTBots_CullSoundMemory", 1, 0, function()
 end)
 
 --- Executes :HandleSound for every living bot in the game.
+--- Includes a fast squared-distance pre-filter to skip bots that are obviously
+--- too far away to hear the sound (avoids iterating into HandleSound at all).
 ---@param info SoundInfo
 ---@param soundData table
 function Memory.HandleSoundForAllBots(info, soundData)
+    local soundPos = info.Pos
+    -- Pre-compute the maximum audible range squared (loudest category = 1500 units)
+    -- We use a generous multiplier (×2) to account for hearing traits.
+    local maxRange = (info.Distance or 1500) * 2
+    local maxRangeSqr = maxRange * maxRange
     for i, v in pairs(TTTBots.Bots) do
         if not lib.IsPlayerAlive(v) then continue end
         if not (v and v.components and v.components.memory) then continue end
+        -- P1 Perf: squared-distance pre-filter before entering HandleSound
+        if soundPos and v:GetPos():DistToSqr(soundPos) > maxRangeSqr then continue end
         local mem = v.components.memory
-
-        -- local hasAgent = info.EntInfo.Entity or info.EntInfo.Owner
-        -- if not hasAgent then continue end
-
         mem:HandleSound(info, soundData)
     end
 end

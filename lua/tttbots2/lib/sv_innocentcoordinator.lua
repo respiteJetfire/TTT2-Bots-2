@@ -171,11 +171,30 @@ function IC.SelectStrategy()
 
     -- Tester Queue: if a role checker exists on the map OR the detective still
     -- needs to deploy one, organise bots into an orderly testing queue.
-    -- This takes priority over patrol when a tester is available.
+    -- This takes priority over patrol when a tester is available — but only
+    -- while there are still untested bots waiting.  Once the queue empties
+    -- (everyone has been tested), fall through to patrol so bots don't idle.
     local testerExists = IC._FindTesterPos() ~= nil
     local detNeedsDeploy = IC.GetDetectiveBotWithChecker() ~= nil
     if testerExists or detNeedsDeploy then
-        return S.TESTER_QUEUE
+        -- Count bots that still need testing
+        local participants = IC.GetParticipantBots()
+        local needsTest = 0
+        for _, bot in ipairs(participants) do
+            local role = bot:GetSubRole and bot:GetSubRole()
+            local alreadyChecked = TTTBots.Match.CheckedPlayers[bot]
+                and (role == nil or TTTBots.Match.CheckedPlayers[bot][role])
+            local evidence = bot.components and bot.components.evidence
+            local alreadyConfirmed = evidence and evidence.trustNetwork
+                and evidence.trustNetwork.confirmedInnocent[bot] ~= nil
+            if not alreadyChecked and not alreadyConfirmed then
+                needsTest = needsTest + 1
+            end
+        end
+        if needsTest > 0 or detNeedsDeploy then
+            return S.TESTER_QUEUE
+        end
+        -- Queue is empty — fall through to patrol
     end
 
     -- 200-damage knife mod awareness: when installed, innocents should spread
@@ -440,20 +459,26 @@ end
 -- Tester queue
 -- ─────────────────────────────────────────────────────────────────────────────
 
---- Build a fresh tester queue from all participants that haven't been confirmed.
+--- Build a fresh tester queue from all participants that haven't been tested yet.
 ---@param bots table<Bot>
 function IC._BuildTesterQueue(bots)
     IC.TesterQueue = {}
     for _, bot in ipairs(bots) do
-        local evidence = bot.components and bot.components.evidence
-        -- Skip bots that are already confirmed innocent by someone else
+        -- Primary filter: bot already used a role-checker this round
+        local role = bot:GetSubRole and bot:GetSubRole()
+        local alreadyChecked = TTTBots.Match.CheckedPlayers[bot]
+            and (role == nil or TTTBots.Match.CheckedPlayers[bot][role])
+        if alreadyChecked then continue end
+
+        -- Secondary filter: bot was confirmed innocent via evidence network
         local alreadyConfirmed = false
+        local evidence = bot.components and bot.components.evidence
         if evidence and evidence.trustNetwork then
             alreadyConfirmed = evidence.trustNetwork.confirmedInnocent[bot] ~= nil
         end
-        if not alreadyConfirmed then
-            table.insert(IC.TesterQueue, bot)
-        end
+        if alreadyConfirmed then continue end
+
+        table.insert(IC.TesterQueue, bot)
     end
     -- Shuffle queue
     for i = #IC.TesterQueue, 2, -1 do

@@ -25,6 +25,14 @@ end
 
 ---@param bot Bot
 function Bodyguard.OnStart(bot)
+    -- Announce protection
+    local target = Bodyguard.GetTarget(bot)
+    if target and IsValid(target) then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("BodyguardProtecting", { player = target:Nick() }, true)
+        end
+    end
     return STATUS.RUNNING
 end
 

@@ -84,6 +84,7 @@ function Rush.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "InfectedRush")
     state.target = nil
     state.retargetTick = 0
+    state.lastRushChatter = 0
 
     -- Make sure we're holding fists
     local inv = bot:BotInventory()
@@ -92,6 +93,12 @@ function Rush.OnStart(bot)
         if IsValid(fists) then
             bot:SelectWeapon("weapon_ttt_inf_fists")
         end
+    end
+
+    -- Rush chatter
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On then
+        chatter:On("InfectedRushing", {}, true)
     end
 
     return STATUS.RUNNING

@@ -862,25 +862,25 @@ local LoadCombatChats = function()
     Line("can we just like, shoot everyone??", A.Dumb)
 
     RegisterCategory("DeductionMustBeTraitor", P.IMPORTANT, "Bot uses process of elimination to call out a player")
-    Line("Process of elimination — it's gotta be {player}.", A.Default)
-    Line("{player} is the only one unaccounted for. KOS.", A.Default)
-    Line("Everyone else is cleared. {player} is the traitor.", A.Default)
-    Line("By elimination, {player} must be the traitor.", A.Default)
+    Line("Process of elimination — it's gotta be {{player}}.", A.Default)
+    Line("{{player}} is the only one unaccounted for. KOS.", A.Default)
+    Line("Everyone else is cleared. {{player}} is the traitor.", A.Default)
+    Line("By elimination, {{player}} must be the traitor.", A.Default)
 
-    Line("{player} its you by process of elimination lol", A.Casual)
-    Line("bro its literally {player}, nobody else", A.Casual)
+    Line("{{player}} its you by process of elimination lol", A.Casual)
+    Line("bro its literally {{player}}, nobody else", A.Casual)
 
-    Line("{player}. Process of elimination. You're dead.", A.Hothead)
-    Line("It can ONLY be {player}. KOS.", A.Hothead)
+    Line("{{player}}. Process of elimination. You're dead.", A.Hothead)
+    Line("It can ONLY be {{player}}. KOS.", A.Hothead)
 
-    Line("Logic dictates: {player}.", A.Stoic)
-    Line("By elimination: {player} is the traitor.", A.Stoic)
+    Line("Logic dictates: {{player}}.", A.Stoic)
+    Line("By elimination: {{player}} is the traitor.", A.Stoic)
 
-    Line("uhhhh i think it might be {player}? maybe?", A.Dumb)
-    Line("i counted everyone and its {player} i think", A.Dumb)
+    Line("uhhhh i think it might be {{player}}? maybe?", A.Dumb)
+    Line("i counted everyone and its {{player}} i think", A.Dumb)
 
-    Line("I hate to say it, but the math says {player}...", A.Nice)
-    Line("By process of elimination it's {player}. Sorry!", A.Nice)
+    Line("I hate to say it, but the math says {{player}}...", A.Nice)
+    Line("By process of elimination it's {{player}}. Sorry!", A.Nice)
 
     RegisterCategory("TooQuiet", P.NORMAL, "Bot notices nobody has died in a while and gets suspicious")
     Line("Nobody's died in a while... something's wrong.", A.Default)
@@ -954,24 +954,24 @@ local LoadCombatChats = function()
     Line("Careful! Someone died near there recently!", A.Nice)
 
     RegisterCategory("TraitorCountDeduction", P.IMPORTANT, "Bot deduces the number of traitors remaining")
-    Line("Only {count} traitor left. Stay sharp.", A.Default)
-    Line("{count} traitor remaining. Don't let your guard down.", A.Default)
-    Line("We're almost there — {count} traitor left.", A.Default)
+    Line("Only {{count}} traitor left. Stay sharp.", A.Default)
+    Line("{{count}} traitor remaining. Don't let your guard down.", A.Default)
+    Line("We're almost there — {{count}} traitor left.", A.Default)
 
-    Line("{count} traitor left!! almost got em", A.Casual)
-    Line("just {count} more to go guys!!", A.Casual)
+    Line("{{count}} traitor left!! almost got em", A.Casual)
+    Line("just {{count}} more to go guys!!", A.Casual)
 
-    Line("{count} traitor left. FIND THEM.", A.Hothead)
+    Line("{{count}} traitor left. FIND THEM.", A.Hothead)
     Line("ONE traitor left. I WILL FIND YOU.", A.Hothead)
 
-    Line("{count} hostile remaining.", A.Stoic)
-    Line("Confirmed: {count} traitor unit remaining.", A.Stoic)
+    Line("{{count}} hostile remaining.", A.Stoic)
+    Line("Confirmed: {{count}} traitor unit remaining.", A.Stoic)
 
-    Line("wait theres only {count} traitor left?? yay!", A.Dumb)
-    Line("so like, {count} bad guy, right?", A.Dumb)
+    Line("wait theres only {{count}} traitor left?? yay!", A.Dumb)
+    Line("so like, {{count}} bad guy, right?", A.Dumb)
 
-    Line("Just {count} traitor left! We can do this!", A.Nice)
-    Line("Only {count} more! Stay together and we've got this!", A.Nice)
+    Line("Just {{count}} traitor left! We can do this!", A.Nice)
+    Line("Only {{count}} more! Stay together and we've got this!", A.Nice)
 
     -- ===========================================================================
     -- Tier 6 — Personality & Immersion: Emotional Reactions & Deception Chatter

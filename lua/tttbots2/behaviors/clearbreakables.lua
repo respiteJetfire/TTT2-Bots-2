@@ -31,6 +31,13 @@ end
 
 --- Called when the behavior is started
 function Breaker.OnStart(bot)
+    -- Occasional comment about smashing stuff
+    if math.random(1, 5) == 1 then
+        local chatter = bot:BotChatter()
+        if chatter and chatter.On then
+            chatter:On("ClearingBreakables", {}, false, 0)
+        end
+    end
     return STATUS.RUNNING
 end
 

@@ -91,6 +91,7 @@ function CLGAMEMODESUBMENU:Populate(parent)
         choices = {
             -- Free tier
             { title = "[Free] Arcee Trinity Large Preview (default)",    value = "arcee-ai/trinity-large-preview:free" },
+            { title = "[Free] OpenRouter Auto Free Routing",    value = "openrouter/free" },
             { title = "[Free] Llama Nemotron Embed VL 1B v2",             value = "nvidia/llama-nemotron-embed-vl-1b-v2:free" },
             { title = "[Free] Nvidia Nemotron 3 Nano 30B",                value = "nvidia/nemotron-3-nano-30b-a3b:free" },
             { title = "[Free] OpenAI GPT-OSS 120B",                       value = "openai/gpt-oss-120b:free" },

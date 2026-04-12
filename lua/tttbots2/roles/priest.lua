@@ -53,7 +53,9 @@ if SERVER then
         local morality = bot:BotMorality()
         if morality and morality.GetSuspicion then
             local cur = morality:GetSuspicion(brother)
-            morality.suspicions[brother] = math.min(cur, 0)
+            if cur > 0 then
+                morality:SetSuspicionDirect(brother, 0)
+            end
         end
 
         local evidence = bot:BotEvidence()
@@ -153,8 +155,12 @@ if SERVER then
 
                         -- Only share strong suspicions to avoid noisy echoing.
                         if shared >= 6 then
-                            morA.suspicions[suspect] = math.max(susA, shared - 1)
-                            morB.suspicions[suspect] = math.max(susB, shared - 1)
+                            if susA < shared - 1 then
+                                morA:SetSuspicionDirect(suspect, shared - 1)
+                            end
+                            if susB < shared - 1 then
+                                morB:SetSuspicionDirect(suspect, shared - 1)
+                            end
                         end
                     end
                 end

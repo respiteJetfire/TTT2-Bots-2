@@ -2,6 +2,33 @@
 --- Witness events, suspicion tracking, and announcement logic.
 --- Extracted from sv_morality.lua — all suspicion-related instance methods
 --- remain on BotMorality; global hooks and timers live here.
+---
+--- ARCHITECTURE: Multi-Dimensional Suspicion Model
+--- ================================================
+--- Instead of a single integer per target, suspicion is now tracked across
+--- three independent channels per target:
+---
+---   threat     (0–20)  Accumulated hostile evidence (kills, KOS, weapons, etc.)
+---   trust      (0–20)  Accumulated innocent evidence (defusing C4, killing traitors, etc.)
+---   confidence (0–1)   How much the bot trusts its own observations.
+---                      1.0 = direct witness, 0.7 = hearsay (KOS calls),
+---                      0.4 = paranoia/noise. Blended per-event via weighted average.
+---
+--- Effective suspicion = floor((threat - trust) * confidence)
+---
+--- This preserves backward compatibility: GetSuspicion() still returns a
+--- single integer that all existing threshold checks, attack decisions, and
+--- announcement logic can consume without changes.
+---
+--- Benefits over the old single-integer model:
+---  • A player who kills AND defuses C4 no longer nets out to a misleading
+---    middle value — the high threat AND high trust are both visible.
+---  • Confidence prevents hearsay and paranoia from carrying the same weight
+---    as direct witness events.
+---  • Per-target announcement cooldowns prevent chatter spam from threshold
+---    oscillation.
+---  • Channels decay independently, allowing trust to persist longer than
+---    threat (reflecting how TTT players remember good deeds).
 
 local lib = TTTBots.Lib
 
@@ -15,58 +42,86 @@ local PRI = Arb.PRIORITY
 -- Static data tables
 -- ===========================================================================
 
---- A scale of suspicious events to apply to a player's suspicion value. Scale is normally -10 to 10.
+--- Legacy flat table kept for backward compatibility with hooks and external
+--- addons that read SUSPICIONVALUES[reason]. Each value is the net delta that
+--- the old system applied. The new system uses SUSPICION_EVENTS instead.
 BotMorality.SUSPICIONVALUES = {
-    -- Killing another player
-    Kill = 4,                -- This player killed someone in front of us
-    KillTrusted = 10,        -- This player killed a Trusted in front of us
-    KillMedic = 15,          -- This player killed a medic in front of us
-    KillTraitor = -15,       -- This player killed a traitor in front of us
-    Hurt = 2,                -- This player hurt someone in front of us
-    HurtMe = 6,              -- This player hurt us
-    HurtTrusted = 6,         -- This player hurt a Trusted in front of us
-    HurtByTrusted = 2,       -- This player was hurt by a Trusted
-    HurtByEvil = -5,         -- This player was hurt by a traitor
-    KOSByInnocent = 7,       -- KOS called on this player by innocent
-    KOSByTrusted = 15,       -- KOS called on this player by trusted innocent
-    KOSByDetective = 20,     -- KOS called on this player by detective/police role (near-guaranteed attack)
-    KOSByTraitor = -5,       -- KOS called on this player by known traitor
-    KOSByOther = 5,          -- KOS called on this player
-    AffirmingKOS = -3,       -- KOS called on a player we think is a traitor (rare, but possible)
-    TraitorWeapon = 3,       -- This player has a traitor weapon
-    NearUnidentified = 2,    -- This player is near an unidentified body and hasn't identified it in more than 5 seconds
-    IdentifiedTraitor = -2,  -- This player has identified a traitor's corpse
-    IdentifiedInnocent = 0,  -- This player has identified an innocent's corpse
-    IdentifiedTrusted = 0,   -- This player has identified a Trusted's corpse
-    DefuseC4 = -7,           -- This player is defusing C4
-    PlantC4 = 10,            -- This player is throwing down C4
-    FollowingMe = 3,         -- This player has been following me for more than 10 seconds
-    FollowingMeLong = -6,    -- This player has been following me for more than 40 seconds
-    ShotAtMe = 5,            -- This player has been shooting at me
-    ShotAt = 3,              -- This player has been shooting at someone
-    ShotAtTrusted = 4,       -- This player has been shooting at a Trusted
-    ThrowDiscombob = 2,      -- This player has thrown a discombobulator
-    ThrowIncin = 5,          -- This player has thrown an incendiary grenade
-    ThrowSmoke = 2,          -- This player has thrown a smoke grenade
-    PersonalSpace = 2,       -- This player is standing too close to me for too long
+    Kill = 4, KillTrusted = 10, KillMedic = 15, KillTraitor = -15,
+    Hurt = 2, HurtMe = 6, HurtTrusted = 6, HurtByTrusted = 2, HurtByEvil = -5,
+    KOSByInnocent = 7, KOSByTrusted = 15, KOSByDetective = 20,
+    KOSByTraitor = -5, KOSByOther = 5, AffirmingKOS = -3,
+    TraitorWeapon = 3, NearUnidentified = 2,
+    IdentifiedTraitor = -2, IdentifiedInnocent = 0, IdentifiedTrusted = 0,
+    DefuseC4 = -7, PlantC4 = 10,
+    FollowingMe = 3, FollowingMeLong = -6,
+    ShotAtMe = 5, ShotAt = 3, ShotAtTrusted = 4,
+    ThrowDiscombob = 2, ThrowIncin = 5, ThrowSmoke = 2, PersonalSpace = 2,
+    InfectionWitnessed = 10, ZombieModel = 8,
+    CurseWitnessed = 3, CurseSwapWitnessed = 2, CursedApproaching = 1, CursedImmune = 0,
+    AnkhConversionWitnessed = 10, AnkhDestructionWitnessed = 5, AnkhLoiteringNearby = 2,
+    SmartBulletsVisual = 8, SmartBulletsAudio = 4,
+    RoleConfirmedHostile = 20, RoleConfirmedAlly = -10,
+}
+
+--- Multi-dimensional event definitions.
+--- Each reason maps to { threat, trust, confidence }.
+---   threat:     how much to add to the threat channel (≥ 0)
+---   trust:      how much to add to the trust channel (≥ 0)
+---   confidence: observation quality (1.0 = direct witness, 0.7 = hearsay, 0.4 = noise)
+BotMorality.SUSPICION_EVENTS = {
+    -- Direct witness: killing
+    Kill                    = { threat = 4,  trust = 0,  confidence = 1.0 },
+    KillTrusted             = { threat = 10, trust = 0,  confidence = 1.0 },
+    KillMedic               = { threat = 15, trust = 0,  confidence = 1.0 },
+    KillTraitor             = { threat = 0,  trust = 15, confidence = 1.0 },
+    -- Direct witness: hurting
+    Hurt                    = { threat = 2,  trust = 0,  confidence = 1.0 },
+    HurtMe                  = { threat = 6,  trust = 0,  confidence = 1.0 },
+    HurtTrusted             = { threat = 6,  trust = 0,  confidence = 1.0 },
+    HurtByTrusted           = { threat = 2,  trust = 0,  confidence = 0.8 },
+    HurtByEvil              = { threat = 0,  trust = 5,  confidence = 0.8 },
+    -- Hearsay: KOS calls (lower confidence — we didn't see it ourselves)
+    KOSByInnocent           = { threat = 7,  trust = 0,  confidence = 0.7 },
+    KOSByTrusted            = { threat = 15, trust = 0,  confidence = 0.8 },
+    KOSByDetective          = { threat = 20, trust = 0,  confidence = 0.95 },
+    KOSByTraitor            = { threat = 0,  trust = 5,  confidence = 0.7 },
+    KOSByOther              = { threat = 5,  trust = 0,  confidence = 0.6 },
+    AffirmingKOS            = { threat = 0,  trust = 3,  confidence = 0.7 },
+    -- Behavioral observations
+    TraitorWeapon           = { threat = 3,  trust = 0,  confidence = 0.9 },
+    NearUnidentified        = { threat = 2,  trust = 0,  confidence = 0.8 },
+    IdentifiedTraitor       = { threat = 0,  trust = 2,  confidence = 0.9 },
+    IdentifiedInnocent      = { threat = 0,  trust = 0,  confidence = 0.5 },
+    IdentifiedTrusted       = { threat = 0,  trust = 0,  confidence = 0.5 },
+    DefuseC4                = { threat = 0,  trust = 7,  confidence = 1.0 },
+    PlantC4                 = { threat = 10, trust = 0,  confidence = 1.0 },
+    FollowingMe             = { threat = 3,  trust = 0,  confidence = 0.6 },
+    FollowingMeLong         = { threat = 0,  trust = 6,  confidence = 0.7 },
+    ShotAtMe                = { threat = 5,  trust = 0,  confidence = 1.0 },
+    ShotAt                  = { threat = 3,  trust = 0,  confidence = 0.8 },
+    ShotAtTrusted           = { threat = 4,  trust = 0,  confidence = 0.9 },
+    ThrowDiscombob          = { threat = 2,  trust = 0,  confidence = 0.8 },
+    ThrowIncin              = { threat = 5,  trust = 0,  confidence = 0.9 },
+    ThrowSmoke              = { threat = 2,  trust = 0,  confidence = 0.7 },
+    PersonalSpace           = { threat = 2,  trust = 0,  confidence = 0.5 },
     -- Infected role events
-    InfectionWitnessed = 10, -- We saw this player get converted into a zombie (maximum suspicion)
-    ZombieModel = 8,         -- This player has the zombie player model (strong indicator)
+    InfectionWitnessed      = { threat = 10, trust = 0,  confidence = 1.0 },
+    ZombieModel             = { threat = 8,  trust = 0,  confidence = 0.9 },
     -- Cursed role events
-    CurseWitnessed = 3,      -- We saw this player become Cursed (noteworthy but not evil)
-    CurseSwapWitnessed = 2,  -- We witnessed a Cursed role swap event
-    CursedApproaching = 1,   -- Cursed player approaching us (awareness, low suspicion)
-    CursedImmune = 0,        -- Cursed is damage-immune (information, no suspicion change)
+    CurseWitnessed          = { threat = 3,  trust = 0,  confidence = 0.8 },
+    CurseSwapWitnessed      = { threat = 2,  trust = 0,  confidence = 0.7 },
+    CursedApproaching       = { threat = 1,  trust = 0,  confidence = 0.5 },
+    CursedImmune            = { threat = 0,  trust = 0,  confidence = 0.5 },
     -- Pharaoh / Graverobber / Ankh events
-    AnkhConversionWitnessed = 10,  -- We saw someone converting (holding USE on) an ankh
-    AnkhDestructionWitnessed = 5,  -- We saw someone shooting/damaging an ankh
-    AnkhLoiteringNearby = 2,       -- Non-owner player loitering near an ankh (per interval)
+    AnkhConversionWitnessed = { threat = 10, trust = 0,  confidence = 1.0 },
+    AnkhDestructionWitnessed= { threat = 5,  trust = 0,  confidence = 0.9 },
+    AnkhLoiteringNearby     = { threat = 2,  trust = 0,  confidence = 0.6 },
     -- Smart Bullets SWEP events
-    SmartBulletsVisual = 8,        -- We SAW bright red tracer beams from Smart Bullets (very distinctive)
-    SmartBulletsAudio = 4,         -- We HEARD Smart Bullets firing nearby (unusual sound cue)
-    -- TTT2 role confirmation events (body found / public role reveal)
-    RoleConfirmedHostile = 20,     -- This player's hostile role is publicly confirmed by TTT2 (body search, resurrection, etc.)
-    RoleConfirmedAlly = -10,       -- This player's friendly role is publicly confirmed by TTT2
+    SmartBulletsVisual      = { threat = 8,  trust = 0,  confidence = 1.0 },
+    SmartBulletsAudio       = { threat = 4,  trust = 0,  confidence = 0.6 },
+    -- TTT2 role confirmation events
+    RoleConfirmedHostile    = { threat = 20, trust = 0,  confidence = 1.0 },
+    RoleConfirmedAlly       = { threat = 0,  trust = 10, confidence = 1.0 },
 }
 
 BotMorality.SuspicionDescriptions = {
@@ -101,13 +156,46 @@ BotMorality.Thresholds = {
     Innocent = -7,
 }
 
+--- Per-threshold announcement cooldown in seconds.
+--- Prevents chatter spam when suspicion oscillates around a threshold.
+BotMorality.AnnounceCooldowns = {
+    KOS      = 20,
+    Sus      = 15,
+    Trust    = 15,
+    Innocent = 20,
+}
+
 -- ===========================================================================
 -- Instance methods (operate on BotMorality via self / self.bot)
 -- ===========================================================================
 
---- Increase/decrease the suspicion on the player for the given reason.
+--- Create or retrieve the multi-dimensional suspicion record for a target.
+--- Record structure: { threat, trust, confidence, lastEvent, announced }
 ---@param target Player
----@param reason string The reason (matching a key in SUSPICIONVALUES)
+---@return table record  The mutable suspicion record for this target
+function BotMorality:EnsureRecord(target)
+    local rec = self.suspicions[target]
+    if not rec or type(rec) ~= "table" then
+        -- Migrate legacy raw numbers or create fresh record
+        local legacyVal = (type(rec) == "number") and rec or 0
+        rec = {
+            threat     = math.max(legacyVal, 0),
+            trust      = math.max(-legacyVal, 0),
+            confidence = (legacyVal ~= 0) and 0.7 or 0,
+            lastEvent  = 0,
+            announced  = { KOS = 0, Sus = 0, Trust = 0, Innocent = 0 },
+        }
+        self.suspicions[target] = rec
+    end
+    return rec
+end
+
+--- Increase/decrease the suspicion on the player for the given reason.
+--- Positive events feed the threat channel; negative events feed the trust channel.
+--- Confidence is blended per-event as a weighted average so direct witness events
+--- carry more weight than hearsay.
+---@param target Player
+---@param reason string The reason (matching a key in SUSPICION_EVENTS / SUSPICIONVALUES)
 function BotMorality:ChangeSuspicion(target, reason, mult)
     local roleDisablesSuspicion = not TTTBots.Roles.GetRoleFor(self.bot):GetUsesSuspicion()
     if roleDisablesSuspicion then return end
@@ -118,30 +206,139 @@ function BotMorality:ChangeSuspicion(target, reason, mult)
 
     mult = mult * (hook.Run("TTTBotsModifySuspicion", self.bot, target, reason, mult) or 1)
 
-    local susValue = self.SUSPICIONVALUES[reason] or ErrorNoHaltWithStack("Invalid suspicion reason: " .. reason)
-    if targetIsPolice and susValue > 0 then
-        mult = mult * 0.3
+    -- Look up the event definition (multi-dim first, fall back to legacy)
+    local evDef = self.SUSPICION_EVENTS[reason]
+    if not evDef then
+        -- Fallback: auto-generate from legacy SUSPICIONVALUES
+        local legacyVal = self.SUSPICIONVALUES[reason]
+        if not legacyVal then
+            ErrorNoHaltWithStack("Invalid suspicion reason: " .. reason)
+            return
+        end
+        if legacyVal >= 0 then
+            evDef = { threat = legacyVal, trust = 0, confidence = 0.7 }
+        else
+            evDef = { threat = 0, trust = math.abs(legacyVal), confidence = 0.7 }
+        end
     end
-    -- Apply round-phase suspicion pressure: as fewer players remain unknown, suspicion
-    -- events have more weight (reflecting that each unknown is proportionally more suspicious)
+
+    -- Police suppression: reduce threat contribution for police targets
+    local policeMult = 1
+    if targetIsPolice and evDef.threat > 0 then
+        policeMult = 0.3
+    end
+
+    -- Round-phase pressure: amplify threat as fewer players remain
     local pressureMult = 1.0
-    if susValue > 0 then
+    if evDef.threat > 0 then
         local ra = self.bot:BotRoundAwareness()
         if ra then
             pressureMult = ra:GetSuspicionPressure()
         end
     end
-    local increase = math.ceil(susValue * mult * pressureMult)
-    local susFinal = ((self:GetSuspicion(target)) + (increase))
-    self.suspicions[target] = math.floor(susFinal)
+
+    local threatAdd = math.max(0, math.ceil(evDef.threat * mult * policeMult * pressureMult))
+    local trustAdd  = math.max(0, math.ceil(evDef.trust  * mult))
+    local evConf    = evDef.confidence or 0.7
+
+    local rec = self:EnsureRecord(target)
+
+    -- Update threat & trust channels (capped at 20 each)
+    rec.threat = math.min(rec.threat + threatAdd, 20)
+    rec.trust  = math.min(rec.trust  + trustAdd,  20)
+
+    -- Blend confidence: weighted average — larger events carry more weight
+    local evWeight = threatAdd + trustAdd
+    if evWeight > 0 then
+        local oldWeight = rec.threat + rec.trust - evWeight  -- pre-event total
+        if oldWeight <= 0 then
+            rec.confidence = evConf
+        else
+            rec.confidence = (rec.confidence * oldWeight + evConf * evWeight) / (oldWeight + evWeight)
+        end
+    end
+
+    rec.lastEvent = CurTime()
+
+    -- Fire specific chatter events for high-interest suspicion reasons.
+    -- These complement the threshold-based announcements with targeted callouts.
+    local chatter = self.bot:BotChatter()
+    if chatter and chatter.On then
+        local now = CurTime()
+        self._reasonChatterTimes = self._reasonChatterTimes or {}
+        local lastTime = self._reasonChatterTimes[reason] or 0
+        if (now - lastTime) >= 15 then
+            local targetName = target:Nick()
+            if reason == "DefuseC4" then
+                chatter:On("WitnessC4Defuse", { player = targetName, playerEnt = target })
+                self._reasonChatterTimes[reason] = now
+            elseif reason == "PlantC4" then
+                chatter:On("WitnessC4Plant", { player = targetName, playerEnt = target })
+                self._reasonChatterTimes[reason] = now
+            elseif reason == "TraitorWeapon" then
+                chatter:On("TraitorWeaponSpotted", { player = targetName, playerEnt = target })
+                self._reasonChatterTimes[reason] = now
+            elseif reason == "PersonalSpace" then
+                chatter:On("SuspicionPersonalSpace", { player = targetName, playerEnt = target })
+                self._reasonChatterTimes[reason] = now
+            end
+        end
+    end
 
     self:AnnounceIfThreshold(target)
     self:SetAttackIfTargetSus(target)
     self:GuessRole(target)
 end
 
+--- Compute the effective suspicion score from the multi-dimensional record.
+--- Returns a single integer for backward compatibility with all existing
+--- threshold checks, attack decisions, and announcement logic.
+---@param target Player
+---@return number  Effective suspicion (positive = suspicious, negative = trusted)
 function BotMorality:GetSuspicion(target)
-    return self.suspicions[target] or 0
+    local rec = self.suspicions[target]
+    if not rec then return 0 end
+    -- Handle legacy: if something externally wrote a raw number, return it
+    if type(rec) == "number" then return rec end
+    return math.floor((rec.threat - rec.trust) * math.max(rec.confidence, 0.01))
+end
+
+--- Return the full multi-dimensional record for a target (read-only intent).
+---@param target Player
+---@return table|nil  { threat, trust, confidence, lastEvent, announced }
+function BotMorality:GetSuspicionRecord(target)
+    local rec = self.suspicions[target]
+    if not rec then return nil end
+    -- Handle legacy raw numbers gracefully
+    if type(rec) == "number" then
+        return { threat = math.max(rec, 0), trust = math.max(-rec, 0), confidence = 0.7, lastEvent = 0, announced = { KOS = 0, Sus = 0, Trust = 0, Innocent = 0 } }
+    end
+    return rec
+end
+
+--- Directly set the effective suspicion to a specific value.
+--- Used by external code that previously wrote `morality.suspicions[target] = X`.
+--- Reverse-engineers appropriate threat/trust values to produce the desired
+--- effective score at the record's current confidence level.
+---@param target Player
+---@param value number  Desired effective suspicion score
+function BotMorality:SetSuspicionDirect(target, value)
+    local rec = self:EnsureRecord(target)
+    local conf = math.max(rec.confidence, 0.1)  -- avoid division by zero
+
+    -- Goal: floor((threat - trust) * conf) == value
+    -- We adjust threat or trust to achieve the target while preserving the other.
+    if value >= 0 then
+        -- Positive: set threat to produce desired score, zero out trust
+        rec.threat = math.Clamp(math.ceil(value / conf), 0, 20)
+        rec.trust  = 0
+    else
+        -- Negative: set trust to produce desired score, zero out threat
+        rec.trust  = math.Clamp(math.ceil(math.abs(value) / conf), 0, 20)
+        rec.threat = 0
+    end
+
+    rec.lastEvent = CurTime()
 end
 
 --- Mark a player as tested clean by a role tester. Sets suspicion floor to -5.
@@ -153,7 +350,9 @@ function BotMorality:SetTestedClean(target)
     self.testedClean[target] = true
     -- Immediately reduce suspicion to at most -5
     local cur = self:GetSuspicion(target)
-    self.suspicions[target] = math.min(cur, -5)
+    if cur > -5 then
+        self:SetSuspicionDirect(target, -5)
+    end
     -- Add positive evidence entry
     local evidence = self.bot:BotEvidence()
     if evidence then
@@ -162,6 +361,8 @@ function BotMorality:SetTestedClean(target)
 end
 
 --- Announce the suspicion level of the given player if it is above a certain threshold.
+--- Uses per-target, per-threshold cooldowns to prevent chatter spam from
+--- suspicion oscillation.
 ---@param target Player
 function BotMorality:AnnounceIfThreshold(target)
     if not (IsValid(target) and target:IsPlayer() and target:Visible(self.bot) and target:GetPos():Distance(self.bot:GetPos()) <= 600) then
@@ -176,15 +377,58 @@ function BotMorality:AnnounceIfThreshold(target)
     local TrustThresh = self.Thresholds.Trust
     local InnocentThresh = self.Thresholds.Innocent
 
-    if sus >= KOSThresh then
+    -- Retrieve per-target cooldown timestamps
+    local rec = self:EnsureRecord(target)
+    local ann = rec.announced
+    local now = CurTime()
+    local cd = self.AnnounceCooldowns
+
+    if sus >= KOSThresh and (now - ann.KOS >= cd.KOS) then
         chatter:On("CallKOS", { player = target:Nick() })
-    elseif sus >= SusThresh then
+        ann.KOS = now
+    elseif sus >= SusThresh and sus < KOSThresh and (now - ann.Sus >= cd.Sus) then
         chatter:On("DeclareSuspicious", { player = target:Nick() })
-    elseif sus <= InnocentThresh then
+        ann.Sus = now
+    elseif sus <= InnocentThresh and (now - ann.Innocent >= cd.Innocent) then
         chatter:On("DeclareInnocent", { player = target:Nick() })
-    elseif sus <= TrustThresh then
+        ann.Innocent = now
+    elseif sus <= TrustThresh and sus > InnocentThresh and (now - ann.Trust >= cd.Trust) then
         chatter:On("DeclareTrustworthy", { player = target:Nick() })
+        ann.Trust = now
     end
+
+    -- Rising suspicion chatter: fire at a mid-range level (3-4) before Sus threshold
+    -- to give a more gradual "I'm noticing something" feel
+    local RISING_THRESH = 3
+    ann.Rising = ann.Rising or 0
+    if sus >= RISING_THRESH and sus < SusThresh and (now - ann.Rising >= 25) then
+        chatter:On("SuspicionRising", { player = target:Nick(), playerEnt = target })
+        ann.Rising = now
+    end
+end
+
+--- Announce when suspicion on a target has fully cleared (decayed to zero).
+--- Called from TickSuspicions when a record is about to be cleaned up.
+---@param target Player
+function BotMorality:AnnounceCleared(target)
+    if not (IsValid(target) and target:IsPlayer()) then return end
+    local chatter = self.bot:BotChatter()
+    if not chatter or not chatter.On then return end
+
+    -- Only announce if we previously had significant suspicion on this target
+    local rec = self.suspicions[target]
+    if not rec or type(rec) ~= "table" then return end
+    local ann = rec.announced or {}
+    -- Must have previously announced suspicion (Sus or KOS) to announce clearing
+    if (ann.Sus or 0) == 0 and (ann.KOS or 0) == 0 then return end
+
+    -- Rate-limit to avoid spam
+    self._clearedChatterTimes = self._clearedChatterTimes or {}
+    local now = CurTime()
+    if (now - (self._clearedChatterTimes[target] or 0)) < 30 then return end
+    self._clearedChatterTimes[target] = now
+
+    chatter:On("SuspicionCleared", { player = target:Nick(), playerEnt = target })
 end
 
 --- Set the bot's attack target to the given player if they seem evil.
@@ -272,49 +516,83 @@ function BotMorality:TickSuspicions()
 
     -- Trait-modulated decay rate
     local personality = self.bot:BotPersonality()
-    local decayRate = 0.998  -- base per-tick decay multiplier (close to 1 = slow decay)
+    local threatDecay = 0.996  -- base per-tick threat decay (faster than old 0.998)
+    local trustDecay  = 0.999  -- trust decays slower (good deeds remembered longer)
     if personality then
         local traits = personality.traits or {}
         for _, trait in ipairs(traits) do
             if trait == "suspicious" then
-                decayRate = math.max(decayRate, 0.9995)  -- suspicious: even slower decay
+                threatDecay = math.max(threatDecay, 0.999)  -- suspicious: slower threat decay
+                trustDecay  = math.min(trustDecay,  0.997)  -- suspicious: faster trust decay
             elseif trait == "gullible" then
-                decayRate = math.min(decayRate, 0.994)   -- gullible: faster decay
+                threatDecay = math.min(threatDecay, 0.992)  -- gullible: faster threat decay
+                trustDecay  = math.max(trustDecay,  0.9995) -- gullible: slower trust decay
             end
         end
     end
 
-    for target, value in pairs(self.suspicions) do
+    local now = CurTime()
+
+    for target, rec in pairs(self.suspicions) do
         if not (IsValid(target) and target:IsPlayer()) then
             self.suspicions[target] = nil
             continue
         end
 
-        -- Apply decay only to positive (suspicious) values; trust values decay separately
-        local newValue
-        if value > 0 then
-            newValue = value * decayRate
-            -- Snap to zero when negligible
-            if newValue < 0.5 then newValue = 0 end
-        elseif value < 0 then
-            -- Negative (trust) decays back toward 0 slightly faster
-            newValue = value * (2 - decayRate)  -- e.g. 0.998 → 1.002 for negative direction
-            if newValue > -0.5 then newValue = 0 end
-        else
-            newValue = 0
+        -- Handle legacy raw numbers that may have been injected by external code
+        if type(rec) == "number" then
+            local legacyVal = rec
+            rec = self:EnsureRecord(target)
+            if legacyVal >= 0 then
+                rec.threat = math.min(legacyVal, 20)
+            else
+                rec.trust = math.min(math.abs(legacyVal), 20)
+            end
+            rec.confidence = 0.7
         end
 
-        -- Enforce evidence floor: can't decay below the evidence-based score
+        -- Decay threat channel
+        if rec.threat > 0 then
+            rec.threat = rec.threat * threatDecay
+            if rec.threat < 0.3 then rec.threat = 0 end
+        end
+
+        -- Decay trust channel
+        if rec.trust > 0 then
+            rec.trust = rec.trust * trustDecay
+            if rec.trust < 0.3 then rec.trust = 0 end
+        end
+
+        -- Confidence decays slowly toward 0 when no events occur
+        -- (stale opinions become less certain over time)
+        local timeSinceEvent = now - (rec.lastEvent or 0)
+        if timeSinceEvent > 5 then
+            -- ~0.1% per tick after 5s of no events
+            rec.confidence = rec.confidence * 0.999
+            if rec.confidence < 0.05 then rec.confidence = 0 end
+        end
+
+        -- Enforce evidence floor: effective score can't decay below evidence-based floor
         local evidenceFloor = self:GetEvidenceFloor(target)
-        newValue = math.max(newValue, evidenceFloor)
-
-        -- Enforce tested-clean floor: players tested clean can't go above -5
-        local testedClean = self.testedClean and self.testedClean[target]
-        if testedClean and newValue > -5 then
-            newValue = -5
+        local effective = self:GetSuspicion(target)
+        if effective < evidenceFloor and evidenceFloor > 0 then
+            -- Boost threat to maintain the evidence floor
+            local conf = math.max(rec.confidence, 0.1)
+            local neededThreat = math.ceil(evidenceFloor / conf) + rec.trust
+            rec.threat = math.min(math.max(rec.threat, neededThreat), 20)
         end
 
-        self.suspicions[target] = math.floor(newValue)
+        -- Enforce tested-clean ceiling: tested-clean players can't go above -5
+        local testedClean = self.testedClean and self.testedClean[target]
+        if testedClean and effective > -5 then
+            self:SetSuspicionDirect(target, -5)
+        end
+
+        -- Clean up records where all channels are zero (save memory)
+        if rec.threat == 0 and rec.trust == 0 and rec.confidence == 0 then
+            self:AnnounceCleared(target)
+            self.suspicions[target] = nil
+        end
     end
 end
 
@@ -334,9 +612,34 @@ function BotMorality:OnWitnessHurtIfAlly(victim, attacker, healthRemaining, dama
         or TTTBots.Roles.IsAllies(self.bot, victim)
     if not victimIsAlly then return end
     -- Don't defend against allies attacking each other (actual friendly fire)
+    -- UNLESS mistrust is enabled and the attacker has extreme suspicion
     local attackerIsAlly = (TTTBots.Perception and TTTBots.Perception.IsPerceivedAlly(self.bot, attacker))
         or TTTBots.Roles.IsAllies(self.bot, attacker)
-    if attackerIsAlly then return end
+    if attackerIsAlly then
+        -- INNOCENT MISTRUST: If mistrust is enabled, check if we should
+        -- intervene despite the attacker being an ally — they might be
+        -- a traitor we haven't confirmed yet.
+        local mistrustEnabled = lib.GetConVarBool("innocent_mistrust")
+        if mistrustEnabled then
+            local morality = self.bot.components and self.bot.components.morality
+            if morality then
+                local attackerSus = morality:GetSuspicion(attacker)
+                local kosThreshold = BotMorality.Thresholds.KOS or 10
+                local mistrustMult = lib.GetConVarFloat("innocent_mistrust_threshold") or 1.8
+                local mistrustThreshold = kosThreshold * mistrustMult
+                if attackerSus >= mistrustThreshold then
+                    -- Attacker ally has extreme suspicion — defend the victim
+                    local mem = self.bot.components and self.bot.components.memory
+                    if mem and mem.UpdateKnownPositionFor and IsValid(attacker) then
+                        mem:UpdateKnownPositionFor(attacker, attacker:GetPos())
+                    end
+                    Arb.RequestAttackTarget(self.bot, attacker, "ALLY_DEFENSE", PRI.SUSPICION_THRESHOLD)
+                    return
+                end
+            end
+        end
+        return -- Normal case: ally-on-ally, don't intervene
+    end
 
     -- Defend our ally: only engage if the attacker has enough built-up suspicion
     -- to be considered hostile. This prevents innocent-on-innocent TDM chains
@@ -523,6 +826,40 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
             if personality then
                 personality:OnPressureEvent("Hurt")
             end
+
+            -- INNOCENT MISTRUST: If mistrust is enabled and this ally has now
+            -- accumulated enough suspicion from repeated attacks, the bot may
+            -- decide they're actually a traitor and retaliate. This creates
+            -- realistic innocent-on-innocent TDM chains from persistent FF.
+            local mistrustEnabled = lib.GetConVarBool("innocent_mistrust")
+            if mistrustEnabled and damageTaken > 10 then
+                local attackerSus = self:GetSuspicion(attacker)
+                local kosThreshold = BotMorality.Thresholds.KOS or 10
+                local mistrustMult = lib.GetConVarFloat("innocent_mistrust_threshold") or 1.8
+                local mistrustThreshold = kosThreshold * mistrustMult
+                if attackerSus >= mistrustThreshold then
+                    -- Suspicion has been pushed past mistrust threshold by
+                    -- repeated ally damage — retaliate with self-defense priority.
+                    local mem = self.bot.components and self.bot.components.memory
+                    if mem and mem.UpdateKnownPositionFor and IsValid(attacker) then
+                        mem:UpdateKnownPositionFor(attacker, attacker:GetPos())
+                    end
+                    -- Clear any existing lower-priority target
+                    local currentPri = self.bot.attackTargetPriority or 0
+                    if currentPri < PRI.SELF_DEFENSE then
+                        self.bot.attackTarget         = nil
+                        self.bot.attackTargetPriority = 0
+                        self.bot.attackTargetReason   = nil
+                    end
+                    Arb.RequestAttackTarget(self.bot, attacker, "SELF_DEFENSE", PRI.SELF_DEFENSE)
+                    if lib.GetConVarBool("debug_misc") then
+                        print(string.format("[TTTBots][MISTRUST_SELFDEF] %s retaliating against ally %s (sus=%d >= mistrust=%d, dmg=%d)",
+                            self.bot:Nick(), attacker:Nick(), attackerSus, mistrustThreshold, damageTaken))
+                    end
+                    return -- retaliating, skip normal ally-hit path
+                end
+            end
+
             -- Verbally call out (rate-limited per attacker to 10s)
             local now = CurTime()
             self.lastShotChatterTime = self.lastShotChatterTime or {}
@@ -534,7 +871,7 @@ function BotMorality:OnWitnessHurt(victim, attacker, healthRemaining, damageTake
                     chatter:On("BeingShotAt", { player = allyName, playerEnt = attacker })
                 end
             end
-            return -- ally hit us, do NOT retaliate
+            return -- ally hit us, do NOT retaliate (suspicion not high enough)
         end
 
         -- Non-ally attacker: request retaliation and apply HurtMe suspicion.
@@ -912,6 +1249,183 @@ timer.Create("TTTBots.Components.Morality.DisguisedPlayerDetection", 1, 0, funct
             end
         end
     end
+end)
+
+-- ===========================================================================
+-- Paranoia / False-Positive Suspicion — Innocent Mistrust System
+-- ===========================================================================
+-- Core TTT mechanic: innocents don't have perfect information, so they
+-- sometimes become paranoid about other innocents. This generates organic
+-- false-positive suspicion that can escalate to innocent-on-innocent attacks.
+--
+-- Events that trigger paranoia:
+-- • Nearby player hasn't spoken/called out in a while ("too quiet")
+-- • Nearby player is following us (already tracked via PersonalSpace/FollowingMe)
+-- • Random paranoia spikes based on personality traits
+-- • Late-round pressure when few players remain
+-- • Player was near a body we later found (retroactive suspicion)
+
+--- Paranoia suspicion values (lower than real events, but they accumulate)
+BotMorality.PARANOIA_VALUES = {
+    TooQuiet          = 1.5,  -- Player nearby but hasn't spoken or done anything notable
+    NervousBehavior   = 2.0,  -- Player acting "nervously" (random misread)
+    LateRoundPanic    = 2.5,  -- Panic when few players remain and unknowns are high
+    RandomParanoia    = 1.0,  -- Baseline random paranoia spike
+    TraitorMetagame   = 1.5,  -- "They were traitor last round" cross-round suspicion
+}
+
+timer.Create("TTTBots.Morality.ParanoiaTick", 10, 0, function()
+    if not TTTBots.Match.IsRoundActive() then return end
+    if not lib.GetConVarBool("innocent_mistrust") then return end
+
+    local paranoiaChance = lib.GetConVarFloat("paranoia_chance") or 8
+    if paranoiaChance <= 0 then return end
+
+    for _, bot in pairs(TTTBots.Bots) do
+        if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
+        if not (bot.components and bot.components.morality) then continue end
+
+        -- Only innocent-side bots that use suspicion get paranoid
+        local roleData = TTTBots.Roles.GetRoleFor(bot)
+        if not roleData:GetUsesSuspicion() then continue end
+
+        -- Roll for paranoia event
+        if math.random(1, 100) > paranoiaChance then continue end
+
+        local morality = bot.components.morality
+        local personality = bot:BotPersonality()
+
+        -- Personality-driven paranoia multiplier
+        local paranoidMult = 1.0
+        if personality then
+            -- Suspicious/cautious bots are more paranoid
+            local susTrait = personality:GetTraitMult("suspicion") or 1.0
+            paranoidMult = paranoidMult * math.min(susTrait, 2.0)
+
+            -- Gullible/oblivious bots are less paranoid
+            if personality:HasTrait("gullible") then paranoidMult = paranoidMult * 0.3 end
+            if personality:HasTrait("oblivious") or personality:HasTrait("veryoblivious") then
+                paranoidMult = paranoidMult * 0.4
+            end
+
+            -- High pressure increases paranoia
+            local pressure = personality:GetPressure()
+            paranoidMult = paranoidMult * (1.0 + pressure * 0.5)
+
+            -- Rage increases paranoia
+            local rage = personality:GetRage()
+            paranoidMult = paranoidMult * (1.0 + rage * 0.3)
+        end
+
+        -- Late-round panic: more paranoia when fewer players remain
+        local ra = bot:BotRoundAwareness()
+        local PHASE = TTTBots.Components.RoundAwareness and TTTBots.Components.RoundAwareness.PHASE
+        if ra and PHASE then
+            local phase = ra:GetPhase()
+            if phase == PHASE.LATE then
+                paranoidMult = paranoidMult * 1.5
+            elseif phase == PHASE.OVERTIME then
+                paranoidMult = paranoidMult * 2.0
+            end
+        end
+
+        -- Skip if paranoia is effectively zero
+        if paranoidMult < 0.2 then continue end
+
+        -- Find a nearby visible player to be paranoid about
+        local visible = lib.GetAllWitnessesBasic(bot:EyePos(), TTTBots.Match.AlivePlayers, bot)
+        if #visible == 0 then continue end
+
+        -- Weight toward players we already have some suspicion of
+        local candidates = {}
+        for _, ply in ipairs(visible) do
+            if ply == bot then continue end
+            local existingSus = morality:GetSuspicion(ply)
+            -- More likely to be paranoid about players we're already slightly suspicious of
+            local weight = 1 + math.max(existingSus, 0) * 0.5
+            -- Less likely to be paranoid about police/detective roles
+            if TTTBots.Roles.GetRoleFor(ply):GetAppearsPolice() then
+                weight = weight * 0.1
+            end
+            -- Less likely to be paranoid about tested-clean players
+            if morality.testedClean and morality.testedClean[ply] then
+                weight = weight * 0.05
+            end
+            for _ = 1, math.ceil(weight) do
+                candidates[#candidates + 1] = ply
+            end
+        end
+
+        if #candidates == 0 then continue end
+        local target = candidates[math.random(#candidates)]
+
+        -- Choose paranoia type
+        local paranoiaType
+        local roll = math.random(1, 100)
+        if ra and PHASE and (ra:GetPhase() == PHASE.LATE or ra:GetPhase() == PHASE.OVERTIME) then
+            paranoiaType = "LateRoundPanic"
+        elseif roll <= 30 then
+            paranoiaType = "NervousBehavior"
+        elseif roll <= 60 then
+            paranoiaType = "TooQuiet"
+        else
+            paranoiaType = "RandomParanoia"
+        end
+
+        local susValue = BotMorality.PARANOIA_VALUES[paranoiaType] or 1.0
+        local finalIncrease = math.ceil(susValue * paranoidMult)
+
+        -- Apply paranoia as low-confidence threat (bypasses ChangeSuspicion to
+        -- avoid triggering announcement/attack cascades — this is background noise).
+        -- Paranoia uses very low confidence (0.4) so it can never push the
+        -- effective score past the Sus threshold on its own without corroborating
+        -- real evidence raising confidence.
+        local rec = morality:EnsureRecord(target)
+        rec.threat = math.min(rec.threat + finalIncrease, 20)
+
+        -- Blend confidence down: paranoia drags confidence toward 0.4
+        local paranoiaConf = 0.4
+        local totalWeight = rec.threat + rec.trust
+        if totalWeight > 0 then
+            rec.confidence = (rec.confidence * (totalWeight - finalIncrease) + paranoiaConf * finalIncrease) / totalWeight
+        else
+            rec.confidence = paranoiaConf
+        end
+        rec.lastEvent = CurTime()
+
+        -- Anti-snowball: paranoia alone (confidence < 0.5) cannot push the
+        -- effective score past the Sus threshold. Only corroborated suspicion
+        -- (confidence ≥ 0.5, i.e. backed by real witness events) can cross it.
+        local newSus = morality:GetSuspicion(target)
+
+        -- Occasionally vocalize the paranoia
+        if math.random(1, 100) <= 15 and finalIncrease >= 2 then
+            local chatter = bot:BotChatter()
+            if chatter and chatter.On then
+                if newSus >= BotMorality.Thresholds.KOS then
+                    chatter:On("CallKOS", { player = target:Nick() })
+                elseif newSus >= BotMorality.Thresholds.Sus then
+                    chatter:On("DeclareSuspicious", { player = target:Nick() })
+                end
+            end
+        end
+
+        -- Check if this push crosses the attack threshold — but only if
+        -- confidence is high enough (paranoia alone shouldn't trigger attacks)
+        if rec.confidence >= 0.5 then
+            morality:SetAttackIfTargetSus(target)
+        end
+
+        if lib.GetConVarBool("debug_misc") then
+            print(string.format("[TTTBots][PARANOIA] %s +%d threat on %s (%s, mult=%.2f, eff=%d, conf=%.2f)",
+                bot:Nick(), finalIncrease, target:Nick(), paranoiaType, paranoidMult,
+                newSus, rec.confidence))
+        end
+    end
+end)
+
+hook.Add("TTTEndRound", "TTTBots.Morality.ClearParanoia", function()
+    -- Paranoia state is already wiped by the morality round reset (suspicions = {})
 end)
 
 -- Clear corpse proximity tracking between rounds

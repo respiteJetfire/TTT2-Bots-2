@@ -84,6 +84,13 @@ end
 function VEat.OnStart(bot)
     local state = TTTBots.Behaviors.GetState(bot, "VultureEat")
     state.target = findNearestCorpse(bot)
+
+    -- Feeding chatter
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On and math.random(1, 2) == 1 then
+        chatter:On("VultureFeeding", {}, false, 0)
+    end
+
     return STATUS.RUNNING
 end
 

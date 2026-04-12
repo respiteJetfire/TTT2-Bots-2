@@ -298,7 +298,7 @@ function MesDefi.OnRunning(bot)
             if IsValid(wep) and wep.BeginRevival and wep.GetState then
                 local wepState = wep:GetState()
                 if wepState == 0 then -- DEFI_IDLE
-                    wep:BeginRevival(rag, 0)
+                    wep:BeginRevival(rag, REVIVAL_BLOCK_NONE)
                 end
             end
         end

@@ -45,6 +45,7 @@ jackal:SetBTree(bTree)
 jackal:SetAlliedTeams(allyTeams)
 jackal:SetAlliedRoles(allyRoles)
 jackal:SetLovesTeammates(true)
+jackal:SetKOSUnknown(false)  -- Jackal should convert unknowns into sidekicks, not kill them
 jackal:SetRoleDescription(roleDescription)
 TTTBots.Roles.RegisterRole(jackal)
 

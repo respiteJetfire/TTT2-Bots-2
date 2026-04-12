@@ -104,6 +104,13 @@ function Decrowd.OnStart(bot)
         Decrowd.FindRetreatSpot(bot)
         or Decrowd.FindRetreatArea(bot):GetPos()
     )
+
+    -- Comment on crowding
+    local chatter = bot:BotChatter()
+    if chatter and chatter.On and math.random(1, 3) == 1 then
+        chatter:On("DecrowdMoving", {})
+    end
+
     return STATUS.RUNNING
 end
 
