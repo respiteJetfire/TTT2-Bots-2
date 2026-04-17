@@ -23,3 +23,29 @@ function ETN.BroadcastError(msg)
         end
     end
 end
+
+--- Broadcast a newly-discovered missing locale event name to all admin clients.
+---@param eventName string
+function ETN.BroadcastMissingLocale(eventName)
+    if not SERVER then return end
+    for _, ply in ipairs(player.GetAll()) do
+        if IsValid(ply) and not ply:IsBot() and ply:IsAdmin() then
+            net.Start("TTTBots_MissingLocale_Add")
+                net.WriteString(eventName)
+            net.Send(ply)
+        end
+    end
+end
+
+--- Handle client requesting the full missing-locale dump.
+net.Receive("TTTBots_MissingLocale_Request", function(len, ply)
+    if not (IsValid(ply) and ply:IsAdmin()) then return end
+    local missing = TTTBots.Locale and TTTBots.Locale.MissingEvents or {}
+    local names = {}
+    for k in pairs(missing) do table.insert(names, k) end
+    table.sort(names)
+    local payload = table.concat(names, ",")
+    net.Start("TTTBots_MissingLocale_Dump")
+        net.WriteString(payload)
+    net.Send(ply)
+end)

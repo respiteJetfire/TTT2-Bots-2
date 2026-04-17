@@ -177,7 +177,7 @@ function TTTBots.LlamaPrompts.GetResponsePrompt(bot, text, teamOnly, ply)
     end
 
     -- Recent conversation history (9.2): last 5 exchanges within 60s
-    local recentMessages = bot:BotMemory():GetRecentMessages(60, 5) or {}
+    local recentMessages = (bot.BotMemory and bot:BotMemory() and bot:BotMemory():GetRecentMessages(60, 5)) or {}
     if #recentMessages > 0 then
         local chatParts = {}
         for _, msg in ipairs(recentMessages) do

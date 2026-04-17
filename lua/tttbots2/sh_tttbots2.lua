@@ -161,6 +161,10 @@ util.AddNetworkString("TTTBots_CustomPlan_RequestSync")
 -- by the standalone ttt2-tts addon. Left unregistered here on purpose so
 -- there's exactly one owner.
 util.AddNetworkString("TTTBots_ErrorTracker_Error")
+-- Missing locale event reporting
+util.AddNetworkString("TTTBots_MissingLocale_Add")
+util.AddNetworkString("TTTBots_MissingLocale_Request")
+util.AddNetworkString("TTTBots_MissingLocale_Dump")
 -- Suspicion Monitor: real-time suspicion debugging
 util.AddNetworkString("TTTBots_RequestSuspicionData")
 util.AddNetworkString("TTTBots_SuspicionData")

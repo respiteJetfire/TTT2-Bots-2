@@ -1325,7 +1325,8 @@ end
 ---@return boolean
 ---@realm server
 function TTTBots.Lib.GetDebugFor(debugType)
-    return GetConVar("ttt_bot_debug_" .. debugType):GetBool()
+    local cv = GetConVar("ttt_bot_debug_" .. debugType)
+    return cv and cv:GetBool() or false
 end
 
 --- XY Distance between two Vectors

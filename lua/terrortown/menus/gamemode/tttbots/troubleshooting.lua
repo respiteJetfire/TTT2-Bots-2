@@ -193,6 +193,108 @@ function CLGAMEMODESUBMENU:Populate(parent)
     rebuildList()
 
     -- -----------------------------------------------------------------------
+    -- Missing Locale Events section
+    -- -----------------------------------------------------------------------
+    local localeHeader = vgui.Create("DLabel", parent)
+    localeHeader:SetFont("DermaDefaultBold")
+    localeHeader:SetTextColor(Color(255, 210, 80))
+    localeHeader:SetText("Missing Localized Events")
+    localeHeader:SizeToContents()
+    localeHeader:DockMargin(16, 10, 0, 2)
+    localeHeader:Dock(TOP)
+
+    local localeHelp = vgui.Create("DLabel", parent)
+    localeHelp:SetFont("DermaDefault")
+    localeHelp:SetTextColor(Color(160, 160, 160))
+    localeHelp:SetText("Chat events that have no localized strings in 'en'. Copy the list to add them.")
+    localeHelp:SetWrap(true)
+    localeHelp:SetAutoStretchVertical(true)
+    localeHelp:DockMargin(16, 0, 8, 4)
+    localeHelp:Dock(TOP)
+
+    -- Button row for the locale section
+    local localeBtnRow = vgui.Create("DPanel", parent)
+    localeBtnRow:SetTall(32)
+    localeBtnRow:DockMargin(8, 2, 8, 4)
+    localeBtnRow:Dock(TOP)
+    localeBtnRow.Paint = function() end
+
+    local btnRefreshLocale = vgui.Create("DButton", localeBtnRow)
+    btnRefreshLocale:SetText("Refresh from Server")
+    btnRefreshLocale:SetFont("DermaDefaultBold")
+    btnRefreshLocale:SetWide(170)
+    btnRefreshLocale:Dock(LEFT)
+    btnRefreshLocale:DockMargin(0, 0, 8, 0)
+
+    local btnCopyLocale = vgui.Create("DButton", localeBtnRow)
+    btnCopyLocale:SetText("Copy List")
+    btnCopyLocale:SetFont("DermaDefaultBold")
+    btnCopyLocale:SetWide(100)
+    btnCopyLocale:Dock(LEFT)
+    btnCopyLocale:DockMargin(0, 0, 8, 0)
+
+    -- Text area showing the deduplicated sorted event names
+    local localeTextEntry = vgui.Create("DTextEntry", parent)
+    localeTextEntry:SetFont("DermaDefault")
+    localeTextEntry:SetMultiline(true)
+    localeTextEntry:SetEditable(false)
+    localeTextEntry:SetTall(120)
+    localeTextEntry:DockMargin(8, 0, 8, 8)
+    localeTextEntry:Dock(TOP)
+    localeTextEntry:SetValue("(click Refresh from Server to load)")
+
+    local function rebuildLocaleList()
+        local missing = TTTBots.MissingLocaleEvents or {}
+        local names = {}
+        for k in pairs(missing) do table.insert(names, k) end
+        table.sort(names)
+        if #names == 0 then
+            localeTextEntry:SetValue("(none — all events have localized strings!)") 
+        else
+            localeTextEntry:SetValue(table.concat(names, "\n"))
+        end
+        localeHeader:SetText(string.format("Missing Localized Events (%d unique)", #names))
+        localeHeader:SizeToContents()
+    end
+
+    btnRefreshLocale.DoClick = function()
+        net.Start("TTTBots_MissingLocale_Request")
+        net.SendToServer()
+        -- Update will arrive via net.Receive("TTTBots_MissingLocale_Dump") and rebuild on next timer tick
+        notification.AddLegacy("Requesting missing locale list from server...", NOTIFY_GENERIC, 2)
+        surface.PlaySound("buttons/button15.wav")
+    end
+
+    btnCopyLocale.DoClick = function()
+        local missing = TTTBots.MissingLocaleEvents or {}
+        local names = {}
+        for k in pairs(missing) do table.insert(names, k) end
+        table.sort(names)
+        if #names == 0 then
+            notification.AddLegacy("No missing locale events to copy.", NOTIFY_GENERIC, 2)
+            return
+        end
+        SetClipboardText(table.concat(names, "\n"))
+        notification.AddLegacy(string.format("Copied %d missing locale event names.", #names), NOTIFY_GENERIC, 3)
+        surface.PlaySound("buttons/button15.wav")
+    end
+
+    -- Do an initial refresh request so the list populates when the tab opens
+    net.Start("TTTBots_MissingLocale_Request")
+    net.SendToServer()
+
+    -- Rebuild the locale list on the same 2s timer as errors
+    local _localeRebuildTick = 0
+    timer.Create("TTTBots.Troubleshooting.LocaleRefresh", 2, 0, function()
+        if not IsValid(parent) then
+            timer.Remove("TTTBots.Troubleshooting.LocaleRefresh")
+            return
+        end
+        rebuildLocaleList()
+    end)
+    rebuildLocaleList()
+
+    -- -----------------------------------------------------------------------
     -- Auto-refresh timer (updates the list every 2 seconds while open)
     -- -----------------------------------------------------------------------
     timer.Create("TTTBots.Troubleshooting.Refresh", 2, 0, function()

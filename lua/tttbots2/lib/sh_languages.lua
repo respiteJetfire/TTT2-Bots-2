@@ -1,6 +1,7 @@
 TTTBots.Locale = {
-    Priorities = {},
-    Description = {}
+    Priorities  = {},
+    Description = {},
+    MissingEvents = {},  -- set of event names with no localized strings
 }
 
 
@@ -151,8 +152,14 @@ function TTTBots.Locale.GetLine(event_name, lang, bot, attemptN)
     if not localizedTbl then
         TTTBots.Locale[lang] = TTTBots.Locale[lang] or {}
         TTTBots.Locale[lang][event_name] = TTTBots.Locale[lang][event_name] or {}
-        print("No localized strings for event " ..
-            event_name .. " in language " .. lang .. "... try setting lang cvar to 'en'.")
+        if not TTTBots.Locale.MissingEvents[event_name] then
+            TTTBots.Locale.MissingEvents[event_name] = true
+            print("No localized strings for event " ..
+                event_name .. " in language " .. lang .. "... try setting lang cvar to 'en'.")
+            if SERVER and TTTBots.ErrorTrackerNet and TTTBots.ErrorTrackerNet.BroadcastMissingLocale then
+                TTTBots.ErrorTrackerNet.BroadcastMissingLocale(event_name)
+            end
+        end
         return
     end
 
@@ -170,8 +177,14 @@ function TTTBots.Locale.GetLocalizedLine(event_name, bot, params)
     -- Test that the event event_name exists in the language.
     local exists = TTTBots.Locale.TestEventExists(event_name)
     if not exists then
-        print("No localized strings for event " ..
-            event_name .. " in language " .. lang .. "... try setting lang cvar to 'en'.")
+        if not TTTBots.Locale.MissingEvents[event_name] then
+            TTTBots.Locale.MissingEvents[event_name] = true
+            print("No localized strings for event " ..
+                event_name .. " in language " .. lang .. "... try setting lang cvar to 'en'.")
+            if SERVER and TTTBots.ErrorTrackerNet and TTTBots.ErrorTrackerNet.BroadcastMissingLocale then
+                TTTBots.ErrorTrackerNet.BroadcastMissingLocale(event_name)
+            end
+        end
         return false
     end
     -- Check if this selected category is enabled, per the user's settings.
