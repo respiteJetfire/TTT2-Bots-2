@@ -157,8 +157,9 @@ util.AddNetworkString("TTTBots_CustomPlan_Delete")
 util.AddNetworkString("TTTBots_CustomPlan_Update")
 util.AddNetworkString("TTTBots_CustomPlan_Sync")
 util.AddNetworkString("TTTBots_CustomPlan_RequestSync")
-util.AddNetworkString("SayTTSEL")
-util.AddNetworkString("SayTTSBad")
+-- TTS network strings (SayTTSEL/SayTTSBad/SayTTSUrlStart) are now registered
+-- by the standalone ttt2-tts addon. Left unregistered here on purpose so
+-- there's exactly one owner.
 util.AddNetworkString("TTTBots_ErrorTracker_Error")
 -- Suspicion Monitor: real-time suspicion debugging
 util.AddNetworkString("TTTBots_RequestSuspicionData")
