@@ -22,11 +22,18 @@ local ACTIONS = Plans.ACTIONS
 --- Distance at which the FOLLOW action stops approaching the target and idles.
 local FOLLOW_STOP_RANGE = 140
 --- How far the goal must drift before we call SetGoal again (prevents path thrashing).
-local GOAL_CHANGE_THRESHOLD = 200
+local GOAL_CHANGE_THRESHOLD = 150
 --- Seconds between stall-detection samples.
 local STALL_REPATH_INTERVAL = 2
 --- Minimum distance bot must have moved between samples to count as "making progress".
-local STALL_MIN_PROGRESS = 24
+local STALL_MIN_PROGRESS = 40
+--- Max consecutive nav-area lookup failures before a ROAM/GATHER job is force-failed.
+local NAV_FAIL_LIMIT = 5
+--- Seconds past a job's ExpiryTime we tolerate before force-failing in OnRunning.
+local EXPIRY_GRACE = 0
+--- Hard cap (seconds) a single job execution is allowed before force-failing.
+--- Prevents infinite RUNNING when the handler never self-terminates.
+local EXECUTION_HARD_CAP = 90
 
 local function jobHasVectorTarget(job)
     return job and isvector(job.TargetObj)
@@ -75,6 +82,8 @@ function FollowPlan.GetJobState(bot)
 end
 
 --- Grabs an available job from the PlanCoordinator and assigns it to the bot.
+--- If no job is available (plan exhausted), attempts an automatic plan reset so
+--- bots don't sit idle until MAX_PLAN_DURATION fires.
 ---@param bot Bot the bot to assign a job to
 ---@return boolean|table false if no job was assigned, otherwise the job
 function FollowPlan.AssignNextAvailableJob(bot)
@@ -83,9 +92,43 @@ function FollowPlan.AssignNextAvailableJob(bot)
     local job = TTTBots.PlanCoordinator.GetNextJob(true, bot)
     if not job then
         if FollowPlan.Debug then print("No jobs remaining for bot " .. bot:Nick()) end
-        return false
+        -- Plan exhausted — reset job assignments so bots can re-cycle through the plan
+        -- rather than sitting idle until MAX_PLAN_DURATION fires.
+        local planReset = false
+        local botTeam = bot.GetTeam and bot:GetTeam()
+        if botTeam then
+            local teamState = TTTBots.Plans.TeamPlans and TTTBots.Plans.TeamPlans[botTeam]
+            local plan = teamState and teamState.SelectedPlan
+            if not plan and botTeam == TEAM_TRAITOR then
+                plan = TTTBots.Plans.SelectedPlan
+            end
+            if plan and plan.Jobs then
+                local allExhausted = true
+                for _, j in ipairs(plan.Jobs) do
+                    if not j.Skip and (j.NumAssigned or 0) < (j.MaxAssigned or 99) then
+                        allExhausted = false
+                        break
+                    end
+                end
+                if allExhausted then
+                    -- Reset all job assignment state so the plan can restart
+                    TTTBots.Plans.ResetPlanJobs(plan)
+                    if TTTBots.Plans.SharedTargetCache then
+                        TTTBots.Plans.SharedTargetCache = {}
+                    end
+                    planReset = true
+                    if FollowPlan.Debug then
+                        print("[FollowPlan] Plan exhausted for " .. bot:Nick() .. " — reset job assignments")
+                    end
+                    -- Re-try immediately with the fresh assignments
+                    job = TTTBots.PlanCoordinator.GetNextJob(true, bot)
+                end
+            end
+        end
+        if not job then return false end
     end
     job.State = TTTBots.Plans.BOTSTATES.IDLE
+    job._executionStart = CurTime()  -- record when this job execution began
     state.Job = job
     return job
 end
@@ -99,6 +142,8 @@ end
 --- This prevents calling SetGoal every tick with a slightly different position,
 --- which causes the locomotor to continuously abandon its current path, queue a
 --- new one, and leave the bot standing still while the new path resolves.
+--- A periodic force-refresh (every 8 seconds) ensures the goal is re-committed
+--- even when the target hasn't moved, breaking silent stalls.
 ---@param bot Bot
 ---@param goalPos Vector the desired destination
 ---@param threshold number? distance before we consider the goal "changed" (default GOAL_CHANGE_THRESHOLD)
@@ -110,13 +155,18 @@ local function smartSetGoal(bot, goalPos, threshold)
     if not loco then return end
 
     local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
+    local now = CurTime()
     local currentGoal = loco:GetRawGoal() or loco:GetGoal()
 
+    -- Periodic force-refresh: regardless of drift, re-commit the goal every 8 seconds.
+    -- This breaks stalls where the locomotor silently dropped its path request.
+    local forceRefresh = (now - (state.lastSetGoalTime or 0)) >= 8
+
     -- If the locomotor has no goal at all, always set one.
-    if not currentGoal then
+    if not currentGoal or forceRefresh then
         loco:SetGoal(goalPos)
         state.lastSetGoalPos = goalPos
-        state.lastSetGoalTime = CurTime()
+        state.lastSetGoalTime = now
         return
     end
 
@@ -130,7 +180,7 @@ local function smartSetGoal(bot, goalPos, threshold)
     -- Goal has drifted far enough — update it.
     loco:SetGoal(goalPos)
     state.lastSetGoalPos = goalPos
-    state.lastSetGoalTime = CurTime()
+    state.lastSetGoalTime = now
 end
 
 --- Detect when the bot is stalled (has a distant goal but isn't making physical
@@ -145,9 +195,10 @@ local function maybeRecoverMovement(bot, goalPos)
     local state = TTTBots.Behaviors.GetState(bot, "FollowPlan")
     local now = CurTime()
     local botPos = bot:GetPos()
+    local distToGoal = botPos:Distance(goalPos)
 
-    -- Don't run stall detection if we're already close to the goal.
-    if botPos:Distance(goalPos) <= 150 then
+    -- Don't run stall detection if we're already at the goal.
+    if distToGoal <= 80 then
         state.stallSamplePos = nil
         state.stallSampleTime = nil
         return
@@ -181,7 +232,7 @@ local function maybeRecoverMovement(bot, goalPos)
     state.roamPos = nil
 
     if FollowPlan.Debug then
-        print(string.format("[FollowPlan] Stall recovery for %s — cleared path", bot:Nick()))
+        print(string.format("[FollowPlan] Stall recovery for %s — cleared path (dist to goal: %.0f)", bot:Nick(), distToGoal))
     end
 end
 
@@ -288,11 +339,16 @@ function FollowPlan.OnStart(bot)
         ErrorNoHaltWithStack("FollowPlan.OnStart called without a job assigned to the bot!")
         return STATUS.FAILURE
     end
-    -- Reset tracking state for a fresh job.
+    -- Stamp execution start time so the hard cap watchdog knows when we began.
+    if not state.Job._executionStart then
+        state.Job._executionStart = CurTime()
+    end
+    -- Reset path-tracking state for a fresh job run.
     state.stallSamplePos = nil
     state.stallSampleTime = nil
     state.lastSetGoalPos = nil
     state.lastSetGoalTime = nil
+    state.navFailCount = 0
     if FollowPlan.Debug then
         printf("FollowPlan. JOB '%s' assigned to bot %s (For plan %s)",
             state.Job.Action, bot:Nick(), TTTBots.Plans.GetName())
@@ -387,30 +443,44 @@ local ACT_RUNNING_HASH = {
         local loco = bot:BotLocomotor()
         if not loco then return STATUS.FAILURE end
 
-        -- Pick an initial wander point, or a new one when we arrive at the old one.
-        if not state.gatherWanderPos then
-            state.gatherWanderPos = origin
-        end
-
-        local needsNewPos = bot:GetPos():Distance(state.gatherWanderPos) < 80
-
-        if needsNewPos then
+        local function pickGatherWander()
             local visible = lib.VisibleNavsInRange(origin, 1000)
             if #visible > 0 then
                 local randNav = table.Random(visible)
                 state.gatherWanderPos = randNav:GetRandomPoint()
-            else
-                state.gatherWanderPos = origin
+                state.navFailCount = 0
+                return true
+            end
+            -- Fallback: search around bot's position
+            local fallbackNav = navmesh.GetNearestNavArea(bot:GetPos())
+            if fallbackNav then
+                state.gatherWanderPos = fallbackNav:GetRandomPoint()
+                state.navFailCount = 0
+                return true
+            end
+            state.navFailCount = (state.navFailCount or 0) + 1
+            return false
+        end
+
+        -- Pick an initial wander point, or a new one when we arrive at the old one.
+        local needsNewPos = not state.gatherWanderPos
+        if state.gatherWanderPos then
+            needsNewPos = bot:GetPos():Distance(state.gatherWanderPos) < 80
+        end
+
+        if needsNewPos then
+            if not pickGatherWander() then
+                if (state.navFailCount or 0) >= NAV_FAIL_LIMIT then
+                    return STATUS.FAILURE
+                end
+                state.gatherWanderPos = origin  -- stay near origin for now
             end
             -- Wander target changed — force the goal update through.
             state.lastSetGoalPos = nil
         end
 
         lib.CallEveryNTicks(bot, function()
-            local visible = lib.VisibleNavsInRange(origin, 1000)
-            if #visible > 0 then
-                local randNav = table.Random(visible)
-                state.gatherWanderPos = randNav:GetRandomPoint()
+            if pickGatherWander() then
                 state.lastSetGoalPos = nil -- force re-path
             end
         end, TTTBots.Tickrate * 4)
@@ -455,8 +525,20 @@ local ACT_RUNNING_HASH = {
             if #visible > 0 then
                 local randNav = table.Random(visible)
                 state.roamPos = randNav:GetRandomPoint()
+                state.navFailCount = 0
             else
-                state.roamPos = origin
+                -- Nav lookup failed — try a broader fallback: nearest nav to bot
+                local fallbackNav = navmesh.GetNearestNavArea(bot:GetPos())
+                if fallbackNav then
+                    state.roamPos = fallbackNav:GetRandomPoint()
+                    state.navFailCount = 0
+                else
+                    state.navFailCount = (state.navFailCount or 0) + 1
+                    if state.navFailCount >= NAV_FAIL_LIMIT then
+                        return STATUS.FAILURE  -- give up; let the plan cycle a new job
+                    end
+                    state.roamPos = bot:GetPos()  -- stay put for one tick
+                end
             end
             -- Roam target changed — force the goal update through.
             state.lastSetGoalPos = nil
@@ -575,18 +657,50 @@ function FollowPlan.OnRunning(bot)
         state.shouldClear = true
         return STATUS.FAILURE
     end
+
+    local job = state.Job
+    local now  = CurTime()
+
+    -- ── Job expiry guard ────────────────────────────────────────────────────
+    -- OnRunning is called directly by the tree (Validate is bypassed once a
+    -- behavior is running), so we MUST check expiry here.  Without this, ROAM/
+    -- GATHER/DEFEND jobs run indefinitely past their ExpiryTime.
+    if job.ExpiryTime and (now - EXPIRY_GRACE) > job.ExpiryTime then
+        state.Job = nil
+        state.shouldClear = true
+        if FollowPlan.Debug then
+            print(string.format("[FollowPlan] Job expired for %s (%s)", bot:Nick(), tostring(job.Action)))
+        end
+        return STATUS.FAILURE
+    end
+
+    -- ── Hard execution cap ──────────────────────────────────────────────────
+    -- Belt-and-suspenders: if a job has been executing for longer than the hard
+    -- cap (e.g. infinite RUNNING from a handler bug), force-fail it so the bot
+    -- doesn't freeze for the rest of the round.
+    local execStart = job._executionStart or now
+    if (now - execStart) > EXECUTION_HARD_CAP then
+        state.Job = nil
+        state.shouldClear = true
+        if FollowPlan.Debug then
+            print(string.format("[FollowPlan] Hard cap hit for %s (%s)", bot:Nick(), tostring(job.Action)))
+        end
+        return STATUS.FAILURE
+    end
+
     -- Default to interruptible; the COORD_ATTACK handler will set it to false
     -- when in staging phase. This ensures all other actions remain interruptible.
     FollowPlan.Interruptible = true
 
-    local status = ACT_RUNNING_HASH[state.Job.Action](bot, state.Job)
+    local status = ACT_RUNNING_HASH[job.Action](bot, job)
     if status == STATUS.RUNNING then
-        botChatterWhenJobStart(bot, state.Job)
+        botChatterWhenJobStart(bot, job)
     elseif status == STATUS.FAILURE or status == STATUS.SUCCESS then
         FollowPlan.Interruptible = true -- restore on completion
         state.shouldClear = true
+        state.navFailCount = 0
     end
-    -- printf("Running job %s for bot %s. Status is %s", state.Job.Action, bot:Nick(), tostring(status))
+    -- printf("Running job %s for bot %s. Status is %s", job.Action, bot:Nick(), tostring(status))
     return status
 end
 
@@ -617,6 +731,8 @@ function FollowPlan.OnEnd(bot)
         TTTBots.Behaviors.ClearState(bot, "FollowPlan")
     else
         -- Interrupted — keep the job but reset tracking so we re-evaluate on resume.
+        -- Do NOT reset navFailCount or _executionStart; they survive interruption so
+        -- that accumulated failure counters still apply when the job resumes.
         state.stallSamplePos = nil
         state.stallSampleTime = nil
         state.lastSetGoalPos = nil

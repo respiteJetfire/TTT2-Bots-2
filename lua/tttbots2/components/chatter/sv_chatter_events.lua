@@ -288,6 +288,26 @@ local chancesOf100 = {
     RevivingPlayer                 = 60,  -- Bot announcing defibrillator revive attempt
     GuardianSeeking                = 40,  -- Guardian bot looking for someone to protect
     MingeCrowbar                   = 25,  -- Bot trolling with crowbar pushes
+    -- -----------------------------------------------------------------------
+    -- Traitor ability activation chatter
+    -- -----------------------------------------------------------------------
+    ApocalypseActivated            = 70,  -- Traitor activated the Apocalypse SWEP (team-only)
+    JermaLauncherFired             = 65,  -- Traitor fired the Jerma Launcher (team-only)
+    -- -----------------------------------------------------------------------
+    -- Detective leadership dispatch
+    -- -----------------------------------------------------------------------
+    IC_DispatchInvestigate         = 65,  -- Detective dispatches bots to investigate an area
+    -- -----------------------------------------------------------------------
+    -- Buy event gates (applied on top of base locale lookup)
+    -- -----------------------------------------------------------------------
+    BuyApocalypse                  = 80,  -- Bot buys the Apocalypse SWEP
+    ["BuyC4 (Deferred)"]           = 70,  -- Bot buys C4 but defers planting
+    ["BuyJerma Launcher"]          = 80,  -- Bot buys the Jerma Launcher
+    ["BuyJihad Bomb"]              = 75,  -- Bot buys the Jihad Bomb
+    BuyPeacekeeper                 = 75,  -- Bot buys the Peacekeeper
+    ["BuyProp Rain"]               = 70,  -- Bot buys the Prop Rain SWEP
+    BuyTimestop                    = 80,  -- Bot buys the Timestop item
+    BuyTurret                      = 70,  -- Bot buys a Turret
 }
 
 --- Export event names so the precache system can discover them.

@@ -134,29 +134,68 @@ end
 -- Per-action handlers
 -- ─────────────────────────────────────────────────────────────────────────────
 
---- BUDDY_UP: path toward the assigned buddy and stay within 200 units.
---- Keeps running rather than succeeding so the bot doesn't go jobless.
+--- BUDDY_UP: path toward the assigned buddy; wander near them once close.
+--- Keeps running rather than succeeding so the bot doesn't go jobless, but
+--- picks new nearby wander positions every few seconds to avoid standstill.
 local function runBuddyUp(bot, job)
     local buddy = job.TargetObj
     if not (IsValid(buddy) and lib.IsPlayerAlive(buddy)) then
         return STATUS.FAILURE
     end
-    local dist = bot:GetPos():Distance(buddy:GetPos())
 
-    -- Register as travel companion when nearby
-    if dist <= 250 then
-        local evidence = bot.components and bot.components.evidence
-        if evidence and evidence.AddTravelCompanion then
-            evidence:AddTravelCompanion(buddy)
-        end
-        -- Don't return SUCCESS — let the job expire naturally so the bot keeps following
+    -- Guard: nil buddy target (should not happen, but belt-and-suspenders)
+    if not buddy then return STATUS.FAILURE end
+
+    local botPos  = bot:GetPos()
+    local dist    = botPos:Distance(buddy:GetPos())
+    local loco    = bot:BotLocomotor()
+    local now     = CurTime()
+
+    if dist > 250 then
+        -- Far from buddy — path directly toward them
+        setReachableGoal(bot, buddy:GetPos())
+        if loco then loco:LookAt(buddy:GetPos()) end
+        -- Clear wander state so we recalculate on arrival
+        job._buddyWanderPos  = nil
+        job._buddyWanderNext = nil
         return STATUS.RUNNING
     end
 
-    local loco = bot:BotLocomotor()
-    if loco then
-        setReachableGoal(bot, buddy:GetPos())
-        loco:LookAt(buddy:GetPos())
+    -- Within buddy range: register travel companionship
+    local evidence = bot.components and bot.components.evidence
+    if evidence and evidence.AddTravelCompanion then
+        evidence:AddTravelCompanion(buddy)
+    end
+
+    -- Pick a small wander position near the buddy every 5–8 seconds
+    -- so the bot keeps moving rather than freezing next to their buddy.
+    local needsNewWander = not job._buddyWanderPos
+    if not needsNewWander and job._buddyWanderNext and now >= job._buddyWanderNext then
+        needsNewWander = true
+    end
+    if not needsNewWander and job._buddyWanderPos then
+        local distToWander = botPos:Distance(job._buddyWanderPos)
+        if distToWander < 60 then needsNewWander = true end
+    end
+
+    if needsNewWander then
+        -- Pick a point within 180–320 units of the buddy to create natural
+        -- mutual motion rather than two bots stacking on each other.
+        local angle  = math.random(360)
+        local radius = math.random(120, 280)
+        local offset = Vector(
+            math.cos(math.rad(angle)) * radius,
+            math.sin(math.rad(angle)) * radius,
+            0
+        )
+        local candidate = buddy:GetPos() + offset
+        local nav = navmesh.GetNearestNavArea(candidate)
+        job._buddyWanderPos  = nav and nav:GetClosestPointOnArea(candidate) or buddy:GetPos()
+        job._buddyWanderNext = now + math.random(5, 8)
+    end
+
+    if job._buddyWanderPos then
+        setReachableGoal(bot, job._buddyWanderPos)
     end
     return STATUS.RUNNING
 end
@@ -580,6 +619,25 @@ function FollowInnocentPlan.OnRunning(bot)
 
     -- Expiry check
     if job.ExpiryTime and CurTime() > job.ExpiryTime then
+        IC.ClearJobFor(bot)
+        return STATUS.FAILURE
+    end
+
+    -- Nil-target guard: actions that require a TargetObj should not proceed
+    -- with nil — clear the job and return FAILURE so a fresh one is assigned.
+    local ACTIONS = getACTIONS()
+    local needsTarget = {
+        [ACTIONS.BUDDY_UP]        = true,
+        [ACTIONS.PATROL_ZONE]     = true,
+        [ACTIONS.QUEUE_TEST]      = true,
+        [ACTIONS.HOLD_PERIMETER]  = true,
+        [ACTIONS.HOLD_LAST_STAND] = true,
+        [ACTIONS.DEPLOY_CHECKER]  = true,
+        [ACTIONS.INVESTIGATE_AREA] = true,
+        [ACTIONS.GUARD_TESTER]    = true,
+    }
+    if needsTarget[job.Action] and job.TargetObj == nil then
+        debugPrint("%s job %s has nil TargetObj — clearing", bot:Nick(), tostring(job.Action))
         IC.ClearJobFor(bot)
         return STATUS.FAILURE
     end

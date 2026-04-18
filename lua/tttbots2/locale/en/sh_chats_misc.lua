@@ -290,6 +290,181 @@ local function LoadMiscChats()
         }
     )
 
+    -- -----------------------------------------------------------------------
+    -- Specific buy events — richer lines than the generic RegisterBuyEvent
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("BuyApocalypse", P.IMPORTANT,
+        "When a traitor bot buys the Apocalypse SWEP.",
+        {
+            "I've got the Apocalypse. Hang tight.",
+            "Apocalypse acquired. Things are about to get very interesting.",
+            "Got the Apocalypse. Ready to unleash hell.",
+        },
+        {
+            [A.Casual] = { "apocalypse go brr", "uh oh i got the apocalypse lol" },
+            [A.Hothead] = { "APOCALYPSE ONLINE! INCOMING!", "WE HAVE THE APOCALYPSE!" },
+            [A.Stoic] = { "Apocalypse. Standby." },
+            [A.Tryhard] = { "Apocalypse SWEP secured. Awaiting optimal deployment window." },
+        }
+    )
+
+    RegisterSimpleEvent("BuyC4 (Deferred)", P.NORMAL,
+        "When a bot buys C4 but plans to plant it later.",
+        {
+            "Got the C4. Waiting for the right moment to plant it.",
+            "C4 in hand. I'll plant when the time is right.",
+            "Bought the bomb. Sitting on it for now.",
+        },
+        {
+            [A.Casual] = { "got c4, will plant later lol", "bomb is in my pocket lmao" },
+            [A.Hothead] = { "C4 READY. JUST WAITING FOR MY SHOT.", "GOT THE BOMB. IT GOES DOWN SOON." },
+            [A.Stoic] = { "C4. Holding." },
+            [A.Tryhard] = { "Explosive ordnance acquired. Deferring detonation sequence pending optimal positioning." },
+        }
+    )
+
+    RegisterSimpleEvent("BuyJerma Launcher", P.IMPORTANT,
+        "When a traitor bot buys the Jerma Launcher.",
+        {
+            "Got the Jerma Launcher. Someone's getting a surprise.",
+            "Jerma Launcher acquired. Time to unleash chaos.",
+            "They won't see this coming.",
+        },
+        {
+            [A.Casual] = { "jerma launcher lets gooooo", "lmao i got the jerma launcher" },
+            [A.Hothead] = { "JERMA LAUNCHER READY! SOMEONE IS DEAD!", "UNLEASHING THE JERMA!" },
+            [A.Stoic] = { "Jerma Launcher. Loaded." },
+            [A.Tryhard] = { "Jerma Launcher acquired. Deploying on nearest enemy cluster." },
+        }
+    )
+
+    RegisterSimpleEvent("BuyJihad Bomb", P.IMPORTANT,
+        "When a traitor bot buys the Jihad Bomb.",
+        {
+            "I've got a jihad bomb. I'll use it when the moment's perfect.",
+            "Jihad bomb acquired. I'm not afraid to use it.",
+            "Got the bomb vest. I won't hesitate.",
+        },
+        {
+            [A.Casual] = { "uh oh jihad bomb acquired lmao", "got the jihad bomb, rip everyone nearby" },
+            [A.Hothead] = { "JIHAD BOMB! I'LL BLOW THEM ALL UP!", "THEY'RE ALL DYING WITH ME!" },
+            [A.Stoic] = { "Jihad. Ready." },
+            [A.Tryhard] = { "Jihad bomb secured. Calculating optimal enemy cluster for detonation." },
+        }
+    )
+
+    RegisterSimpleEvent("BuyPeacekeeper", P.IMPORTANT,
+        "When a traitor bot buys the Peacekeeper.",
+        {
+            "Got the Peacekeeper. High noon incoming.",
+            "Peacekeeper acquired. Don't blink.",
+            "They won't know what hit them. Peacekeeper ready.",
+        },
+        {
+            [A.Casual] = { "peacekeeper acquired lets gooo", "time to cowboy up, got the peacekeeper" },
+            [A.Hothead] = { "PEACEKEEPER ONLINE! IT'S HIGH NOON!", "ALL OF THEM ARE GETTING SHOT!" },
+            [A.Stoic] = { "Peacekeeper. Ready." },
+            [A.Tryhard] = { "Peacekeeper secured. High-noon sequence primed." },
+        }
+    )
+
+    RegisterSimpleEvent("BuyProp Rain", P.IMPORTANT,
+        "When a traitor bot buys the Prop Rain SWEP.",
+        {
+            "Got the Prop Rain. Things are about to get messy.",
+            "Prop rain acquired. Watch your heads.",
+            "Incoming debris. Lots of it.",
+        },
+        {
+            [A.Casual] = { "prop rain lmaooo", "about to make it rain props everywhere" },
+            [A.Hothead] = { "PROP RAIN READY! EVERYONE IS GETTING CRUSHED!", "INCOMING!!" },
+            [A.Stoic] = { "Prop rain. Standby." },
+            [A.Tryhard] = { "Environmental hazard weapon acquired. Deploying area-denial payload." },
+        }
+    )
+
+    RegisterSimpleEvent("BuyTimestop", P.IMPORTANT,
+        "When a traitor bot buys the Timestop item.",
+        {
+            "Got the timestop. Enjoy your last few seconds of movement.",
+            "Timestop acquired. Nobody runs from this.",
+            "Time is about to stop. Literally.",
+        },
+        {
+            [A.Casual] = { "timestop acquired lmaoo they cant run", "about to freeze time lol" },
+            [A.Hothead] = { "TIMESTOP! NOBODY MOVES! NOBODY!", "TIME IS STOPPING! EVERYONE DIES!" },
+            [A.Stoic] = { "Timestop. Acquired." },
+            [A.Tryhard] = { "Temporal manipulation device secured. Initiating freeze sequence on your mark." },
+        }
+    )
+
+    RegisterSimpleEvent("BuyTurret", P.IMPORTANT,
+        "When a traitor bot buys a Turret.",
+        {
+            "Got a turret. I'll set it up somewhere good.",
+            "Turret acquired. Somebody's going to walk right into this.",
+            "Going to place this turret somewhere strategic.",
+        },
+        {
+            [A.Casual] = { "turret acquired time to be lazy", "gonna set up a turret somewhere sneaky" },
+            [A.Hothead] = { "TURRET TIME! NOTHING GETS THROUGH!", "PLACING THE TURRET NOW! STAY BACK!" },
+            [A.Stoic] = { "Turret. Deploying." },
+            [A.Tryhard] = { "Automated fire platform acquired. Identifying optimal placement zone." },
+        }
+    )
+
+    -- -----------------------------------------------------------------------
+    -- Ability activation chatter (team-only)
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("ApocalypseActivated", P.IMPORTANT,
+        "When a traitor bot successfully activates the Apocalypse SWEP (team-only).",
+        {
+            "Apocalypse is live. The horde is coming.",
+            "I activated the apocalypse. Clean up time.",
+            "The NPCs are loose. Use the chaos.",
+        },
+        {
+            [A.Casual] = { "apocalypse is active lmaoo", "i let the horde loose hehehe" },
+            [A.Hothead] = { "APOCALYPSE ACTIVATED! LET THEM BURN!", "THE HORDE IS LOOSE! CHAOS BEGINS!" },
+            [A.Stoic] = { "Activated." },
+            [A.Tryhard] = { "Apocalypse sequence initiated. NPC horde engaged. Push during the confusion." },
+        }
+    )
+
+    RegisterSimpleEvent("JermaLauncherFired", P.IMPORTANT,
+        "When a traitor bot fires the Jerma Launcher (team-only).",
+        {
+            "Jerma's out! Go while they're distracted!",
+            "I launched the Jerma. Use the chaos.",
+            "Jerma is in play. Push now.",
+        },
+        {
+            [A.Casual] = { "JERMA IS LOOSE LMAO", "jerma is chasing someone rn lol" },
+            [A.Hothead] = { "JERMA DEPLOYED! NOW WE ATTACK!", "THE JERMA IS OUT! PUSH THEM!" },
+            [A.Stoic] = { "Launched." },
+            [A.Tryhard] = { "Jerma nextbot deployed. Initiating coordinated assault under cover of distraction." },
+        }
+    )
+
+    -- -----------------------------------------------------------------------
+    -- Detective leadership dispatch
+    -- -----------------------------------------------------------------------
+    RegisterSimpleEvent("IC_DispatchInvestigate", P.IMPORTANT,
+        "When the detective bot dispatches innocents to investigate an area.",
+        {
+            "Someone check out that area. Report back.",
+            "I need eyes on that zone. Go investigate.",
+            "Team, search that location and tell me what you find.",
+        },
+        {
+            [A.Casual] = { "yo go check that area out", "someone go look over there for me" },
+            [A.Hothead] = { "SOMEONE CHECK THAT AREA NOW!", "GO INVESTIGATE! MOVE IT!" },
+            [A.Stoic] = { "Investigate that zone." },
+            [A.Tryhard] = { "Dispatching unit to investigate designated sector. All findings to be reported immediately." },
+            [A.Nice] = { "Would someone mind checking that area? Thank you so much." },
+        }
+    )
+
     RegisterBuyEvent("Artillery Marker")
     RegisterBuyEvent("Arson Thrower")
     RegisterBuyEvent("Banana")

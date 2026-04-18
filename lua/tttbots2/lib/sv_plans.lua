@@ -769,6 +769,23 @@ TTTBots.Plans.LastReEvalTime = 0
 TTTBots.Plans.LastCoordinatorCount = 0
 TTTBots.Plans.ReEvalCooldown = 10 -- seconds between re-evaluation checks
 
+--- Maximum seconds a plan can run before being force-reset.
+--- Prevents indefinite standstill if a plan's targets all become invalid/unreachable.
+TTTBots.Plans.MAX_PLAN_DURATION = 120
+
+--- Reset all job assignment state on a plan so bots can cycle through it again.
+--- Called automatically by FollowPlan.AssignNextAvailableJob when plan exhaustion
+--- is detected, and also internally after MAX_PLAN_DURATION fires.
+---@param plan table  the plan whose jobs should be reset
+function TTTBots.Plans.ResetPlanJobs(plan)
+    if not (plan and plan.Jobs) then return end
+    for _, j in ipairs(plan.Jobs) do
+        j.Skip = false
+        j.NumAssigned = 0
+        j.AssignedBots = {}
+    end
+end
+
 ---------------------------------------------------------------------------
 -- Per-Team Plan Helpers
 --
@@ -937,6 +954,31 @@ function TTTBots.Plans.Tick()
 
     -- Mid-round re-evaluation for traitor team
     if TTTBots.Plans.CurrentPlanState == TTTBots.Plans.PLANSTATES.RUNNING then
+        -- Force-reset if the plan has been running for too long without change.
+        -- Instead of selecting a brand-new plan (expensive), first try recycling
+        -- the existing plan's job assignments so bots can restart the same plan.
+        local planAge = CurTime() - (TTTBots.Plans.PlanStartTime or 0)
+        if planAge >= TTTBots.Plans.MAX_PLAN_DURATION then
+            TTTBots.Plans.BotStatuses = {}
+            TTTBots.Plans.SharedTargetCache = {}
+            -- Try recycling current plan first; only re-select if it's nil.
+            if TTTBots.Plans.SelectedPlan then
+                TTTBots.Plans.ResetPlanJobs(TTTBots.Plans.SelectedPlan)
+            else
+                TTTBots.Plans.InvalidateAnalysisCache()
+                TTTBots.Plans.SelectedPlan = TTTBots.Lib.DeepCopy(TTTBots.Plans.GetFirstBestPreset(TEAM_TRAITOR))
+                if TTTBots.PlanLearning and TTTBots.Plans.SelectedPlan then
+                    TTTBots.PlanLearning.OnPlanSelected(TTTBots.Plans.SelectedPlan.Name)
+                end
+            end
+            TTTBots.Plans.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
+            TTTBots.Plans.PlanStartTime = CurTime()
+            local tState = TTTBots.Plans.GetTeamPlanState(TEAM_TRAITOR)
+            tState.SelectedPlan = TTTBots.Plans.SelectedPlan
+            tState.CurrentPlanState = TTTBots.Plans.CurrentPlanState
+            tState.PlanStartTime = TTTBots.Plans.PlanStartTime
+            return
+        end
         if TTTBots.Plans.ShouldReEvaluatePlan() then
             TTTBots.Plans.BotStatuses = {}
             TTTBots.Plans.SharedTargetCache = {}
@@ -980,6 +1022,27 @@ function TTTBots.Plans.Tick()
                 state.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
                 state.PlanStartTime = CurTime()
                 state.LastCoordinatorCount = 0
+            end
+        end
+
+        -- Force-reset per-team plan if it has been running too long.
+        -- Recycle job assignments first; only reselect the plan if none exists.
+        if state.CurrentPlanState == TTTBots.Plans.PLANSTATES.RUNNING then
+            local planAge = CurTime() - (state.PlanStartTime or 0)
+            if planAge >= TTTBots.Plans.MAX_PLAN_DURATION then
+                if state.SelectedPlan then
+                    TTTBots.Plans.ResetPlanJobs(state.SelectedPlan)
+                else
+                    TTTBots.Plans.InvalidateAnalysisCache()
+                    local preset = TTTBots.Plans.GetFirstBestPreset(team)
+                    if preset then
+                        state.SelectedPlan = TTTBots.Lib.DeepCopy(preset)
+                    end
+                end
+                state.CurrentPlanState = TTTBots.Plans.PLANSTATES.START
+                state.PlanStartTime = CurTime()
+                state.BotStatuses = {}
+                state.SharedTargetCache = {}
             end
         end
 

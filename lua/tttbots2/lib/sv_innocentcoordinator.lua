@@ -633,6 +633,18 @@ function IC._AssignJobsForStrategy(strategy)
 
     elseif strategy == S.LAST_STAND then
         local stronghold = IC._FindDefensiblePosition()
+        -- Guard: if no defensible position was found, use a popular nav area
+        if not stronghold then
+            local popular = TTTBots.Lib.GetTopNPopularNavs and TTTBots.Lib.GetTopNPopularNavs(1) or {}
+            if popular[1] then
+                local nav = navmesh.GetNavAreaByID(popular[1][1])
+                if nav then stronghold = nav:GetCenter() end
+            end
+        end
+        -- Final fallback: use the first bot's current position
+        if not stronghold and bots[1] then
+            stronghold = bots[1]:GetPos()
+        end
         for _, bot in ipairs(bots) do
             IC.BotJobs[bot] = {
                 Action     = A.HOLD_LAST_STAND,
@@ -719,6 +731,8 @@ function IC._MakeInvestigateJob(bot, now)
 end
 
 --- Build a BUDDY_UP job falling back to the nearest other participant.
+--- If no valid buddy can be found, returns a patrol job instead so the bot
+--- is never left with a nil-target BUDDY_UP job that instantly fails.
 ---@param bot Bot
 ---@param bots table<Bot>
 ---@param now number
@@ -728,17 +742,22 @@ function IC._MakeBuddyJob(bot, bots, now)
     local bestDist = math.huge
     for _, other in ipairs(bots) do
         if other == bot then continue end
+        if not (IsValid(other) and lib.IsPlayerAlive(other)) then continue end
         local d = bot:GetPos():Distance(other:GetPos())
         if d < bestDist then
             bestDist = d
             buddy = other
         end
     end
+    -- No valid buddy found — fall back to a patrol job so the bot keeps moving
+    if not buddy then
+        return IC._MakePatrolJob(bot, now)
+    end
     return {
         Action     = IC.ACTIONS.BUDDY_UP,
         TargetObj  = buddy,
         AssignTime = now,
-        ExpiryTime = now + math.random(30, 90),
+        ExpiryTime = now + math.random(20, 45), -- shorter window; stuck-detection re-assigns if needed
         State      = IC.BOTSTATES.IDLE,
     }
 end
@@ -816,6 +835,9 @@ hook.Add("TTTEndRound", "IC.Cleanup", function()
     IC._cachedCheckerDeployPos  = nil
     IC._checkerDeployPosTime    = 0
     IC._lastDetectiveEmitTime   = {}
+    IC._botLastPos              = {}
+    IC._botLastPosTime          = {}
+    IC._botNearBuddySince       = {}
 end)
 
 hook.Add("TTTPrepareRound", "IC.PrepareRound", function()
@@ -831,6 +853,9 @@ hook.Add("TTTPrepareRound", "IC.PrepareRound", function()
     IC._cachedCheckerDeployPos  = nil
     IC._checkerDeployPosTime    = 0
     IC._lastDetectiveEmitTime   = {}
+    IC._botLastPos              = {}
+    IC._botLastPosTime          = {}
+    IC._botNearBuddySince       = {}
 end)
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -839,6 +864,14 @@ end)
 
 IC._lastStrategyEvalTime = 0
 IC.STRATEGY_EVAL_INTERVAL = 8 -- Re-evaluate strategy at most every 8 seconds
+
+-- Stuck-bot detection: tracks last-known position and when the bot last moved.
+IC._botLastPos      = {}   -- [bot] = Vector
+IC._botLastPosTime  = {}   -- [bot] = CurTime when position was last meaningfully updated
+IC._botNearBuddySince = {} -- [bot] = CurTime when we first detected the bot was within buddy range
+IC.STUCK_MOVE_THRESHOLD = 60  -- units; less than this counts as "not moved"
+IC.STUCK_TIME_LIMIT     = 12  -- seconds without meaningful movement before job is force-expired
+IC.BUDDY_STANDSTILL_LIMIT = 8 -- seconds both buddy-pair bots can be within 250u before job shortens
 
 --- Main tick function. Called once per server tick cycle.
 function IC.Tick()
@@ -879,6 +912,62 @@ function IC.Tick()
             if not (IsValid(buddy) and lib.IsPlayerAlive(buddy)) then
                 IC.BotJobs[bot] = nil
                 IC.BuddyPairs[bot] = nil
+            end
+        end
+    end
+
+    -- ── Stuck-bot detection ────────────────────────────────────────────────
+    -- If a bot hasn't moved more than STUCK_MOVE_THRESHOLD units in
+    -- STUCK_TIME_LIMIT seconds, force-expire its job so it gets a fresh one.
+    -- Also detect mutual buddy-pair standstill (both within 250 units for too
+    -- long) and shorten the remaining expiry to break the freeze early.
+    for bot, job in pairs(IC.BotJobs) do
+        if not (IsValid(bot) and lib.IsPlayerAlive(bot)) then continue end
+
+        local botPos = bot:GetPos()
+        local lastPos  = IC._botLastPos[bot]
+        local lastTime = IC._botLastPosTime[bot] or now
+
+        if lastPos and botPos:Distance(lastPos) > IC.STUCK_MOVE_THRESHOLD then
+            -- Bot has moved — reset tracking
+            IC._botLastPos[bot]     = botPos
+            IC._botLastPosTime[bot] = now
+            IC._botNearBuddySince[bot] = nil
+        elseif not lastPos then
+            IC._botLastPos[bot]     = botPos
+            IC._botLastPosTime[bot] = now
+        elseif (now - lastTime) >= IC.STUCK_TIME_LIMIT then
+            -- Bot has been almost stationary for too long — force-expire job
+            IC.BotJobs[bot] = nil
+            IC._botLastPos[bot]     = nil
+            IC._botLastPosTime[bot] = nil
+            IC._botNearBuddySince[bot] = nil
+            continue
+        end
+
+        -- Buddy-pair mutual standstill: if both bots are within 250 units of
+        -- each other and have been for BUDDY_STANDSTILL_LIMIT seconds, shorten
+        -- both their jobs' ExpiryTime so they move on quickly.
+        if job and job.Action == IC.ACTIONS.BUDDY_UP then
+            local buddy = job.TargetObj
+            if IsValid(buddy) and lib.IsPlayerAlive(buddy) then
+                local dist = botPos:Distance(buddy:GetPos())
+                if dist <= 250 then
+                    if not IC._botNearBuddySince[bot] then
+                        IC._botNearBuddySince[bot] = now
+                    elseif (now - IC._botNearBuddySince[bot]) >= IC.BUDDY_STANDSTILL_LIMIT then
+                        -- Both are near each other for too long — shorten expiry
+                        job.ExpiryTime = math.min(job.ExpiryTime, now + 2)
+                        local buddyJob = IC.BotJobs[buddy]
+                        if buddyJob and buddyJob.Action == IC.ACTIONS.BUDDY_UP then
+                            buddyJob.ExpiryTime = math.min(buddyJob.ExpiryTime, now + 2)
+                        end
+                        IC._botNearBuddySince[bot] = nil
+                    end
+                else
+                    -- Moved apart — reset buddy proximity timer
+                    IC._botNearBuddySince[bot] = nil
+                end
             end
         end
     end
@@ -976,6 +1065,15 @@ function IC._BuildSingleJob(bot, strategy, now)
 
     elseif strategy == S.LAST_STAND then
         local pos = IC._FindDefensiblePosition()
+        -- Guard: nil defensible position falls back to a popular nav area
+        if not pos then
+            local popular = TTTBots.Lib.GetTopNPopularNavs and TTTBots.Lib.GetTopNPopularNavs(1) or {}
+            if popular[1] then
+                local nav = navmesh.GetNavAreaByID(popular[1][1])
+                if nav then pos = nav:GetCenter() end
+            end
+        end
+        if not pos then pos = bot:GetPos() end
         return {
             Action     = A.HOLD_LAST_STAND,
             TargetObj  = pos,
