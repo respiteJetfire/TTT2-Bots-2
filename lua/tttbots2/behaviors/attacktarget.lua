@@ -462,7 +462,7 @@ function Attack.GetTargetHeadPos(targetPly)
 
     local head_bone_index = targetPly:LookupBone("ValveBiped.Bip01_Head1")
     if not head_bone_index then
-        print("Returning fallback; no bone index for target.")
+        if lib.GetDebugFor("attack") then print("Returning fallback; no bone index for target.") end
         return fallback
     end
 
@@ -471,7 +471,7 @@ function Attack.GetTargetHeadPos(targetPly)
     if head_pos then
         return head_pos
     else
-        print("Returning fallback, couldn't retrieve head_pos from bone index " .. head_bone_index)
+        if lib.GetDebugFor("attack") then print("Returning fallback, couldn't retrieve head_pos from bone index " .. head_bone_index) end
         return fallback
     end
 end
@@ -481,7 +481,7 @@ function Attack.GetTargetBodyPos(targetPly)
 
     local spine_bone_index = targetPly:LookupBone("ValveBiped.Bip01_Spine2")
     if not spine_bone_index then
-        print("Returning fallback; no bone index for target.")
+        if lib.GetDebugFor("attack") then print("Returning fallback; no bone index for target.") end
         return fallback
     end
 
@@ -490,7 +490,7 @@ function Attack.GetTargetBodyPos(targetPly)
     if spine_pos then
         return spine_pos
     else
-        print("Returning fallback, couldn't retrieve spine_pos from bone index " .. spine_bone_index)
+        if lib.GetDebugFor("attack") then print("Returning fallback, couldn't retrieve spine_pos from bone index " .. spine_bone_index) end
         return fallback
     end
 end
@@ -1192,6 +1192,7 @@ local function FormatAttackValidationEntity(ent)
 end
 
 local function PrintAttackValidationFailure(bot, info)
+    if not lib.GetDebugFor("attack") then return end
     print(string.format("[TTTBots][AttackTarget] %s failed to validate attack target behavior.", tostring(bot:Nick())))
     print(string.format("  bot: %s", FormatAttackValidationEntity(bot)))
     print(string.format("  target: %s", FormatAttackValidationEntity(info.target)))

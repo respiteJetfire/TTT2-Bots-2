@@ -99,17 +99,17 @@ function ChatterHelp.OnRunning(bot)
     local teamOnly = bot:GetTeam() ~= TEAM_INNOCENT and target:GetTeam() == bot:GetTeam()
 
     if state.askStatus == "AskFollow" then
-        print("Asking " .. target:Nick() .. " to follow.")
+        if lib.GetDebugFor("misc") then print("Asking " .. target:Nick() .. " to follow.") end
         chatter:On("AskFollow", { player = target:Nick() }, teamOnly, 0)
-        print("Asked " .. target:Nick() .. " to follow.")
+        if lib.GetDebugFor("misc") then print("Asked " .. target:Nick() .. " to follow.") end
     elseif state.askStatus == "AskComeHere" then
-        print("Asking " .. target:Nick() .. " to come here.")
+        if lib.GetDebugFor("misc") then print("Asking " .. target:Nick() .. " to come here.") end
         chatter:On("AskComeHere", { player = target:Nick() }, teamOnly, 0)
     elseif state.askStatus == "AskHeal" then
-        print("Asking " .. target:Nick() .. " to heal.")
+        if lib.GetDebugFor("misc") then print("Asking " .. target:Nick() .. " to heal.") end
         chatter:On("AskHeal", { player = target:Nick() }, teamOnly, 0)
     elseif state.askStatus == "AskAttack" then
-        print("Asking " .. target:Nick() .. " to attack.")
+        if lib.GetDebugFor("misc") then print("Asking " .. target:Nick() .. " to attack.") end
         chatter:On("AskAttack", { player = target:Nick() }, teamOnly, 0)
     end
 
@@ -160,7 +160,7 @@ hook.Add("PlayerHurt", "TTTBots_PlayerHurt", function(victim, attacker, healthRe
 
     if healthRemaining <= 75 and math.random(1, 100) > 60 then
         local chatter = bot:BotChatter()
-        print("Asking " .. target:Nick() .. " to cease fire.")
+        if lib.GetDebugFor("misc") then print("Asking " .. target:Nick() .. " to cease fire.") end
         if chatter and chatter.On then chatter:On("AskCeaseFire", { player = target:Nick() }, false, 0) end
     end
 end)

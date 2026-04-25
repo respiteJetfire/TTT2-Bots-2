@@ -51,7 +51,7 @@ local CreateSharedConCommand = function(name, serverCallback)
         else
             net.Start("TTTBots_RequestConCommand")
             net.WriteString(name)
-            net.WriteTable(args)
+            net.WriteString(util.Compress(util.TableToJSON(args)))
             net.SendToServer()
         end
     end)
@@ -306,7 +306,7 @@ if SERVER then
         if not IsPlayerSuperAdmin(ply) then return end     -- we can only request console commands from the server or superadmins
         if ply == NULL or not IsValid(ply) then return end -- Not accepted by server console, as this should only be called on request from client
         local name = net.ReadString()
-        local args = net.ReadTable()
+        local args = util.JSONToTable(util.Decompress(net.ReadString()))
         if not sharedFunctions[name] then return end
         local sharedFunc = sharedFunctions[name]
         printf("Player %s, who is a superadmin, called concommand '%s' remotely.", ply:Nick(), name)

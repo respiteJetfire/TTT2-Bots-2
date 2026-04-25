@@ -24,7 +24,7 @@ end
 ---@param bot Bot
 ---@return BStatus
 function BehaviorCeaseFire.OnStart(bot)
-    print(bot:Nick() .. " is now ceasing fire.")
+    if lib.GetDebugFor("misc") then print(bot:Nick() .. " is now ceasing fire.") end
     -- Don't drop a high-priority attack target (KOS'd enemy, self-defense, etc.)
     -- just because someone asked for ceasefire.
     local pri = bot.attackTargetPriority or 0
@@ -45,13 +45,13 @@ end
 --- Called when the behavior returns a success state. Only called on success, however.
 ---@param bot Bot
 function BehaviorCeaseFire.OnSuccess(bot)
-    print(bot:Nick() .. " has ceased fire.")
+    if lib.GetDebugFor("misc") then print(bot:Nick() .. " has ceased fire.") end
 end
 
 --- Called when the behavior returns a failure state. Only called on failure, however.
 ---@param bot Bot
 function BehaviorCeaseFire.OnFailure(bot)
-    print(bot:Nick() .. " failed to cease fire.")
+    if lib.GetDebugFor("misc") then print(bot:Nick() .. " failed to cease fire.") end
 end
 
 --- Called when the behavior succeeds or fails. Useful for cleanup, as it is always called once the behavior is a) interrupted, or b) returns a success or failure state.
@@ -74,14 +74,14 @@ function BehaviorCeaseFire.HandleRequest(bot, player, teamOnly)
     -- to tell everyone to stop fighting.
     local kosList = TTTBots.Match.KOSList
     if kosList and kosList[player] and not table.IsEmpty(kosList[player]) then
-        print(bot:Nick() .. " refused ceasefire from KOS'd player " .. player:Nick())
+        if lib.GetDebugFor("misc") then print(bot:Nick() .. " refused ceasefire from KOS'd player " .. player:Nick()) end
         if chatter and chatter.On then chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4)) end
         return
     end
 
     -- Reject ceasefire from highly suspicious players
     if not roleDisablesSuspicion and playerSus >= (Morality.Thresholds and Morality.Thresholds.KOS or 7) then
-        print(bot:Nick() .. " refused ceasefire from suspicious player " .. player:Nick())
+        if lib.GetDebugFor("misc") then print(bot:Nick() .. " refused ceasefire from suspicious player " .. player:Nick()) end
         if chatter and chatter.On then chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4)) end
         return
     end
@@ -94,16 +94,16 @@ function BehaviorCeaseFire.HandleRequest(bot, player, teamOnly)
         chance = math.Clamp((10 - sus) / 20, 0, 1)
     end
     if teamOnly and bot:GetTeam() ~= player:GetTeam() then
-        print(bot:Nick() .. " refused to cease fire for " .. player:Nick())
+        if lib.GetDebugFor("misc") then print(bot:Nick() .. " refused to cease fire for " .. player:Nick()) end
         return
     end
     -- FIX: math.random() returns 0-1 float, compare directly against chance (also 0-1)
     if math.random() > chance then
-        print(bot:Nick() .. " refused to cease fire for " .. player:Nick())
+        if lib.GetDebugFor("misc") then print(bot:Nick() .. " refused to cease fire for " .. player:Nick()) end
         if chatter and chatter.On then chatter:On("CeaseFireRefuse", { player = player:Nick() }, teamOnly, math.random(1, 4)) end
         return
     end
     bot.ceaseFire = true
     bot.ceaseFireRequester = player
-    print(bot:Nick() .. " is now ceasing fire as requested by " .. player:Nick())
+    if lib.GetDebugFor("misc") then print(bot:Nick() .. " is now ceasing fire as requested by " .. player:Nick()) end
 end

@@ -11,7 +11,7 @@ TTTBots.ClientPlanStats = TTTBots.ClientPlanStats or nil
 TTTBots.ClientBotMenuData = TTTBots.ClientBotMenuData or nil
 
 net.Receive("TTTBots_BotMenuData", function()
-    TTTBots.ClientBotMenuData = net.ReadTable()
+    TTTBots.ClientBotMenuData = util.JSONToTable(util.Decompress(net.ReadString()))
 end)
 
 --- Populate plan stats overview in the bot menu tab

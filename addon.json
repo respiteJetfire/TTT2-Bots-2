@@ -16,6 +16,7 @@
 		"tttbots-banner2.png",
 		"icon.jpg",
 		".vscode/*",
-		".github/*"
-	]
+        ".github/*",
+        "*.bak",
+        "**/meta_defs.lua"
 }

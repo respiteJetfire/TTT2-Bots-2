@@ -90,7 +90,7 @@ local function syncClientAvatars(ply)
     end
 
     net.Start("TTTBots_SyncAvatarNumbers")
-    net.WriteTable(avatars_nicks)
+    net.WriteString(util.Compress(util.TableToJSON(avatars_nicks)))
     net.Send(ply)
 end
 
@@ -99,11 +99,19 @@ net.Receive("TTTBots_SyncAvatarNumbers", function(len, ply)
     syncClientAvatars(ply)
 end)
 
+--- Only cvars with this prefix may be mutated remotely to prevent arbitrary
+--- server-side console command injection.
+local CVAR_PREFIX = "ttt_bot_"
+
 net.Receive("TTTBots_RequestCvarUpdate", function(len, ply)
     if not IsValid(ply) or not ply:IsSuperAdmin() then return end
 
-    local cvar = net.ReadString()
+    local cvar  = net.ReadString()
     local value = net.ReadString()
+
+    -- Security: reject any cvar that is not a recognised TTT Bots 2 cvar.
+    if not string.sub(cvar, 1, #CVAR_PREFIX) == CVAR_PREFIX then return end
+    if not GetConVar(cvar) then return end -- must already exist
 
     RunConsoleCommand(cvar, value)
 end)
@@ -164,6 +172,6 @@ net.Receive("TTTBots_RequestBotMenuData", function(len, ply)
     end
 
     net.Start("TTTBots_BotMenuData")
-    net.WriteTable({ bots = botData, buyables = buyableData })
+    net.WriteString(util.Compress(util.TableToJSON({ bots = botData, buyables = buyableData })))
     net.Send(ply)
 end)

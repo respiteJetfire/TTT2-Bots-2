@@ -1289,57 +1289,24 @@ end
 
 --- Do a traceline from startPos to endPos, with no specific mask (hit anything). Filter out ourselves.
 --- Returns if we can see the endPos without interruption
---TODO: Move to botlib
 function BotLocomotor:TestVisionNoMask(startPos, endPos)
-    local trace = util.TraceLine({
-        start = startPos,
-        endpos = endPos,
-        filter = self.bot,
-    })
-    return not trace.Hit -- true if we can see the endPos
+    return TTTBots.Lib.TestVisionNoMask(self.bot, startPos, endPos)
 end
 
---TODO: Move to botlib
+--- Traceline from startPos to endPos using MASK_SOLID_BRUSHONLY. Filter out ourselves.
+--- Returns if we can see the endPos without world geometry interruption
 function BotLocomotor:TestVisionWorldMask(startPos, endPos)
-    local trace = util.TraceLine({
-        start = startPos,
-        endpos = endPos,
-        mask = MASK_SOLID_BRUSHONLY,
-        filter = self.bot,
-    })
-    return not trace.Hit -- true if we can see the endPos
+    return TTTBots.Lib.TestVisionWorldMask(self.bot, startPos, endPos)
 end
 
---TODO: Move to botlib
+--- Divides the line from startPos to endPos into segments of ~`units` Hammer units each.
 function BotLocomotor:DivideIntoSegments(startPos, endPos, units)
-    local dist = startPos:Distance(endPos)
-    local numSegments = math.ceil(dist / units)
-    local segments = {}
-    for i = 1, numSegments do
-        local t = i / numSegments
-        local pos = LerpVector(t, startPos, endPos)
-        table.insert(segments, pos)
-    end
-    return segments
+    return TTTBots.Lib.DivideIntoSegments(startPos, endPos, units)
 end
 
---TODO: Move to botlib
+--- Returns true if a bot-sized hull can be placed at pos without clipping world geometry.
 function BotLocomotor:CanStandAt(pos)
-    if not util.IsInWorld(pos) then return false end
-
-    local origin = pos + Vector(0, 0, 16)
-    local mins = self.bot:OBBMins()
-    local maxs = self.bot:OBBMaxs() - Vector(0, 0, 16)
-    local tr = util.TraceHull({
-        start = origin,
-        endpos = origin,
-        mins = mins,
-        maxs = maxs,
-        filter = self.bot,
-        mask = MASK_PLAYERSOLID,
-    })
-
-    return not tr.Hit
+    return TTTBots.Lib.CanStandAt(self.bot, pos)
 end
 
 --- Determine the next pos along our current path

@@ -164,33 +164,45 @@ local function forceMeeting(bot, corpse)
         wep.Target = corpse
         local ok, err = pcall(function() wep:Meet() end)
         if ok then
-            print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
-                .. " force-called meeting on corpse (Meet bypassed hold-fire).")
+            if lib.GetDebugFor("misc") then
+                print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
+                    .. " force-called meeting on corpse (Meet bypassed hold-fire).")
+            end
             return true
         else
             -- Meet() failed — try DoMeeting() directly as last resort
-            print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
-                .. " Meet() failed (" .. tostring(err) .. "), trying DoMeeting directly.")
+            if lib.GetDebugFor("misc") then
+                print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
+                    .. " Meet() failed (" .. tostring(err) .. "), trying DoMeeting directly.")
+            end
             local ok2, err2 = pcall(function() wep:DoMeeting(corpse) end)
             if ok2 then
-                print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
-                    .. " force-called meeting on corpse (DoMeeting direct).")
+                if lib.GetDebugFor("misc") then
+                    print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
+                        .. " force-called meeting on corpse (DoMeeting direct).")
+                end
                 return true
             else
-                print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
-                    .. " DoMeeting also failed: " .. tostring(err2))
+                if lib.GetDebugFor("misc") then
+                    print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
+                        .. " DoMeeting also failed: " .. tostring(err2))
+                end
             end
         end
     elseif wep.DoMeeting then
         -- Only DoMeeting exists
         local ok, err = pcall(function() wep:DoMeeting(corpse) end)
         if ok then
-            print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
-                .. " force-called meeting on corpse (DoMeeting only).")
+            if lib.GetDebugFor("misc") then
+                print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
+                    .. " force-called meeting on corpse (DoMeeting only).")
+            end
             return true
         else
-            print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
-                .. " DoMeeting failed: " .. tostring(err))
+            if lib.GetDebugFor("misc") then
+                print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
+                    .. " DoMeeting failed: " .. tostring(err))
+            end
         end
     end
 
@@ -298,9 +310,11 @@ function AMeet.OnRunning(bot)
                 return STATUS.SUCCESS
             else
                 -- Force also failed — mark corpse as used to avoid infinite retry
-                print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
-                    .. " giving up on corpse after " .. state.interactionAttempts
-                    .. " attempts and " .. string.format("%.1f", timeInRange) .. "s.")
+                if lib.GetDebugFor("misc") then
+                    print("[TTT Bots 2] Astronaut bot " .. tostring(bot:Nick())
+                        .. " giving up on corpse after " .. state.interactionAttempts
+                        .. " attempts and " .. string.format("%.1f", timeInRange) .. "s.")
+                end
                 state.usedCorpses[corpse] = true
                 state.target = nil
                 state.interactionAttempts = 0

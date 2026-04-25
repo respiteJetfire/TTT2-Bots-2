@@ -59,7 +59,6 @@ local function includeServer()
     include("tttbots2/lib/sv_pathmanager.lua")
     include("tttbots2/lib/sv_debug.lua")
     include("tttbots2/lib/sv_miscnetwork.lua")
-    include("tttbots2/lib/sv_debug.lua")
     include("tttbots2/lib/sv_debuglog.lua")
     include("tttbots2/lib/sv_popularnavs.lua")
     include("tttbots2/lib/sv_providers.lua")
@@ -127,13 +126,12 @@ end
 local function includeShared(isReload)
     includeSharedFile("tttbots2/lib/sh_errortracker.lua", isReload) -- Error tracker — loaded first for early capture
     includeSharedFile("tttbots2/lib/sh_events.lua", isReload)   -- Event bus — loaded first so all other modules can subscribe
+    includeSharedFile("tttbots2/data/sh_traits.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_botlib.lua", isReload)
     includeSharedFile("tttbots2/commands/sh_cvars.lua", isReload)
     includeSharedFile("tttbots2/commands/sh_concommands.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_match.lua", isReload)
-    includeSharedFile("tttbots2/data/sh_traits.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_languages.lua", isReload)
-    includeSharedFile("tttbots2/lib/sh_botlib.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_prompt_context.lua", isReload)   -- Tier 8: game-state context + accusation prompts
     includeSharedFile("tttbots2/lib/sh_chatgpt_prompts.lua", isReload)
     includeSharedFile("tttbots2/lib/sh_llama_prompts.lua", isReload)
@@ -399,9 +397,8 @@ function TTTBots.Reload()
                     and TTTBots.GetAdaptiveThinkRateMultiplier() or 1
                 thinkRateMulti = thinkRateMulti * adaptiveMulti
 
-                for i, component in pairs(bot.components) do
+                for _compKey, component in pairs(bot.components) do
                     if component.Think == nil then
-                        print("No think")
                         continue
                     end
                     -- Dynamic tick scaler gate: if this bot is throttled, skip

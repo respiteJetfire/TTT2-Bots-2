@@ -23,7 +23,6 @@ end
 function BotInventory:Initialize(bot)
     -- print("Initializing")
     bot.components = bot.components or {}
-    bot.components.Inventory = self
 
     self.componentID = string.format("inventory (%s)", lib.GenerateID()) -- Component ID, used for debugging
     self.ThinkRate = 2 -- Run every 2nd tick (~2.5Hz)

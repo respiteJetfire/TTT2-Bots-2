@@ -29,32 +29,20 @@ function TTTBots.ChatGPT.SendText(prompt, bot, opts, callback)
         return
     end
 
-    -- Char-by-char JSON escaping helper
-    local function jsonEscape(s)
-        return string.gsub(s, '[%c"%\\]', function(c)
-            return string.format('\\u%04x', string.byte(c))
-        end)
-    end
-
     -- Build messages array: optional system prompt + user prompt
+    local messages = {}
     local systemPrompt = opts.systemPrompt
-    local messagesJson
     if systemPrompt and systemPrompt ~= "" then
-        messagesJson = string.format(
-            '[{"role":"system","content":"%s"},{"role":"user","content":"%s"}]',
-            jsonEscape(systemPrompt), jsonEscape(prompt)
-        )
-    else
-        messagesJson = string.format(
-            '[{"role":"user","content":"%s"}]',
-            jsonEscape(prompt)
-        )
+        messages[#messages + 1] = { role = "system", content = systemPrompt }
     end
+    messages[#messages + 1] = { role = "user", content = prompt }
 
-    local requestBody = string.format(
-        '{"model":"%s","messages":%s,"max_tokens":500,"temperature":%.1f}',
-        model, messagesJson, temperature
-    )
+    local requestBody = TTTBots.Providers.BuildRequestBody({
+        model       = model,
+        messages    = messages,
+        max_tokens  = 500,
+        temperature = temperature,
+    })
 
     HTTP({
         url = 'https://api.openai.com/v1/chat/completions',

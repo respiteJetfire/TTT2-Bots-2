@@ -5,7 +5,11 @@ local lib = TTTBots.Lib
 ---@class CPersonality : Component
 local BotPersonality = TTTBots.Components.Personality
 
-BotPersonality.Traits = TTTBots.Traits
+BotPersonality.Traits = TTTBots.Traits or {}
+
+local function getTraitRegistry()
+    return TTTBots.Traits or BotPersonality.Traits or {}
+end
 
 function BotPersonality:New(bot)
     local newPersonality = {}
@@ -20,6 +24,13 @@ function BotPersonality:New(bot)
     end
 
     return newPersonality
+end
+
+function BotPersonality:GetTraitsTable()
+    local traits = getTraitRegistry()
+    BotPersonality.Traits = traits
+
+    return traits
 end
 
 TTTBots.Archetypes = {
@@ -494,6 +505,7 @@ function BotPersonality:Initialize(bot)
     -- --- print("Initializing")
     bot.components = bot.components or {}
     bot.components.personality = self
+    self.bot = bot
 
     self.componentID = string.format("Personality (%s)", lib.GenerateID()) -- Component ID, used for debugging
     self.ThinkRate = 5 -- Run every 5th tick (1Hz)
@@ -535,6 +547,7 @@ function BotPersonality:Initialize(bot)
 
 
     local gameDiff = lib.GetConVarInt("difficulty")
+    local traits = self:GetTraitsTable()
 
     -- These are different to normal traits, as I want them to be more common and specific to the current difficulty
     -- Extreme scaling: diff 1 = never headshot/strafe, diff 5 = almost always headshot/strafe
@@ -569,7 +582,7 @@ function BotPersonality:Initialize(bot)
     }
     local traitCount = TRAIT_COUNTS[gameDiff] or 4
     local traits_enabled = lib.GetConVarBool("personalities")
-    self.traits = (traits_enabled and self:GetNoConflictTraits(traitCount)) or
+    self.traits = (traits_enabled and next(traits) ~= nil and self:GetNoConflictTraits(traitCount)) or
         {} -- The bot's traits. These are just keynames and not the actual trait objects.
     self.archetype = self:GetClosestArchetype()
     ---ch
@@ -661,7 +674,6 @@ function BotPersonality:Initialize(bot)
         calloutTrust  = 0,  -- -1 = very sceptical of KOS callouts by others
     }
 
-    self.bot = bot
 end
 
 function BotPersonality:IsStrafer() return self.isStrafer or false end
@@ -707,8 +719,12 @@ end
 function BotPersonality:GetTraitData()
     if self.traitData then return self.traitData end
     self.traitData = {}
+    local traits = self:GetTraitsTable()
     for _, trait in ipairs(self.traits) do
-        table.insert(self.traitData, BotPersonality.Traits[trait])
+        local traitData = traits[trait]
+        if traitData then
+            table.insert(self.traitData, traitData)
+        end
     end
     return self.traitData
 end
@@ -716,9 +732,12 @@ end
 --- Returns a table of strings that are the flavored trait descriptions. Basically human-readable explanations of each trait.
 function BotPersonality:GetFlavoredTraits()
     local traits = {}
+    local traitTable = self:GetTraitsTable()
     for i, trait in ipairs(self.traits) do
-        -- --- print(self:FlavorText(self.Traits[trait].description))
-        table.insert(traits, self:FlavorText(self.Traits[trait].description))
+        local traitData = traitTable[trait]
+        if traitData and traitData.description then
+            table.insert(traits, self:FlavorText(traitData.description))
+        end
     end
     return traits
 end
@@ -922,6 +941,8 @@ function BotPersonality:DisconnectIfDesired()
 end
 
 function BotPersonality:Think()
+    if not self.bot then return end
+
     if not (self.rageRate and self.pressureRate and self.boredomRate) then
         self.rageRate = (self:GetTraitMult("rageRate") or 1)         --- The multiplier of the given stat based off the bot's personality. Applies to increases and decreases
         self.pressureRate = (self:GetTraitMult("pressureRate") or 1) --- The multiplier of the given stat based off the bot's personality. Applies to increases and decreases
@@ -940,10 +961,12 @@ end
 --- Get a pure random trait name.
 ---@return string
 function BotPersonality:GetRandomTrait()
+    local traits = self:GetTraitsTable()
     local keys = {}
-    for k, _ in pairs(self.Traits) do
+    for k, _ in pairs(traits) do
         table.insert(keys, k)
     end
+    if #keys == 0 then return nil end
     return keys[math.random(#keys)]
 end
 
@@ -952,8 +975,10 @@ end
 ---@param traitSet table
 ---@return boolean
 function BotPersonality:TraitHasConflict(trait, traitSet)
+    local traits = self:GetTraitsTable()
     for _, selectedTrait in ipairs(traitSet) do
-        for _, conflict in ipairs(self.Traits[selectedTrait].conflicts) do
+        local selectedTraitData = traits[selectedTrait]
+        for _, conflict in ipairs((selectedTraitData and selectedTraitData.conflicts) or {}) do
             if conflict == trait then
                 return true
             end
@@ -968,6 +993,11 @@ end
 function BotPersonality:GetNoConflictTraits(num)
     local selectedTraits = {}
     local traitorTraits = 0
+    local traits = self:GetTraitsTable()
+
+    if next(traits) == nil then
+        return selectedTraits
+    end
 
     local DIFFICULTY_RANGES = TTTBots.Lib.DIFFICULTY_RANGES
     local GAME_DIFFICULTY = TTTBots.Lib.GetConVarInt("difficulty")
@@ -981,24 +1011,27 @@ function BotPersonality:GetNoConflictTraits(num)
 
     while #selectedTraits < num do
         local trait = self:GetRandomTrait()
+        if not trait then break end
         local tryCount = 0
 
-        while (self:TraitHasConflict(trait, selectedTraits) or table.HasValue(selectedTraits, trait) or difficultySoFar + (self.Traits[trait].effects.difficulty or 0) > DIFF_MAX) and tryCount < 10 do
+        while (self:TraitHasConflict(trait, selectedTraits) or table.HasValue(selectedTraits, trait) or difficultySoFar + (((traits[trait] or {}).effects or {}).difficulty or 0) > DIFF_MAX) and tryCount < 10 do
             trait = self:GetRandomTrait()
+            if not trait then break end
             tryCount = tryCount + 1
         end
 
-        if tryCount < 10 then
-            local traitDiff = (self.Traits[trait].effects.difficulty or 0)
+        if trait and tryCount < 10 then
+            local traitData = traits[trait]
+            local traitDiff = (((traitData or {}).effects or {}).difficulty or 0)
             -- Check if adding this trait keeps the total difficulty within the range
             if difficultySoFar + traitDiff >= DIFF_MIN and difficultySoFar + traitDiff <= DIFF_MAX then
-                if self.Traits[trait].traitor_only then
+                if traitData and traitData.traitor_only then
                     if traitorTraits < 1 then
                         table.insert(selectedTraits, trait)
                         traitorTraits = traitorTraits + 1
                         difficultySoFar = difficultySoFar + traitDiff
                     end
-                else
+                elseif traitData then
                     table.insert(selectedTraits, trait)
                     difficultySoFar = difficultySoFar + traitDiff
                 end
@@ -1015,14 +1048,17 @@ end
 ---@param trait_name string
 ---@return boolean
 function BotPersonality:HasTrait(trait_name)
+    if not self.bot then return false end
     return self.bot:HasTrait(trait_name)
 end
 
 function BotPersonality:HasTraitIn(hashtable)
+    if not self.bot then return false end
     return self.bot:HasTraitIn(hashtable)
 end
 
 function BotPersonality:GetIgnoresOrders()
+    if not self.bot then return false end
     if self.bot.ignoreOrders ~= nil then return self.bot.ignoreOrders end
     -- go through each trait and check if it has "ignoreOrders" in its effects set to true
     local traits = self:GetTraitData()
@@ -1040,18 +1076,22 @@ end
 ---@param attribute string
 ---@return number
 function BotPersonality:GetTraitMult(attribute)
+    if not self.bot then return 1 end
     return self.bot:GetTraitMult(attribute)
 end
 
 function BotPersonality:GetTraitAdditive(attribute)
+    if not self.bot then return 0 end
     return self.bot:GetTraitAdditive(attribute)
 end
 
 function BotPersonality:GetDifficulty()
+    if not self.bot then return 0 end
     return self.bot:GetDifficulty()
 end
 
 function BotPersonality:GetTraitBool(attribute, falseHasPriority)
+    if not self.bot then return false end
     return self.bot:GetTraitBool(attribute, falseHasPriority)
 end
 

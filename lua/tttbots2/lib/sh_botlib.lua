@@ -2032,3 +2032,80 @@ function TTTBots.Chat.BroadcastInChat(message, adminsOnly)
         ply:ChatPrint(message)
     end
 end
+
+-- ---------------------------------------------------------------------------
+-- Botlib: Vision / geometry helpers (moved from sv_locomotor.lua)
+-- ---------------------------------------------------------------------------
+
+--- Do a traceline from startPos to endPos with no specific mask (hit anything).
+--- Filter out the owning bot. Returns true if startPos has unobstructed line-of-sight to endPos.
+---@param bot Player
+---@param startPos Vector
+---@param endPos Vector
+---@return boolean
+---@realm server
+function TTTBots.Lib.TestVisionNoMask(bot, startPos, endPos)
+    local trace = util.TraceLine({
+        start  = startPos,
+        endpos = endPos,
+        filter = bot,
+    })
+    return not trace.Hit
+end
+
+--- Do a traceline from startPos to endPos using MASK_SOLID_BRUSHONLY (world geometry only).
+--- Returns true if the path is unobstructed by world brushes.
+---@param bot Player
+---@param startPos Vector
+---@param endPos Vector
+---@return boolean
+---@realm server
+function TTTBots.Lib.TestVisionWorldMask(bot, startPos, endPos)
+    local trace = util.TraceLine({
+        start  = startPos,
+        endpos = endPos,
+        mask   = MASK_SOLID_BRUSHONLY,
+        filter = bot,
+    })
+    return not trace.Hit
+end
+
+--- Divide the line from startPos to endPos into segments of (approximately) `units` Hammer units each.
+--- Returns a sequential table of Vector positions along the path.
+---@param startPos Vector
+---@param endPos Vector
+---@param units number
+---@return Vector[]
+---@realm server
+function TTTBots.Lib.DivideIntoSegments(startPos, endPos, units)
+    local dist        = startPos:Distance(endPos)
+    local numSegments = math.ceil(dist / units)
+    local segments    = {}
+    for i = 1, numSegments do
+        local t = i / numSegments
+        segments[#segments + 1] = LerpVector(t, startPos, endPos)
+    end
+    return segments
+end
+
+--- Returns true if a bot-sized player hull can be placed at `pos` without clipping world geometry.
+---@param bot Player
+---@param pos Vector
+---@return boolean
+---@realm server
+function TTTBots.Lib.CanStandAt(bot, pos)
+    if not util.IsInWorld(pos) then return false end
+
+    local origin = pos + Vector(0, 0, 16)
+    local mins   = bot:OBBMins()
+    local maxs   = bot:OBBMaxs() - Vector(0, 0, 16)
+    local tr     = util.TraceHull({
+        start  = origin,
+        endpos = origin,
+        mins   = mins,
+        maxs   = maxs,
+        filter = bot,
+        mask   = MASK_PLAYERSOLID,
+    })
+    return not tr.Hit
+end
